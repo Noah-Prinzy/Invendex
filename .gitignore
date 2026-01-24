@@ -1,0 +1,66 @@
+# =========================
+# Editor / OS
+# =========================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# =========================
+# Environment variables
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Dependencies
+# =========================
+node_modules/
+
+# =========================
+# Build outputs
+# =========================
+dist/
+build/
+out/
+.next/
+.nuxt/
+.svelte-kit/
+coverage/
+
+# =========================
+# Logs
+# =========================
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+logs/
+
+# =========================
+# Cache
+# =========================
+.cache/
+.parcel-cache/
+.eslintcache
+.turbo/
+
+# =========================
+# Backend-specific
+# =========================
+uploads/
+tmp/
+temp/
+
+# =========================
+# Database
+# =========================
+*.sqlite
+*.db
+
+# =========================
+# Testing
+# =========================
+.playwright/
+.cypress/
