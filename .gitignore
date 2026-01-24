@@ -64,3 +64,4 @@ temp/
 # =========================
 .playwright/
 .cypress/
+test-results/
