@@ -1,4 +1,5 @@
 import { body, param } from 'express-validator';
+import { STOCK_REASONS } from '../models/Product.js';
 
 /**
  * 🧾 Create Product Validation
@@ -66,12 +67,15 @@ export const adjustStockValidator = [
     .isMongoId()
     .withMessage('Invalid product ID'),
 
-  body('quantity')
+  body('amount')
     .isInt()
-    .withMessage('Quantity must be an integer'),
+    .withMessage('Amount must be an integer'),
 
   body('reason')
-    .optional()
-    .isLength({ max: 300 })
-    .withMessage('Reason is too long')
+    .trim()
+    .toLowerCase()
+    .isIn(STOCK_REASONS)
+    .withMessage(
+      `Reason must be one of: ${STOCK_REASONS.join(', ')}`
+    )
 ];

@@ -72,7 +72,7 @@ app.use(morgan('dev'));
  * 🚏 Routes
  */
 app.use('/auth', authRoutes);
-app.use('/products', productRoutes);
+app.use('/api/products', productRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/inventory-reports', inventoryReportRoutes);
 app.use('/api/inventory-metrics', inventoryMetricsRoutes);
@@ -88,6 +88,13 @@ app.get('/health', (req, res) => {
     status: 'ok',
     uptime: process.uptime(),
     timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'API is healthy'
   });
 });
 

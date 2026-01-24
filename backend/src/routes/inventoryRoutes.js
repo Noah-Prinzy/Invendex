@@ -16,7 +16,7 @@ import {
 
 import { protect } from '../middlewares/authMiddleware.js';
 import requireRoles from '../middlewares/requireRoles.js';
-import { auditMiddleware } from '../middlewares/auditMiddleware.js';
+import { auditMiddleware } from '../middlewares/authMiddleware.js';
 
 import {
   manualReorderAlertLimiter,
@@ -25,6 +25,10 @@ import {
 } from '../middlewares/rateLimiter.js';
 
 const router = express.Router();
+
+/* ======================================================
+   INVENTORY INSIGHTS
+====================================================== */
 
 /**
  * 📈 Product inventory trend
@@ -55,6 +59,10 @@ router.get(
   requireRoles('admin'),
   getInventoryDrops
 );
+
+/* ======================================================
+   REORDER ALERTS
+====================================================== */
 
 /**
  * 🚨 ACTIVE reorder alerts
@@ -123,7 +131,7 @@ router.post(
 );
 
 /**
- * ✅ MANUAL resolve reorder alert
+ * ✅ Resolve reorder alert
  * (RATE LIMITED + AUDITED)
  */
 router.patch(
@@ -137,6 +145,10 @@ router.patch(
   }),
   resolveReorderAlert
 );
+
+/* ======================================================
+   REORDER ENGINE
+====================================================== */
 
 /**
  * 🔁 Reorder point intelligence

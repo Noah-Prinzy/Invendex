@@ -1,11 +1,26 @@
 import mongoose from 'mongoose';
 
+const REORDER_SOURCES = Object.freeze([
+  'cron',
+  'manual',
+  'system',
+  'static',
+  'forecast'
+]);
+
+const ALERT_STATUSES = Object.freeze([
+  'ACTIVE',
+  'RESOLVED',
+  'CANCELLED'
+]);
+
 const reorderAlertSchema = new mongoose.Schema(
   {
     product: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Product',
-      required: true
+      required: true,
+      index: true
     },
 
     sku: {
@@ -24,18 +39,52 @@ const reorderAlertSchema = new mongoose.Schema(
       required: true
     },
 
+    /**
+     * 🔢 Quantity suggested to reorder
+     */
+    reorderQuantity: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+
+    /**
+     * 🚦 Alert lifecycle status
+     */
+    status: {
+      type: String,
+      enum: ALERT_STATUSES,
+      default: 'ACTIVE',
+      index: true
+    },
+
     triggeredAt: {
       type: Date,
-      required: true
+      required: true,
+      index: true
     },
 
+    /**
+     * Source of alert generation
+     * Always stored lowercase
+     */
     source: {
       type: String,
-      enum: ['cron', 'manual', 'system'],
-      default: 'cron'
+      enum: REORDER_SOURCES,
+      default: 'cron',
+      lowercase: true,
+      trim: true
     },
 
-    /* 🆕 Supplier snapshot (A19.2.x) */
+    /**
+     * Optional engine metadata
+     */
+    metadata: {
+      type: Object,
+      default: null
+    },
+
+    /* 🧊 Supplier snapshot */
     supplier: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Supplier',
@@ -52,7 +101,7 @@ const reorderAlertSchema = new mongoose.Schema(
       default: null
     },
 
-    /* 🆕 A20.1 — Purchase Order linkage */
+    /* 🆕 Purchase Order linkage */
     purchaseOrder: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'PurchaseOrder',
@@ -72,7 +121,8 @@ const reorderAlertSchema = new mongoose.Schema(
     /* ✅ Resolution tracking */
     resolved: {
       type: Boolean,
-      default: false
+      default: false,
+      index: true
     },
 
     resolvedAt: {
@@ -91,31 +141,44 @@ const reorderAlertSchema = new mongoose.Schema(
       ref: 'User',
       default: null
     },
-usedInPurchaseOrder: {
-  type: Boolean,
-  default: false
-},
-usedInPurchaseOrderAt: {
-  type: Date
-},
-processed: {
-  type: Boolean,
-  default: false
-},
-processedAt: {
-  type: Date
-}
 
+    /* 🧾 Purchase order usage tracking */
+    usedInPurchaseOrder: {
+      type: Boolean,
+      default: false
+    },
+
+    usedInPurchaseOrderAt: {
+      type: Date,
+      default: null
+    },
+
+    processed: {
+      type: Boolean,
+      default: false
+    },
+
+    processedAt: {
+      type: Date,
+      default: null
+    }
   },
   { timestamps: true }
 );
 
 /**
- * ❗ Prevent duplicate alerts per product per day
+ * ❗ Prevent duplicate ACTIVE alerts per product per day
  */
 reorderAlertSchema.index(
-  { product: 1, triggeredAt: 1 },
-  { unique: true }
+  {
+    product: 1,
+    triggeredAt: 1,
+    resolved: 1
+  },
+  {
+    unique: true,
+    partialFilterExpression: { resolved: false }
+  }
 );
 
 export default mongoose.model('ReorderAlert', reorderAlertSchema);

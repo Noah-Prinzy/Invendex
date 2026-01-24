@@ -1,96 +1,148 @@
 import Product from '../models/Product.js';
 import ReorderAlert from '../models/ReorderAlert.js';
-import Forecast from '../models/Forecast.js';
-import { calculateReorderPoint } from '../utils/calculateReorderPoint.js';
+import SupplierProduct from '../models/SupplierProduct.js';
+import {
+  getAverageDailyDemandPerSku
+} from './inventoryMetricsService.js';
+
+const ENGINE_VERSION = 'v1.3';
 
 /**
- * Run reorder engine for all active products.
- *
- * Forecast-aware logic:
- * - Prefer persisted forecasts when confidence is sufficient
- * - Fallback to static reorder point when not
+ * 🔁 Reorder Engine
+ * Generates reorder alerts based on demand & stock
  */
-export const runReorderEngine = async (
-  { triggeredBy = 'SYSTEM' } = {}
-) => {
-  const products = await Product.find({ isActive: true }).populate('supplier');
+export const runReorderEngine = async ({
+  triggeredBy = 'system',
+  lookbackDays = 30,
+  source = 'cron',
+  runDate = null // ✅ deterministic engine date
+} = {}) => {
+  // ✅ ENUM-SAFE normalization
+  const normalizedSource = String(source).toLowerCase();
 
-  const alerts = [];
+  const ALLOWED_SOURCES = [
+    'cron',
+    'system',
+    'forecast',
+    'static',
+    'manual'
+  ];
+
+  if (!ALLOWED_SOURCES.includes(normalizedSource)) {
+    throw new Error(`Invalid reorder source: ${source}`);
+  }
+
+  // 🕒 Engine execution date (normalized)
+  const engineDate = runDate ? new Date(runDate) : new Date();
+  engineDate.setHours(0, 0, 0, 0);
+
+  // 🔢 Demand calculation
+  const avgDemandPerSku =
+    await getAverageDailyDemandPerSku(
+      lookbackDays,
+      engineDate
+    );
+
+  // 📦 Active products
+  const products = await Product.find({ isActive: true }).lean();
+
+  // 🏭 Supplier links
+  const supplierLinks = await SupplierProduct.find({
+    isActive: true
+  }).lean();
+
+  const alertsCreated = [];
 
   for (const product of products) {
-    let shouldTriggerAlert = false;
-    let reorderPointUsed = null;
-    let forecastUsed = null;
+    const avgDailyDemand =
+      avgDemandPerSku[product.sku] || 0;
+
+    const supplierLink =
+      supplierLinks
+        .filter(s => s.product.toString() === product._id.toString())
+        .sort((a, b) => Number(b.isPreferred) - Number(a.isPreferred))[0] || null;
+
 
     const leadTimeDays =
+      supplierLink?.leadTimeDays ||
       product.supplierLeadTimeDays ||
-      product.supplier?.leadTimeDays ||
       7;
 
-    const safetyStockDays = product.safetyStockDays || 0;
+    const minimumOrderQuantity =
+      supplierLink?.minimumOrderQuantity || 1;
 
-    // 1️⃣ Try to use latest forecast
-    const forecast = await Forecast.findOne({
-      product: product._id
-    }).sort({ generatedAt: -1 });
+    // 🧮 Adjusted demand
+    const adjustedDailyDemand = avgDailyDemand;
 
-    if (
-      forecast &&
-      forecast.confidenceScore >= 0.6 &&
-      forecast.avgDailyDemand > 0
-    ) {
-      reorderPointUsed = calculateReorderPoint({
-        forecastAvgDailyDemand: forecast.avgDailyDemand,
-        supplierLeadTimeDays: leadTimeDays,
-        safetyStockDays
-      });
+    // 🧠 Forecast confidence
+    const trustScore = avgDailyDemand > 0 ? 0.7 : 0.3;
 
-      if (product.stock <= reorderPointUsed) {
-        shouldTriggerAlert = true;
-        forecastUsed = {
-          forecastId: forecast._id,
-          confidenceScore: forecast.confidenceScore,
-          avgDailyDemand: forecast.avgDailyDemand,
-          leadTimeDays
-        };
-      }
-    }
+    // 🧮 Reorder level
+    const reorderLevel = Math.max(
+      Math.ceil(adjustedDailyDemand * leadTimeDays * 1.2),
+      product.lowStockThreshold || 0
+    );
 
-    // 2️⃣ Fallback to static reorder logic
-    if (!shouldTriggerAlert) {
-      reorderPointUsed = calculateReorderPoint({
-        averageDailyUsage: product.averageDailyUsage,
-        supplierLeadTimeDays: leadTimeDays,
-        safetyStockDays
-      });
+    // 🚫 No reorder needed
+    if (product.stock > reorderLevel) continue;
 
-      if (product.stock <= reorderPointUsed) {
-        shouldTriggerAlert = true;
-      }
-    }
-
-    if (!shouldTriggerAlert) continue;
-
-    // 3️⃣ Prevent duplicate active alerts
+    // ❗ Prevent duplicate active alerts (same product, same day)
     const exists = await ReorderAlert.findOne({
       product: product._id,
+      triggeredAt: { $gte: engineDate },
       resolved: false
-    });
+    }).lean();
 
     if (exists) continue;
+
+    /**
+     * ✅ BUSINESS RULE:
+     * Always respect supplier MOQ
+     */
+    const calculatedReorderQty = Math.ceil(
+      adjustedDailyDemand * leadTimeDays
+    );
+
+    const reorderQuantity = Math.max(
+      calculatedReorderQty,
+      minimumOrderQuantity,
+      1
+    );
 
     const alert = await ReorderAlert.create({
       product: product._id,
       sku: product.sku,
-      currentStock: product.stock,
-      reorderPoint: reorderPointUsed,
-      triggeredBy,
-      source: forecastUsed ? 'FORECAST' : 'STATIC',
-      metadata: forecastUsed || undefined
+      stock: product.stock,
+      reorderLevel,
+      reorderQuantity,
+      status: 'ACTIVE',
+      triggeredAt: engineDate,
+      source: normalizedSource,
+
+      metadata: {
+        avgDailyDemand,
+        adjustedDailyDemand,
+        forecastTrustScore: trustScore,
+        leadTimeDays,
+        lowStockThreshold: product.lowStockThreshold,
+        minimumOrderQuantity,
+        engineVersion: ENGINE_VERSION
+      },
+
+      supplier: supplierLink?.supplier || null,
+      supplierLeadTimeDays: supplierLink?.leadTimeDays || null,
+      supplierUnitCost: supplierLink?.unitCost || null
     });
 
-    alerts.push(alert);
+    alertsCreated.push(alert);
   }
 
-  return alerts;
+  return {
+    generated: alertsCreated.length,
+    alerts: alertsCreated
+  };
+};
+
+export default {
+  runReorderEngine
 };

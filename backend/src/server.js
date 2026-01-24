@@ -11,48 +11,50 @@ import { startInventoryReportCron } from './cron/inventoryReportCron.js';
 // 📊 Inventory metrics cron
 import { startInventoryMetricsCron } from './cron/inventoryMetricsCron.js';
 
-// 🔮 Inventory forecast cron
+// 🔮 Inventory forecast generation cron
 import { startForecastGenerationCron } from './cron/forecastGenerationCron.js';
 
-// 🔔 Static reorder alert cron
-import { startInventoryReorderAlertCron } from './cron/inventoryReorderAlertCron.js';
+// 🔁 Forecast-aware reorder cron
+import { startForecastReorderCron } from './cron/forecastReorderCron.js';
 
-// 🔮 Forecast-aware reorder engine cron
-import { startForecastReorderEngineCron } from './cron/forecastReorderEngineCron.js';
-
-// 🔮 Forecast reorder alert cron
-import { startForecastReorderAlertCron } from './cron/forecastReorderAlertCron.js';
 // 🤖 Background jobs
 import { autoSendPurchaseOrdersJob } from './jobs/autoSendPurchaseOrders.js';
 import { autoClosePurchaseOrdersJob } from './jobs/autoClosePurchaseOrders.js';
 
-// Routes
+// -------------------- ROUTES --------------------
+import inventoryRoutes from './routes/inventoryRoutes.js'; // ✅ MISSING
 import forecastRoutes from './routes/forecastRoutes.js';
 import inventoryMetricsRoutes from './routes/inventoryMetricsRoutes.js';
 import auditLogRoutes from './routes/auditLogRoutes.js';
-import errorMiddleware from './middlewares/errorMiddleware.js';
 import reorderAlertRoutes from './routes/reorderAlertRoutes.js';
+import reorderAnalysisRoutes from './routes/reorderAnalysisRoutes.js';
+import forecastTrustRoutes from './routes/forecastTrustRoutes.js';
+// ------------------------------------------------
+
+import errorMiddleware from './middlewares/errorMiddleware.js';
 
 /**
- * 🔐 GLOBAL API RATE LIMITER (A26.1)
- * Applies to ALL /api routes
+ * 🔐 GLOBAL API RATE LIMITER
  */
 app.use(
   '/api',
   rateLimiter({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 300                 // 300 requests per IP
+    windowMs: 15 * 60 * 1000,
+    max: 300
   })
 );
 
-// -------------------- ROUTES --------------------
+// -------------------- ROUTE MOUNTS --------------------
+app.use('/api/inventory', inventoryRoutes); // ✅ REQUIRED
 app.use('/api/forecast', forecastRoutes);
 app.use('/api/inventory-metrics', inventoryMetricsRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/reorder-alerts', reorderAlertRoutes);
-// ------------------------------------------------
+app.use('/api/reorder-analysis', reorderAnalysisRoutes);
+app.use('/api/forecast-trust', forecastTrustRoutes);
+// -----------------------------------------------------
 
-// 🛑 ERROR HANDLING MIDDLEWARE
+// 🛑 ERROR HANDLING
 app.use(errorMiddleware);
 
 const PORT = process.env.PORT || 4000;
@@ -68,7 +70,7 @@ async function startServer() {
     autoClosePurchaseOrdersJob();
     console.log('🧹 Auto-close purchase orders job running');
 
-    // ⏱️ Cron jobs (intentional order)
+    // ⏱️ Cron jobs (ordered)
     startInventoryReportCron();
     console.log('⏱️ Inventory report cron started');
 
@@ -78,14 +80,8 @@ async function startServer() {
     startForecastGenerationCron();
     console.log('🔮 Inventory forecast cron started');
 
-    startInventoryReorderAlertCron();
-    console.log('🔔 Static reorder alert cron started');
-
-    startForecastReorderEngineCron();
-    console.log('🔮 Forecast-aware reorder engine cron started');
-
-    startForecastReorderAlertCron();
-    console.log('🔮 Forecast reorder alert cron started');
+    startForecastReorderCron();
+    console.log('🔁 Forecast-aware reorder cron started');
 
     app.listen(PORT, () => {
       console.log(`🚀 Ledgerly backend running on port ${PORT}`);

@@ -11,22 +11,26 @@ const forecastSchema = new mongoose.Schema(
 
     horizonDays: {
       type: Number,
-      required: true
+      required: true,
+      min: 1
     },
 
     expectedDemand: {
       type: Number,
-      required: true
+      required: true,
+      min: 0
     },
 
     avgDailyDemand: {
       type: Number,
-      required: true
+      required: true,
+      min: 0
     },
 
     volatility: {
       type: Number,
-      required: true
+      required: true,
+      min: 0
     },
 
     confidenceScore: {
@@ -38,7 +42,8 @@ const forecastSchema = new mongoose.Schema(
 
     modelUsed: {
       type: String,
-      required: true
+      required: true,
+      trim: true
     },
 
     generatedAt: {
@@ -52,10 +57,19 @@ const forecastSchema = new mongoose.Schema(
   }
 );
 
-// Prevent duplicate forecasts for same product & timestamp
+/**
+ * ❗ Prevent duplicate forecasts for same product & timestamp
+ */
 forecastSchema.index(
   { product: 1, generatedAt: 1 },
   { unique: true }
+);
+
+/**
+ * ⚡ Optimized query for "latest forecast per product"
+ */
+forecastSchema.index(
+  { product: 1, generatedAt: -1 }
 );
 
 export default mongoose.model('Forecast', forecastSchema);

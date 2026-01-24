@@ -2,9 +2,8 @@ import cron from 'node-cron';
 import Product from '../models/Product.js';
 import InventorySnapshot from '../models/InventorySnapshot.js';
 
-// ✅ Safe CJS ↔ ESM interop
+// ✅ Correct CJS ↔ ESM interop
 import forecastService from '../services/inventory/forecastService.js';
-
 const { generateProductForecast } = forecastService;
 
 let cronStarted = false;
@@ -16,7 +15,7 @@ let cronStarted = false;
  * Responsibilities:
  * - Build historical demand from inventory snapshots
  * - Invoke forecast engine
- * - Persist forecast results (handled by engine)
+ * - Persist forecast results (handled by service)
  */
 export const startForecastGenerationCron = () => {
   if (cronStarted) return;
@@ -34,11 +33,11 @@ export const startForecastGenerationCron = () => {
 
       for (const product of products) {
         try {
-          // 🕒 Last 30 inventory snapshots
+          // 🕒 Last 30 inventory snapshots (most recent first)
           const snapshots = await InventorySnapshot.find({
             product: product._id
           })
-            .sort({ createdAt: -1 })
+            .sort({ recordedAt: -1 })
             .limit(30)
             .lean();
 
@@ -65,7 +64,7 @@ export const startForecastGenerationCron = () => {
         } catch (err) {
           console.error(
             `❌ Forecast failed for product ${product.sku}:`,
-            err
+            err.message
           );
         }
       }

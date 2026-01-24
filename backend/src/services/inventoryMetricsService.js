@@ -10,11 +10,9 @@ export const generateDailyInventoryMetrics = async (
   date = new Date(),
   generatedBy = 'cron'
 ) => {
-  // Normalize date to start of day (00:00)
   const normalizedDate = new Date(date);
   normalizedDate.setHours(0, 0, 0, 0);
 
-  // Fetch active products only
   const products = await Product.find({ isActive: true })
     .select('stock price')
     .lean();
@@ -31,8 +29,7 @@ export const generateDailyInventoryMetrics = async (
   const avgValuePerSku =
     skuCount === 0 ? 0 : totalInventoryValue / skuCount;
 
-  // Upsert metrics for the day
-  const metrics = await InventoryMetrics.findOneAndUpdate(
+  return InventoryMetrics.findOneAndUpdate(
     { date: normalizedDate },
     {
       date: normalizedDate,
@@ -48,58 +45,76 @@ export const generateDailyInventoryMetrics = async (
       setDefaultsOnInsert: true
     }
   );
+};
 
-  return metrics;
+/**
+ * 🧮 PURE demand calculation helper
+ * Calculates average daily demand from ordered snapshots
+ */
+const calculateAverageDailyDemand = (snapshots, days) => {
+  let totalDemand = 0;
+
+  for (let i = 1; i < snapshots.length; i++) {
+    const prev = snapshots[i - 1];
+    const curr = snapshots[i];
+
+    const delta = prev.stock - curr.stock;
+
+    // Only decreases count as demand
+    if (delta > 0) {
+      totalDemand += delta;
+    }
+  }
+
+  return totalDemand === 0 ? 0 : totalDemand / days;
 };
 
 /**
  * 📉 Calculate average daily demand per SKU
- * Demand is derived from historical inventory snapshots
  *
- * @param {number} days - Number of days to analyze
+ * @param {number} days
+ * @param {Date} [endDateOverride]
  * @returns {Object} { sku: avgDailyDemand }
  */
-export const getAverageDailyDemandPerSku = async (days = 30) => {
+export const getAverageDailyDemandPerSku = async (
+  days = 30,
+  endDateOverride = null
+) => {
   if (days < 2) {
     throw new Error('At least 2 days are required to calculate demand');
   }
 
-  const endDate = new Date();
+  const endDate = endDateOverride
+    ? new Date(endDateOverride)
+    : new Date();
+
   endDate.setHours(0, 0, 0, 0);
 
   const startDate = new Date(endDate);
   startDate.setDate(startDate.getDate() - days);
 
-  // Fetch snapshots ordered by SKU and date
   const snapshots = await InventorySnapshot.find({
     recordedAt: { $gte: startDate, $lte: endDate }
   })
     .sort({ sku: 1, recordedAt: 1 })
     .lean();
 
-  const demandMap = {};
-  const countsMap = {};
-
-  for (let i = 1; i < snapshots.length; i++) {
-    const prev = snapshots[i - 1];
-    const curr = snapshots[i];
-
-    if (prev.sku !== curr.sku) continue;
-
-    const delta = prev.stock - curr.stock;
-
-    // Only count decreases as demand
-    if (delta > 0) {
-      demandMap[curr.sku] = (demandMap[curr.sku] || 0) + delta;
-      countsMap[curr.sku] = (countsMap[curr.sku] || 0) + 1;
+  // 🧠 Group snapshots per SKU
+  const snapshotsBySku = {};
+  for (const snap of snapshots) {
+    if (!snapshotsBySku[snap.sku]) {
+      snapshotsBySku[snap.sku] = [];
     }
+    snapshotsBySku[snap.sku].push(snap);
   }
 
   const avgDemandPerSku = {};
 
-  for (const sku of Object.keys(demandMap)) {
-    avgDemandPerSku[sku] =
-      demandMap[sku] / countsMap[sku];
+  for (const [sku, skuSnapshots] of Object.entries(snapshotsBySku)) {
+    avgDemandPerSku[sku] = calculateAverageDailyDemand(
+      skuSnapshots,
+      days
+    );
   }
 
   return avgDemandPerSku;

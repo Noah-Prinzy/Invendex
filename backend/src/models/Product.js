@@ -1,6 +1,11 @@
 import mongoose from 'mongoose';
 
-const STOCK_REASONS = ['sale', 'restock', 'adjustment', 'return'];
+export const STOCK_REASONS = [
+  'sale',
+  'restock',
+  'adjustment',
+  'return'
+];
 
 const stockHistorySchema = new mongoose.Schema(
   {
@@ -12,7 +17,7 @@ const stockHistorySchema = new mongoose.Schema(
       type: Number,
       required: true
     },
-    change: {
+    changeAmount: {
       type: Number,
       required: true
     },
@@ -26,7 +31,7 @@ const stockHistorySchema = new mongoose.Schema(
       ref: 'User',
       default: null
     },
-    createdAt: {
+    changedAt: {
       type: Date,
       default: Date.now
     }
@@ -49,6 +54,7 @@ const productSchema = new mongoose.Schema(
       uppercase: true,
       trim: true,
       maxlength: 50
+      // ❌ removed index:true (duplicate)
     },
 
     price: {
@@ -61,7 +67,8 @@ const productSchema = new mongoose.Schema(
     stock: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
+      index: true
     },
 
     lowStockThreshold: {
@@ -70,6 +77,10 @@ const productSchema = new mongoose.Schema(
       min: 0
     },
 
+    /**
+     * 🧾 Historical stock changes (audit-level)
+     * NOT used for demand calculation
+     */
     stockHistory: {
       type: [stockHistorySchema],
       default: []
@@ -83,18 +94,29 @@ const productSchema = new mongoose.Schema(
 
     category: {
       type: String,
-      trim: true
+      trim: true,
+      index: true
     },
 
     isActive: {
       type: Boolean,
-      default: true
+      default: true,
+      index: true
     },
+
+    /**
+     * ⚠️ Cached / derived metric
+     * Source of truth = InventorySnapshot analytics
+     */
     averageDailyUsage: {
       type: Number,
       default: 0
     },
 
+    /**
+     * 🏭 Fallback supplier lead time
+     * SupplierProduct takes precedence
+     */
     supplierLeadTimeDays: {
       type: Number,
       default: 7
@@ -103,6 +125,16 @@ const productSchema = new mongoose.Schema(
     safetyStockDays: {
       type: Number,
       default: 3
+    },
+
+    /**
+     * 🔮 Forecast Trust Score
+     */
+    forecastTrustScore: {
+      type: Number,
+      default: 0.5,
+      min: 0,
+      max: 1
     }
   },
   {
@@ -119,13 +151,20 @@ const productSchema = new mongoose.Schema(
 
 /**
  * 📦 Adjust stock safely
+ * NOTE: InventorySnapshot must be created by caller
  */
 productSchema.methods.adjustStock = async function (
   amount,
   reason,
   userId = null
 ) {
-  if (!STOCK_REASONS.includes(reason)) {
+  if (!Number.isInteger(amount) || amount === 0) {
+    throw new Error('Stock adjustment amount must be a non-zero integer');
+  }
+
+  const normalizedReason = String(reason).trim().toLowerCase();
+
+  if (!STOCK_REASONS.includes(normalizedReason)) {
     throw new Error('Invalid stock adjustment reason');
   }
 
@@ -138,9 +177,10 @@ productSchema.methods.adjustStock = async function (
   this.stockHistory.push({
     previousStock: this.stock,
     newStock,
-    change: amount,
-    reason,
-    changedBy: userId
+    changeAmount: amount,
+    reason: normalizedReason,
+    changedBy: userId,
+    changedAt: new Date()
   });
 
   if (this.stockHistory.length > 100) {
@@ -159,11 +199,10 @@ productSchema.virtual('isLowStock').get(function () {
 });
 
 /**
- * 🔍 Indexes (single source of truth)
+ * 🔍 Indexes
  */
 productSchema.index({ sku: 1 }, { unique: true });
 productSchema.index({ category: 1, isActive: 1 });
-productSchema.index({ stock: 1 });
 productSchema.index({ createdAt: -1 });
 
 export default mongoose.model('Product', productSchema);

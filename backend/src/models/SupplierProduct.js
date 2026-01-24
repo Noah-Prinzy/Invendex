@@ -5,35 +5,70 @@ const supplierProductSchema = new mongoose.Schema(
     supplier: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Supplier',
-      required: true
-    },
-    product: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Product',
-      required: true
-    },
-    sku: {
-      type: String,
       required: true,
       index: true
     },
+
+    product: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Product',
+      required: true,
+      index: true
+    },
+
+    /**
+     * 🔁 Denormalized for fast access
+     * Must match Product.sku
+     */
+    sku: {
+      type: String,
+      required: true,
+      uppercase: true,
+      trim: true,
+      index: true
+    },
+
     unitCost: {
       type: Number,
       required: true,
       min: 0
     },
+
+    /**
+     * ⏱️ Supplier lead time
+     * Optional — Product fallback applies
+     */
     leadTimeDays: {
       type: Number,
-      required: true,
+      default: null,
       min: 0
     },
+
+    /**
+     * 📦 Minimum order quantity (MOQ)
+     * Enforced by reorder engine
+     */
+    minimumOrderQuantity: {
+      type: Number,
+      default: 1,
+      min: 1
+    },
+
+    /**
+     * ⭐ Preferred supplier for this product
+     */
     isPreferred: {
       type: Boolean,
       default: false
     },
+
+    /**
+     * 🔄 Soft disable supplier links
+     */
     isActive: {
       type: Boolean,
-      default: true
+      default: true,
+      index: true
     }
   },
   { timestamps: true }
@@ -46,6 +81,14 @@ supplierProductSchema.index(
   { supplier: 1, product: 1 },
   { unique: true }
 );
+
+/**
+ * ⚡ Fast active supplier resolution
+ */
+supplierProductSchema.index({
+  product: 1,
+  isActive: 1
+});
 
 export default mongoose.model(
   'SupplierProduct',

@@ -1,17 +1,12 @@
 /**
  * Forecast Engine
  * ----------------
- * Pure analytics module responsible for generating demand forecasts
- * based on historical usage / sales data.
+ * Pure analytics module responsible for generating demand forecasts.
  *
  * IMPORTANT:
+ * - No database access
  * - No external API calls
- * - Forecast persistence is NON-BLOCKING
- *
- * This engine can be safely used by:
- * - forecastService
- * - reorderEngine (later)
- * - anomalyDetection comparisons
+ * - No side effects
  */
 
 const DEFAULT_OPTIONS = {
@@ -46,9 +41,9 @@ function standardDeviation(data, mean) {
 }
 
 /**
- * Generates a demand forecast and persists it.
+ * Generates a demand forecast.
  */
-function generateForecast({
+export function generateForecast({
   productId,
   historicalDemand = [],
   options = {}
@@ -79,7 +74,7 @@ function generateForecast({
           )
         );
 
-  const forecast = {
+  return {
     productId,
     horizonDays: config.horizonDays,
     expectedDemand: Math.round(expectedDemand),
@@ -89,33 +84,4 @@ function generateForecast({
     modelUsed: config.method,
     generatedAt: new Date()
   };
-
-  /**
-   * 🔒 NON-BLOCKING persistence
-   * Analytics must NEVER crash system flow
-   */
-  try {
-    const Forecast =
-      require('../models/Forecast.js').default ||
-      require('../models/Forecast.js');
-
-    Forecast.create({
-      product: productId,
-      horizonDays: forecast.horizonDays,
-      expectedDemand: forecast.expectedDemand,
-      avgDailyDemand: forecast.avgDailyDemand,
-      volatility: forecast.volatility,
-      confidenceScore: forecast.confidenceScore,
-      modelUsed: forecast.modelUsed,
-      generatedAt: forecast.generatedAt
-    }).catch(() => {});
-  } catch (_) {
-    // Silent fail by design
-  }
-
-  return forecast;
 }
-
-module.exports = {
-  generateForecast
-};
