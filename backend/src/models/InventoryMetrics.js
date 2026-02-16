@@ -2,6 +2,12 @@ import mongoose from 'mongoose';
 
 const inventoryMetricsSchema = new mongoose.Schema(
   {
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Organization',
+      required: true,
+      index: true
+    },
     /**
      * 📅 Metrics date (normalized to day)
      * One record per day
@@ -64,7 +70,10 @@ const inventoryMetricsSchema = new mongoose.Schema(
  * 🔍 Indexes
  * One metrics record per day
  */
-inventoryMetricsSchema.index({ date: 1 }, { unique: true });
+inventoryMetricsSchema.index(
+  { organization: 1, date: 1 },
+  { unique: true }
+);
 
 export default mongoose.model(
   'InventoryMetrics',

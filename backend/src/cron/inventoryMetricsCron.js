@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { generateDailyInventoryMetrics } from '../services/inventoryMetricsService.js';
+import Organization from '../models/Organization.js';
 
 let cronStarted = false;
 
@@ -22,7 +23,17 @@ export const startInventoryMetricsCron = () => {
       targetDate.setDate(targetDate.getDate() - 1);
       targetDate.setHours(0, 0, 0, 0);
 
-      await generateDailyInventoryMetrics(targetDate, 'cron');
+      const organizations = await Organization.find({
+        isActive: true
+      }).select('_id');
+
+      for (const organization of organizations) {
+        await generateDailyInventoryMetrics(
+          targetDate,
+          'cron',
+          organization._id
+        );
+      }
 
       console.log('✅ Inventory metrics generated successfully');
     } catch (err) {

@@ -8,12 +8,20 @@ import InventorySnapshot from '../models/InventorySnapshot.js';
  */
 export const generateDailyInventoryMetrics = async (
   date = new Date(),
-  generatedBy = 'cron'
+  generatedBy = 'cron',
+  organizationId = null
 ) => {
+  if (!organizationId) {
+    throw new Error('organizationId is required to generate inventory metrics');
+  }
+
   const normalizedDate = new Date(date);
   normalizedDate.setHours(0, 0, 0, 0);
 
-  const products = await Product.find({ isActive: true })
+  const products = await Product.find({
+    organization: organizationId,
+    isActive: true
+  })
     .select('stock price')
     .lean();
 
@@ -30,8 +38,9 @@ export const generateDailyInventoryMetrics = async (
     skuCount === 0 ? 0 : totalInventoryValue / skuCount;
 
   return InventoryMetrics.findOneAndUpdate(
-    { date: normalizedDate },
+    { organization: organizationId, date: normalizedDate },
     {
+      organization: organizationId,
       date: normalizedDate,
       totalStock,
       totalInventoryValue,
@@ -78,7 +87,8 @@ const calculateAverageDailyDemand = (snapshots, days) => {
  */
 export const getAverageDailyDemandPerSku = async (
   days = 30,
-  endDateOverride = null
+  endDateOverride = null,
+  organizationId = null
 ) => {
   if (days < 2) {
     throw new Error('At least 2 days are required to calculate demand');
@@ -93,9 +103,15 @@ export const getAverageDailyDemandPerSku = async (
   const startDate = new Date(endDate);
   startDate.setDate(startDate.getDate() - days);
 
-  const snapshots = await InventorySnapshot.find({
+  const filter = {
     recordedAt: { $gte: startDate, $lte: endDate }
-  })
+  };
+
+  if (organizationId) {
+    filter.organization = organizationId;
+  }
+
+  const snapshots = await InventorySnapshot.find(filter)
     .sort({ sku: 1, recordedAt: 1 })
     .lean();
 

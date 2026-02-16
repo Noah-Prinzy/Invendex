@@ -12,7 +12,9 @@ export const compareReorderAlerts = async (req, res, next) => {
   try {
     const { fromDate, toDate, productId } = req.query;
 
-    const query = {};
+    const query = {
+      organization: req.organizationId
+    };
 
     if (productId) {
       query.product = productId;
@@ -34,9 +36,9 @@ export const compareReorderAlerts = async (req, res, next) => {
     const forecastAlerts = [];
 
     for (const alert of alerts) {
-      if (alert.source === 'FORECAST') {
+      if (alert.source === 'forecast') {
         forecastAlerts.push(alert);
-      } else if (alert.source === 'STATIC') {
+      } else if (alert.source === 'static') {
         staticAlerts.push(alert);
       }
     }

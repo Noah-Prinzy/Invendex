@@ -2,6 +2,12 @@ import mongoose from 'mongoose';
 
 const orderSchema = new mongoose.Schema(
   {
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Organization',
+      required: true,
+      index: true
+    },
     type: {
       type: String,
       enum: ['purchase', 'sale'],
@@ -29,5 +35,7 @@ const orderSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+orderSchema.index({ organization: 1, createdAt: -1 });
 
 export default mongoose.model('Order', orderSchema);

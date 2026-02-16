@@ -6,9 +6,13 @@ import ReorderAlert from '../models/ReorderAlert.js';
  * Safe baseline implementation
  */
 export const generateProductForecast = async ({
-  triggeredBy = 'system'
+  triggeredBy = 'system',
+  organizationId = null
 } = {}) => {
-  const products = await Product.find({ isActive: true });
+  const products = await Product.find({
+    ...(organizationId ? { organization: organizationId } : {}),
+    isActive: true
+  });
 
   const createdAlerts = [];
 
@@ -24,6 +28,7 @@ export const generateProductForecast = async ({
     if (product.stock > reorderPoint) continue;
 
     const existingAlert = await ReorderAlert.findOne({
+      ...(organizationId ? { organization: organizationId } : {}),
       product: product._id,
       resolved: false
     });
@@ -31,6 +36,7 @@ export const generateProductForecast = async ({
     if (existingAlert) continue;
 
     const alert = await ReorderAlert.create({
+      ...(organizationId ? { organization: organizationId } : {}),
       product: product._id,
       sku: product.sku,
       stock: product.stock,

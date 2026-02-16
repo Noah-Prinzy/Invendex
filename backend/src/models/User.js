@@ -17,8 +17,14 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['admin', 'staff'],
+      enum: ['owner', 'admin', 'manager', 'staff'],
       default: 'staff'
+    },
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Organization',
+      default: null,
+      index: true
     },
     isVerified: {
       type: Boolean,

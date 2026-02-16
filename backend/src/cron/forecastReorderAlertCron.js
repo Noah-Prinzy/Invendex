@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import Product from '../models/Product.js';
 import ForecastResult from '../models/ForecastResult.js';
 import ReorderAlert from '../models/ReorderAlert.js';
+import Organization from '../models/Organization.js';
 
 let cronStarted = false;
 
@@ -21,67 +22,75 @@ export const startForecastReorderAlertCron = () => {
     try {
       console.log('🔮 Running forecast reorder alert cron...');
 
-      const products = await Product.find({ isActive: true })
-        .populate('supplier')
-        .lean();
+      const organizations = await Organization.find({
+        isActive: true
+      }).select('_id');
 
-      for (const product of products) {
-        try {
-          const forecast = await ForecastResult.findOne({
-            product: product._id
-          }).sort({ generatedAt: -1 });
+      for (const organization of organizations) {
+        const products = await Product.find({
+          organization: organization._id,
+          isActive: true
+        }).lean();
 
-          if (!forecast || forecast.avgDailyDemand <= 0) continue;
+        for (const product of products) {
+          try {
+            const forecast = await ForecastResult.findOne({
+              organization: organization._id,
+              product: product._id
+            }).sort({ generatedAt: -1 });
 
-          const leadTimeDays =
-            product.supplierLeadTimeDays ||
-            product.supplier?.leadTimeDays ||
-            7;
+            if (!forecast || forecast.avgDailyDemand <= 0) continue;
 
-          const forecastedDemand =
-            forecast.avgDailyDemand * leadTimeDays;
+            const leadTimeDays = product.supplierLeadTimeDays || 7;
 
-          if (forecastedDemand <= product.stock) continue;
+            const forecastedDemand =
+              forecast.avgDailyDemand * leadTimeDays;
 
-          // ❗ Prevent duplicate unresolved alerts
-          const exists = await ReorderAlert.findOne({
-            product: product._id,
-            resolved: false
-          });
+            if (forecastedDemand <= product.stock) continue;
 
-          if (exists) continue;
+            // ❗ Prevent duplicate unresolved alerts
+            const exists = await ReorderAlert.findOne({
+              organization: organization._id,
+              product: product._id,
+              resolved: false
+            });
 
-          await ReorderAlert.create({
-            product: product._id,
-            sku: product.sku,
-            stock: product.stock,
-            reorderLevel: Math.ceil(forecastedDemand),
-            triggeredAt: new Date(),
-            source: 'FORECAST',
+            if (exists) continue;
 
-            // 🧠 Forecast context
-            forecastMeta: {
-              forecastId: forecast._id,
-              confidenceScore: forecast.confidenceScore,
-              avgDailyDemand: forecast.avgDailyDemand,
-              leadTimeDays
-            },
+            await ReorderAlert.create({
+              organization: organization._id,
+              product: product._id,
+              sku: product.sku,
+              stock: product.stock,
+              reorderLevel: Math.ceil(forecastedDemand),
+              reorderQuantity: Math.max(Math.ceil(forecastedDemand - product.stock), 1),
+              triggeredAt: new Date(),
+              source: 'forecast',
 
-            // 🧊 Supplier snapshot
-            supplier: product.supplier?._id || null,
-            supplierLeadTimeDays: leadTimeDays,
-            supplierUnitCost: product.costPrice || null
-          });
+              // 🧠 Forecast context
+              metadata: {
+                forecastId: forecast._id,
+                confidenceScore: forecast.confidenceScore,
+                avgDailyDemand: forecast.avgDailyDemand,
+                leadTimeDays
+              },
 
-          console.warn(
-            `🔮 FORECAST ALERT | ${product.sku} | Stock: ${product.stock}`
-          );
-        } catch (err) {
-          if (err.code !== 11000) {
-            console.error(
-              `❌ Forecast reorder failed for ${product.sku}:`,
-              err
+              // 🧊 Supplier snapshot
+              supplier: null,
+              supplierLeadTimeDays: leadTimeDays,
+              supplierUnitCost: null
+            });
+
+            console.warn(
+              `🔮 FORECAST ALERT | ${product.sku} | Stock: ${product.stock}`
             );
+          } catch (err) {
+            if (err.code !== 11000) {
+              console.error(
+                `❌ Forecast reorder failed for ${product.sku}:`,
+                err
+              );
+            }
           }
         }
       }

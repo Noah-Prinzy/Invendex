@@ -2,8 +2,10 @@ import express from 'express';
 import { exportInventoryReport } from '../controllers/inventoryReportController.js';
 import { protect } from '../middlewares/authMiddleware.js';
 import requireRoles from '../middlewares/requireRoles.js';
+import requireOrganization from '../middlewares/requireOrganization.js';
 
 const router = express.Router();
+router.use(protect, requireOrganization);
 
 /**
  * 📊 Inventory Report Exports
@@ -24,7 +26,6 @@ const router = express.Router();
  */
 router.get(
   '/export',
-  protect,
   requireRoles('admin', 'staff'),
   exportInventoryReport
 );

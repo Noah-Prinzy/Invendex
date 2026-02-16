@@ -2,6 +2,7 @@ import InventorySnapshot from '../models/InventorySnapshot.js';
 import Product from '../models/Product.js';
 import ReorderAlert from '../models/ReorderAlert.js';
 import SupplierProduct from '../models/SupplierProduct.js';
+import mongoose from 'mongoose';
 import { successResponse } from '../utils/response.js';
 import { AppError } from '../errors/AppError.js';
 import { runReorderEngine } from '../services/reorderEngine.js';
@@ -16,6 +17,7 @@ import {
 export const getProductInventoryTrend = async (req, res, next) => {
   try {
     const snapshots = await InventorySnapshot.find({
+      organization: req.organizationId,
       product: req.params.productId
     }).sort({ recordedAt: 1 });
 
@@ -32,6 +34,11 @@ export const getProductInventoryTrend = async (req, res, next) => {
 export const getDailyInventorySummary = async (req, res, next) => {
   try {
     const summary = await InventorySnapshot.aggregate([
+      {
+        $match: {
+          organization: new mongoose.Types.ObjectId(req.organizationId)
+        }
+      },
       {
         $group: {
           _id: '$sku',
@@ -62,10 +69,20 @@ export const getDailyInventorySummary = async (req, res, next) => {
 export const getReorderIntelligence = async (req, res, next) => {
   try {
     const days = Number(req.query.days) || 30;
-    const avgDemandPerSku = await getAverageDailyDemandPerSku(days);
+    const avgDemandPerSku = await getAverageDailyDemandPerSku(
+      days,
+      null,
+      req.organizationId
+    );
 
-    const products = await Product.find({ isActive: true }).lean();
-    const supplierLinks = await SupplierProduct.find({ isActive: true })
+    const products = await Product.find({
+      organization: req.organizationId,
+      isActive: true
+    }).lean();
+    const supplierLinks = await SupplierProduct.find({
+      organization: req.organizationId,
+      isActive: true
+    })
       .populate('supplier', 'name leadTimeDays')
       .lean();
 
@@ -114,7 +131,10 @@ export const getReorderIntelligence = async (req, res, next) => {
 
 export const getActiveReorderAlerts = async (req, res, next) => {
   try {
-    const alerts = await ReorderAlert.find({ resolved: false })
+    const alerts = await ReorderAlert.find({
+      organization: req.organizationId,
+      resolved: false
+    })
       .sort({ triggeredAt: -1 })
       .populate('product', 'sku name')
       .populate('supplier', 'name');
@@ -127,7 +147,10 @@ export const getActiveReorderAlerts = async (req, res, next) => {
 
 export const getResolvedReorderAlerts = async (req, res, next) => {
   try {
-    const alerts = await ReorderAlert.find({ resolved: true })
+    const alerts = await ReorderAlert.find({
+      organization: req.organizationId,
+      resolved: true
+    })
       .sort({ resolvedAt: -1 });
 
     return successResponse(res, alerts, 'Resolved reorder alerts fetched');
@@ -142,6 +165,11 @@ export const getResolvedReorderAlerts = async (req, res, next) => {
 export const getInventoryDrops = async (req, res, next) => {
   try {
     const drops = await InventorySnapshot.aggregate([
+      {
+        $match: {
+          organization: new mongoose.Types.ObjectId(req.organizationId)
+        }
+      },
       { $sort: { createdAt: -1 } },
       {
         $group: {
@@ -206,7 +234,10 @@ export const createManualReorderAlert = async (req, res, next) => {
   try {
     const { productId } = req.body;
 
-    const product = await Product.findById(productId);
+    const product = await Product.findOne({
+      _id: productId,
+      organization: req.organizationId
+    });
     if (!product) {
       throw new AppError('Product not found', 404);
     }
@@ -216,6 +247,7 @@ export const createManualReorderAlert = async (req, res, next) => {
     startOfDay.setHours(0, 0, 0, 0);
 
     const exists = await ReorderAlert.findOne({
+      organization: req.organizationId,
       product: product._id,
       resolved: false,
       triggeredAt: { $gte: startOfDay }
@@ -226,11 +258,13 @@ export const createManualReorderAlert = async (req, res, next) => {
     }
 
     const supplierLink = await SupplierProduct.findOne({
+      organization: req.organizationId,
       product: product._id,
       isActive: true
     }).lean();
 
     const alert = await ReorderAlert.create({
+      organization: req.organizationId,
       product: product._id,
       sku: product.sku,
       stock: product.stock,
@@ -250,7 +284,10 @@ export const createManualReorderAlert = async (req, res, next) => {
 
 export const resolveReorderAlert = async (req, res, next) => {
   try {
-    const alert = await ReorderAlert.findById(req.params.alertId);
+    const alert = await ReorderAlert.findOne({
+      _id: req.params.alertId,
+      organization: req.organizationId
+    });
     if (!alert) {
       throw new AppError('Reorder alert not found', 404);
     }
@@ -267,14 +304,15 @@ export const resolveReorderAlert = async (req, res, next) => {
 
 export const runAutomaticReorderAlerts = async (req, res, next) => {
   try {
-    const alerts = await runReorderEngine({
+    const engineResult = await runReorderEngine({
       triggeredBy: req.user?._id || 'system',
-      source: 'system'
+      source: 'system',
+      organizationId: req.organizationId
     });
 
     return successResponse(
       res,
-      { generated: alerts.length, alerts },
+      { generated: engineResult.generated, alerts: engineResult.alerts },
       'Reorder engine executed'
     );
   } catch (err) {
@@ -288,7 +326,12 @@ export const runAutomaticReorderAlerts = async (req, res, next) => {
 export const getActiveAlertsBySku = async (req, res, next) => {
   try {
     const data = await ReorderAlert.aggregate([
-      { $match: { resolved: false } },
+      {
+        $match: {
+          organization: new mongoose.Types.ObjectId(req.organizationId),
+          resolved: false
+        }
+      },
       {
         $group: {
           _id: '$sku',
@@ -322,6 +365,11 @@ export const getActiveAlertsBySku = async (req, res, next) => {
 export const getReorderAlertTrend = async (req, res, next) => {
   try {
     const trend = await ReorderAlert.aggregate([
+      {
+        $match: {
+          organization: new mongoose.Types.ObjectId(req.organizationId)
+        }
+      },
       {
         $group: {
           _id: {
@@ -362,12 +410,27 @@ export const getReorderAlertKPIs = async (req, res, next) => {
       staticAlerts,
       convertedAlerts
     ] = await Promise.all([
-      ReorderAlert.countDocuments(),
-      ReorderAlert.countDocuments({ resolved: false }),
-      ReorderAlert.countDocuments({ resolved: true }),
-      ReorderAlert.countDocuments({ source: 'forecast' }),
-      ReorderAlert.countDocuments({ source: 'static' }),
-      ReorderAlert.countDocuments({ usedInPurchaseOrder: true })
+      ReorderAlert.countDocuments({ organization: req.organizationId }),
+      ReorderAlert.countDocuments({
+        organization: req.organizationId,
+        resolved: false
+      }),
+      ReorderAlert.countDocuments({
+        organization: req.organizationId,
+        resolved: true
+      }),
+      ReorderAlert.countDocuments({
+        organization: req.organizationId,
+        source: 'forecast'
+      }),
+      ReorderAlert.countDocuments({
+        organization: req.organizationId,
+        source: 'static'
+      }),
+      ReorderAlert.countDocuments({
+        organization: req.organizationId,
+        usedInPurchaseOrder: true
+      })
     ]);
 
     return successResponse(

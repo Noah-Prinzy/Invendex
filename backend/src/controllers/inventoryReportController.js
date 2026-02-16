@@ -7,7 +7,9 @@ export const exportInventoryReport = async (req, res, next) => {
   try {
     const { format = 'csv', from, to } = req.query;
 
-    const filter = {};
+    const filter = {
+      organization: req.organizationId
+    };
     if (from || to) {
       filter.recordedAt = {};
       if (from) filter.recordedAt.$gte = new Date(from);
@@ -28,6 +30,7 @@ export const exportInventoryReport = async (req, res, next) => {
     }));
 
     await InventoryReport.create({
+      organization: req.organizationId,
       type: from || to ? 'range' : 'daily',
       generatedBy: req.user._id,
       filters: { from, to },

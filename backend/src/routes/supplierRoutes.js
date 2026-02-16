@@ -11,16 +11,30 @@ import {
 
 import { protect } from '../middlewares/authMiddleware.js';
 import requireRoles from '../middlewares/requireRoles.js';
+import requireOrganization from '../middlewares/requireOrganization.js';
+import validateRequest from '../middlewares/validateRequest.js';
+
+import {
+  createSupplierValidator,
+  supplierIdParamValidator,
+  supplierPerformanceParamValidator,
+  updateSupplierValidator
+} from '../validations/supplierValidators.js';
 
 const router = express.Router();
 
 // 🔐 Admin only
-router.use(protect, requireRoles('admin'));
+router.use(protect, requireOrganization, requireRoles('admin'));
 
 /**
  * ➕ Create supplier
  */
-router.post('/', createSupplier);
+router.post(
+  '/',
+  createSupplierValidator,
+  validateRequest,
+  createSupplier
+);
 
 /**
  * 📄 Get all suppliers
@@ -32,6 +46,8 @@ router.get('/', getSuppliers);
  */
 router.get(
   '/:supplierId/performance',
+  supplierPerformanceParamValidator,
+  validateRequest,
   getSupplierPerformance
 );
 /**
@@ -45,16 +61,31 @@ router.get(
 /**
  * 🔍 Get supplier by ID
  */
-router.get('/:id', getSupplierById);
+router.get(
+  '/:id',
+  supplierIdParamValidator,
+  validateRequest,
+  getSupplierById
+);
 
 /**
  * ✏️ Update supplier
  */
-router.put('/:id', updateSupplier);
+router.put(
+  '/:id',
+  updateSupplierValidator,
+  validateRequest,
+  updateSupplier
+);
 
 /**
  * 🗑️ Delete supplier
  */
-router.delete('/:id', deleteSupplier);
+router.delete(
+  '/:id',
+  supplierIdParamValidator,
+  validateRequest,
+  deleteSupplier
+);
 
 export default router;

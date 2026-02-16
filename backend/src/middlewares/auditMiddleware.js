@@ -4,12 +4,21 @@ import { logAudit } from '../utils/auditLogger.js';
  * 🧾 Audit Middleware (A25.2)
  * Logs authenticated actions automatically
  */
-export const auditMiddleware = (action, options = {}) => {
+export const auditMiddleware = (actionOrConfig, options = {}) => {
   return async (req, res, next) => {
+    const normalizedConfig =
+      typeof actionOrConfig === 'object' && actionOrConfig !== null
+        ? actionOrConfig
+        : {
+            action: actionOrConfig,
+            ...options
+          };
+
     const {
+      action,
       resource = null,
       resourceIdFrom = null // e.g. 'params.id'
-    } = options;
+    } = normalizedConfig;
 
     // Capture response success/failure
     let success = true;
@@ -33,6 +42,7 @@ export const auditMiddleware = (action, options = {}) => {
           action,
           resource,
           resourceId,
+          organizationId: req.organizationId || req.user?.organization || null,
           success
         });
       } catch (err) {

@@ -42,6 +42,12 @@ const purchaseOrderItemSchema = new mongoose.Schema(
 
 const purchaseOrderSchema = new mongoose.Schema(
   {
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Organization',
+      required: true,
+      index: true
+    },
     poNumber: {
       type: String,
       unique: true,
@@ -52,6 +58,13 @@ const purchaseOrderSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Supplier',
       required: true
+    },
+
+    warehouse: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Warehouse',
+      required: true,
+      index: true
     },
 
     status: {
@@ -195,5 +208,6 @@ purchaseOrderSchema.pre('save', function (next) {
  * 🔍 Fast supplier + status queries
  */
 purchaseOrderSchema.index({ supplier: 1, status: 1 });
+purchaseOrderSchema.index({ organization: 1, status: 1 });
 
 export default mongoose.model('PurchaseOrder', purchaseOrderSchema);

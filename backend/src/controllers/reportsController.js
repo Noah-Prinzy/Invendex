@@ -1,13 +1,37 @@
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import Supplier from '../models/Supplier.js';
 import { successResponse } from '../utils/response.js';
+import mongoose from 'mongoose';
+
+const CLOSED_PO_STATUSES = [
+  'RECEIVED',
+  'CLOSED',
+  'received',
+  'closed'
+];
+
+const ACTIVE_PO_STATUSES = [
+  'SENT',
+  'RECEIVED',
+  'CLOSED',
+  'sent',
+  'received',
+  'closed'
+];
 
 /**
  * 📊 Purchase Order Status Summary (A20.3.1)
  */
 export const getPurchaseOrderStatusSummary = async (req, res, next) => {
   try {
+    const organizationId = new mongoose.Types.ObjectId(req.organizationId);
+
     const summary = await PurchaseOrder.aggregate([
+      {
+        $match: {
+          organization: organizationId
+        }
+      },
       {
         $group: {
           _id: '$status',
@@ -25,7 +49,8 @@ export const getPurchaseOrderStatusSummary = async (req, res, next) => {
     };
 
     for (const row of summary) {
-      result[row._id] = row.count;
+      if (!row._id) continue;
+      result[String(row._id).toLowerCase()] = row.count;
     }
 
     return successResponse(
@@ -43,7 +68,14 @@ export const getPurchaseOrderStatusSummary = async (req, res, next) => {
  */
 export const getSupplierPurchaseOrderSummary = async (req, res, next) => {
   try {
+    const organizationId = new mongoose.Types.ObjectId(req.organizationId);
+
     const summary = await PurchaseOrder.aggregate([
+      {
+        $match: {
+          organization: organizationId
+        }
+      },
       {
         $group: {
           _id: '$supplier',
@@ -51,19 +83,29 @@ export const getSupplierPurchaseOrderSummary = async (req, res, next) => {
           totalQuantity: { $sum: '$totalQuantity' },
           totalSpend: { $sum: '$totalAmount' },
           draft: {
-            $sum: { $cond: [{ $eq: ['$status', 'draft'] }, 1, 0] }
+            $sum: {
+              $cond: [{ $in: ['$status', ['DRAFT', 'draft']] }, 1, 0]
+            }
           },
           sent: {
-            $sum: { $cond: [{ $eq: ['$status', 'sent'] }, 1, 0] }
+            $sum: {
+              $cond: [{ $in: ['$status', ['SENT', 'sent']] }, 1, 0]
+            }
           },
           received: {
-            $sum: { $cond: [{ $eq: ['$status', 'received'] }, 1, 0] }
+            $sum: {
+              $cond: [{ $in: ['$status', ['RECEIVED', 'received']] }, 1, 0]
+            }
           },
           closed: {
-            $sum: { $cond: [{ $eq: ['$status', 'closed'] }, 1, 0] }
+            $sum: {
+              $cond: [{ $in: ['$status', ['CLOSED', 'closed']] }, 1, 0]
+            }
           },
           cancelled: {
-            $sum: { $cond: [{ $eq: ['$status', 'cancelled'] }, 1, 0] }
+            $sum: {
+              $cond: [{ $in: ['$status', ['CANCELLED', 'cancelled']] }, 1, 0]
+            }
           }
         }
       },
@@ -112,6 +154,7 @@ export const getSupplierPurchaseOrderSummary = async (req, res, next) => {
 export const getPurchaseOrderTrend = async (req, res, next) => {
   try {
     const period = req.query.period === 'day' ? 'day' : 'month';
+    const organizationId = new mongoose.Types.ObjectId(req.organizationId);
 
     const groupId =
       period === 'day'
@@ -126,6 +169,11 @@ export const getPurchaseOrderTrend = async (req, res, next) => {
           };
 
     const trend = await PurchaseOrder.aggregate([
+      {
+        $match: {
+          organization: organizationId
+        }
+      },
       {
         $group: {
           _id: groupId,
@@ -169,10 +217,13 @@ export const getPurchaseOrderTrend = async (req, res, next) => {
  */
 export const getPurchaseOrderValueSummary = async (req, res, next) => {
   try {
+    const organizationId = new mongoose.Types.ObjectId(req.organizationId);
+
     const summary = await PurchaseOrder.aggregate([
       {
         $match: {
-          status: { $in: ['sent', 'received', 'closed'] }
+          organization: organizationId,
+          status: { $in: ACTIVE_PO_STATUSES }
         }
       },
       {
@@ -216,10 +267,13 @@ export const getPurchaseOrderValueSummary = async (req, res, next) => {
 
 export const getSupplierPerformanceReport = async (req, res, next) => {
   try {
+    const organizationId = new mongoose.Types.ObjectId(req.organizationId);
+
     const report = await PurchaseOrder.aggregate([
       {
         $match: {
-          status: { $in: ['received', 'closed'] },
+          organization: organizationId,
+          status: { $in: CLOSED_PO_STATUSES },
           sentAt: { $exists: true }
         }
       },
@@ -267,7 +321,9 @@ export const getSupplierPerformanceReport = async (req, res, next) => {
           supplierName: { $first: '$supplier.name' },
           totalOrders: { $sum: 1 },
           receivedOrders: {
-            $sum: { $cond: [{ $eq: ['$status', 'received'] }, 1, 0] }
+            $sum: {
+              $cond: [{ $in: ['$status', ['RECEIVED', 'received']] }, 1, 0]
+            }
           },
           onTimeDeliveries: { $sum: '$isOnTime' },
           avgLeadTimeDays: { $avg: '$leadTimeDays' }
@@ -304,10 +360,13 @@ export const getSupplierPerformanceReport = async (req, res, next) => {
 
 export const getTotalSpendSummary = async (req, res, next) => {
   try {
+    const organizationId = new mongoose.Types.ObjectId(req.organizationId);
+
     const summary = await PurchaseOrder.aggregate([
       {
         $match: {
-          status: { $in: ['received', 'closed'] }
+          organization: organizationId,
+          status: { $in: CLOSED_PO_STATUSES }
         }
       },
       { $unwind: '$items' },
@@ -338,10 +397,13 @@ export const getTotalSpendSummary = async (req, res, next) => {
 
 export const getSpendBySupplier = async (req, res, next) => {
   try {
+    const organizationId = new mongoose.Types.ObjectId(req.organizationId);
+
     const report = await PurchaseOrder.aggregate([
       {
         $match: {
-          status: { $in: ['received', 'closed'] }
+          organization: organizationId,
+          status: { $in: CLOSED_PO_STATUSES }
         }
       },
       { $unwind: '$items' },
@@ -380,10 +442,13 @@ export const getSpendBySupplier = async (req, res, next) => {
 
 export const getSpendByProduct = async (req, res, next) => {
   try {
+    const organizationId = new mongoose.Types.ObjectId(req.organizationId);
+
     const report = await PurchaseOrder.aggregate([
       {
         $match: {
-          status: { $in: ['received', 'closed'] }
+          organization: organizationId,
+          status: { $in: CLOSED_PO_STATUSES }
         }
       },
       { $unwind: '$items' },
@@ -423,10 +488,13 @@ export const getSpendByProduct = async (req, res, next) => {
 
 export const getMonthlySpendTrend = async (req, res, next) => {
   try {
+    const organizationId = new mongoose.Types.ObjectId(req.organizationId);
+
     const trend = await PurchaseOrder.aggregate([
       {
         $match: {
-          status: { $in: ['received', 'closed'] },
+          organization: organizationId,
+          status: { $in: CLOSED_PO_STATUSES },
           receivedAt: { $exists: true }
         }
       },

@@ -27,7 +27,9 @@ export const getAuditLogs = async (req, res, next) => {
       to
     } = req.query;
 
-    const query = {};
+    const query = {
+      organization: req.organizationId
+    };
 
     if (user) query.user = user;
     if (action) query.action = action;
@@ -73,10 +75,10 @@ export const getAuditLogs = async (req, res, next) => {
  */
 export const getAuditLogById = async (req, res, next) => {
   try {
-    const log = await AuditLog.findById(req.params.id).populate(
-      'user',
-      'name email role'
-    );
+    const log = await AuditLog.findOne({
+      _id: req.params.id,
+      organization: req.organizationId
+    }).populate('user', 'name email role');
 
     if (!log) {
       throw new AppError('Audit log not found', 404);

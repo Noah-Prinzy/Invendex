@@ -10,9 +10,24 @@ import AppError from '../utils/AppError.js';
  * Supplier-grouped, atomic, idempotent
  */
 export const generatePurchaseOrdersFromAlerts = async ({
-  createdByUserId
-}) => {
+  createdByUserId,
+  warehouseId,
+  organizationId
+} = {}) => {
+  if (!createdByUserId) {
+    throw new AppError('createdByUserId is required to generate purchase orders', 400);
+  }
+
+  if (!warehouseId) {
+    throw new AppError('warehouse is required to generate purchase orders', 400);
+  }
+
+  if (!organizationId) {
+    throw new AppError('organizationId is required to generate purchase orders', 400);
+  }
+
   const alerts = await ReorderAlert.find({
+    organization: organizationId,
     status: 'ACTIVE',
     resolved: false,
     isLocked: false,
@@ -44,7 +59,9 @@ export const generatePurchaseOrdersFromAlerts = async ({
     }));
 
     const purchaseOrder = await PurchaseOrder.create({
+      organization: organizationId,
       supplier: supplierId,
+      warehouse: warehouseId,
       items,
       status: 'DRAFT',
       source: 'REORDER_ENGINE',
@@ -53,7 +70,10 @@ export const generatePurchaseOrdersFromAlerts = async ({
     });
 
     await ReorderAlert.updateMany(
-      { _id: { $in: supplierAlerts.map(a => a._id) } },
+      {
+        _id: { $in: supplierAlerts.map(a => a._id) },
+        organization: organizationId
+      },
       {
         $set: {
           purchaseOrder: purchaseOrder._id,
@@ -77,8 +97,15 @@ export const generatePurchaseOrdersFromAlerts = async ({
 /**
  * 📤 Send Purchase Order
  */
-export const sendPurchaseOrder = async (purchaseOrderId, userId) => {
-  const purchaseOrder = await PurchaseOrder.findById(purchaseOrderId);
+export const sendPurchaseOrder = async ({
+  purchaseOrderId,
+  userId,
+  organizationId
+}) => {
+  const purchaseOrder = await PurchaseOrder.findOne({
+    _id: purchaseOrderId,
+    organization: organizationId
+  });
   if (!purchaseOrder) {
     throw new AppError('Purchase order not found', 404);
   }
@@ -100,8 +127,15 @@ export const sendPurchaseOrder = async (purchaseOrderId, userId) => {
  * 📥 Receive Purchase Order
  * Inventory-safe & idempotent
  */
-export const receivePurchaseOrder = async (purchaseOrderId, userId) => {
-  const purchaseOrder = await PurchaseOrder.findById(purchaseOrderId);
+export const receivePurchaseOrder = async ({
+  purchaseOrderId,
+  userId,
+  organizationId
+}) => {
+  const purchaseOrder = await PurchaseOrder.findOne({
+    _id: purchaseOrderId,
+    organization: organizationId
+  });
   if (!purchaseOrder) {
     throw new AppError('Purchase order not found', 404);
   }
@@ -124,8 +158,14 @@ export const receivePurchaseOrder = async (purchaseOrderId, userId) => {
 /**
  * 🔒 Close Purchase Order
  */
-export const closePurchaseOrder = async (purchaseOrderId) => {
-  const purchaseOrder = await PurchaseOrder.findById(purchaseOrderId);
+export const closePurchaseOrder = async ({
+  purchaseOrderId,
+  organizationId
+}) => {
+  const purchaseOrder = await PurchaseOrder.findOne({
+    _id: purchaseOrderId,
+    organization: organizationId
+  });
   if (!purchaseOrder) {
     throw new AppError('Purchase order not found', 404);
   }

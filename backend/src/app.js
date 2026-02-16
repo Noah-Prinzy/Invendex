@@ -15,6 +15,9 @@ import inventoryMetricsRoutes from './routes/inventoryMetricsRoutes.js';
 import supplierRoutes from './routes/supplierRoutes.js';
 import supplierProductRoutes from './routes/supplierProductRoutes.js';
 import purchaseOrderRoutes from './routes/purchaseOrderRoutes.js';
+import dashboardRoutes from './routes/dashboardRoutes.js';
+import aiInsightsRoutes from './routes/aiInsightsRoutes.js';
+import wmsRoutes from './routes/wmsRoutes.js';
 
 import { errorHandler } from './middlewares/errorHandler.js';
 
@@ -79,6 +82,9 @@ app.use('/api/inventory-metrics', inventoryMetricsRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/supplier-products', supplierProductRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/ai', aiInsightsRoutes);
+app.use('/api/wms', wmsRoutes);
 
 /**
  * ❤️ Health check

@@ -8,7 +8,9 @@ import { AppError } from '../errors/AppError.js';
  */
 export const getLatestInventoryMetrics = async (req, res, next) => {
   try {
-    const metrics = await InventoryMetrics.findOne()
+    const metrics = await InventoryMetrics.findOne({
+      organization: req.organizationId
+    })
       .sort({ date: -1 })
       .lean();
 
@@ -38,7 +40,9 @@ export const getInventoryMetricsRange = async (req, res, next) => {
   try {
     const { from, to } = req.query;
 
-    const filter = {};
+    const filter = {
+      organization: req.organizationId
+    };
 
     if (from || to) {
       filter.date = {};

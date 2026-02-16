@@ -16,7 +16,16 @@ import {
 
 import { protect } from '../middlewares/authMiddleware.js';
 import requireRoles from '../middlewares/requireRoles.js';
-import { auditMiddleware } from '../middlewares/authMiddleware.js';
+import { auditMiddleware } from '../middlewares/auditMiddleware.js';
+import requireOrganization from '../middlewares/requireOrganization.js';
+import validateRequest from '../middlewares/validateRequest.js';
+
+import {
+  createManualReorderAlertValidator,
+  inventoryProductParamValidator,
+  reorderIntelligenceQueryValidator,
+  resolveReorderAlertParamValidator
+} from '../validations/inventoryValidators.js';
 
 import {
   manualReorderAlertLimiter,
@@ -25,6 +34,7 @@ import {
 } from '../middlewares/rateLimiter.js';
 
 const router = express.Router();
+router.use(protect, requireOrganization);
 
 /* ======================================================
    INVENTORY INSIGHTS
@@ -37,6 +47,8 @@ router.get(
   '/product/:productId/trend',
   protect,
   requireRoles('admin', 'staff'),
+  inventoryProductParamValidator,
+  validateRequest,
   getProductInventoryTrend
 );
 
@@ -123,6 +135,8 @@ router.post(
   protect,
   requireRoles('admin'),
   manualReorderAlertLimiter,
+  createManualReorderAlertValidator,
+  validateRequest,
   auditMiddleware({
     action: 'CREATE_MANUAL_REORDER_ALERT',
     resource: 'REORDER_ALERT'
@@ -139,6 +153,8 @@ router.patch(
   protect,
   requireRoles('admin'),
   resolveReorderAlertLimiter,
+  resolveReorderAlertParamValidator,
+  validateRequest,
   auditMiddleware({
     action: 'RESOLVE_REORDER_ALERT',
     resource: 'REORDER_ALERT'
@@ -157,6 +173,8 @@ router.get(
   '/reorder-intelligence',
   protect,
   requireRoles('admin'),
+  reorderIntelligenceQueryValidator,
+  validateRequest,
   getReorderIntelligence
 );
 

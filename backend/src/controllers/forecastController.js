@@ -1,6 +1,5 @@
 import InventorySnapshot from '../models/InventorySnapshot.js';
 import Product from '../models/Product.js';
-import Supplier from '../models/Supplier.js';
 import ReorderAlert from '../models/ReorderAlert.js';
 
 import { successResponse } from '../utils/response.js';
@@ -16,17 +15,22 @@ import {
 export const forecastInventory = async (req, res, next) => {
   try {
     const bufferDays = Number(req.query.bufferDays || 7);
+    const organizationId = req.organizationId;
 
-    const products = await Product.find().populate('supplier');
+    const products = await Product.find({
+      organization: organizationId,
+      isActive: true
+    });
 
     const forecasts = [];
 
     for (const product of products) {
       // 🕒 Last 30 days snapshots
       const snapshots = await InventorySnapshot.find({
+        organization: organizationId,
         product: product._id
       })
-        .sort({ date: -1 })
+        .sort({ recordedAt: -1 })
         .limit(30);
 
       if (snapshots.length < 2) continue;
@@ -45,6 +49,7 @@ export const forecastInventory = async (req, res, next) => {
       }
 
       const forecast = await generateProductForecast({
+        organizationId,
         productId: product._id.toString(),
         historicalDemand,
         options: {
@@ -104,8 +109,12 @@ export const generateReorderAlertsFromForecast = async (
 ) => {
   try {
     const bufferDays = Number(req.query.bufferDays || 7);
+    const organizationId = req.organizationId;
 
-    const products = await Product.find().populate('supplier');
+    const products = await Product.find({
+      organization: organizationId,
+      isActive: true
+    });
 
     const createdAlerts = [];
 
@@ -113,9 +122,10 @@ export const generateReorderAlertsFromForecast = async (
       if (!product.supplier) continue;
 
       const snapshots = await InventorySnapshot.find({
+        organization: organizationId,
         product: product._id
       })
-        .sort({ date: -1 })
+        .sort({ recordedAt: -1 })
         .limit(30);
 
       if (snapshots.length < 2) continue;
@@ -130,17 +140,18 @@ export const generateReorderAlertsFromForecast = async (
       if (historicalDemand.length === 0) continue;
 
       const forecast = await generateProductForecast({
+        organizationId,
         productId: product._id.toString(),
         historicalDemand,
         options: {
-          horizonDays: product.supplier.leadTimeDays || 7
+          horizonDays: product.supplierLeadTimeDays || 7
         }
       });
 
       const adc = forecast.avgDailyDemand;
       if (adc <= 0) continue;
 
-      const leadTime = product.supplier.leadTimeDays || 7;
+      const leadTime = product.supplierLeadTimeDays || 7;
       const daysUntilStockOut = product.stock / adc;
 
       // 🛑 Not urgent enough
@@ -148,6 +159,7 @@ export const generateReorderAlertsFromForecast = async (
 
       // 🔒 Prevent duplicates
       const existingAlert = await ReorderAlert.findOne({
+        organization: organizationId,
         product: product._id,
         resolved: false
       });
@@ -159,16 +171,19 @@ export const generateReorderAlertsFromForecast = async (
       );
 
       const alert = await ReorderAlert.create({
+        organization: organizationId,
         product: product._id,
         sku: product.sku,
         stock: product.stock,
         reorderLevel: reorderQty,
         triggeredAt: new Date(),
         source: 'system',
-        supplier: product.supplier._id,
+        supplier: null,
         supplierLeadTimeDays: leadTime,
-        supplierUnitCost: product.costPrice,
-        forecastConfidence: forecast.confidenceScore
+        supplierUnitCost: null,
+        metadata: {
+          confidenceScore: forecast.confidenceScore
+        }
       });
 
       createdAlerts.push(alert);

@@ -13,6 +13,7 @@ import Forecast from '../../models/Forecast.js';
 async function persistForecastSafely(forecast) {
   try {
     await Forecast.create({
+      organization: forecast.organizationId,
       product: forecast.productId,
       horizonDays: forecast.horizonDays,
       expectedDemand: forecast.expectedDemand,
@@ -34,12 +35,16 @@ async function persistForecastSafely(forecast) {
  * Generate a demand forecast for a product.
  */
 export async function generateProductForecast({
+  organizationId,
   productId,
   historicalDemand = [],
   options = {}
 }) {
   if (!productId) {
     throw new Error('productId is required to generate forecast');
+  }
+  if (!organizationId) {
+    throw new Error('organizationId is required to generate forecast');
   }
 
   const forecast = generateForecast({
@@ -49,7 +54,10 @@ export async function generateProductForecast({
   });
 
   // Fire-and-forget persistence
-  persistForecastSafely(forecast);
+  persistForecastSafely({
+    ...forecast,
+    organizationId
+  });
 
   return forecast;
 }
@@ -68,7 +76,12 @@ export async function generateBulkForecast(products = [], options = {}) {
     })
   );
 
-  forecasts.forEach(persistForecastSafely);
+  forecasts.forEach((forecast, idx) =>
+    persistForecastSafely({
+      ...forecast,
+      organizationId: products[idx]?.organizationId || products[idx]?.organization
+    })
+  );
 
   return forecasts;
 }

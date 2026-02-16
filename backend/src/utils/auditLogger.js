@@ -7,19 +7,28 @@ export const logAudit = async ({
   req = null,
   action,
   entity,
+  resource,
   entityId = null,
+  resourceId = null,
   before = null,
   after = null,
   success = true,
   source = 'api',
+  organizationId = null,
   meta = {}
 }) => {
   try {
+    const resolvedOrganizationId =
+      organizationId || req?.organizationId || req?.user?.organization || null;
+    const resolvedEntity = entity || resource || 'UNKNOWN';
+    const resolvedEntityId = entityId || resourceId || null;
+
     await AuditLog.create({
+      organization: resolvedOrganizationId,
       user: req?.user?._id || null,
       action,
-      entity,
-      entityId,
+      entity: resolvedEntity,
+      entityId: resolvedEntityId,
 
       before,
       after,

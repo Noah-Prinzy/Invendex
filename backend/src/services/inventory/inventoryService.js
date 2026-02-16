@@ -1,4 +1,5 @@
 import Product from '../../models/Product.js';
+import Inventory from '../../models/Inventory.js';
 import InventorySnapshot from '../../models/InventorySnapshot.js';
 import ReorderAlert from '../../models/ReorderAlert.js';
 import AppError from '../../utils/AppError.js';
@@ -8,7 +9,12 @@ import AppError from '../../utils/AppError.js';
  * Idempotent per purchaseOrder + product
  */
 export const applyPurchaseOrderToInventory = async ({ purchaseOrder }) => {
-  if (!purchaseOrder || !purchaseOrder.items?.length) {
+  if (
+    !purchaseOrder ||
+    !purchaseOrder.items?.length ||
+    !purchaseOrder.warehouse ||
+    !purchaseOrder.organization
+  ) {
     throw new AppError(
       'Invalid purchase order supplied to inventory service',
       400
@@ -18,17 +24,22 @@ export const applyPurchaseOrderToInventory = async ({ purchaseOrder }) => {
   for (const item of purchaseOrder.items) {
     const { product: productId, quantity, reorderAlert } = item;
 
-    // 🔒 Idempotency: if a snapshot already exists for this product + PO, skip
+    // Idempotency per purchase order + product.
     const existingSnapshot = await InventorySnapshot.findOne({
+      organization: purchaseOrder.organization,
       product: productId,
-      purchaseOrder: purchaseOrder._id
+      purchaseOrder: purchaseOrder._id,
+      warehouse: purchaseOrder.warehouse
     });
 
     if (existingSnapshot) {
       continue;
     }
 
-    const product = await Product.findById(productId);
+    const product = await Product.findOne({
+      _id: productId,
+      organization: purchaseOrder.organization
+    }).select('sku price');
     if (!product) {
       throw new AppError(
         `Product not found for inventory update (${productId})`,
@@ -36,27 +47,67 @@ export const applyPurchaseOrderToInventory = async ({ purchaseOrder }) => {
       );
     }
 
-    const previousStock = product.stock;
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new AppError(
+        `Invalid item quantity for inventory update (${productId})`,
+        400
+      );
+    }
 
-    // 📦 Apply stock increment
-    product.stock = previousStock + quantity;
-    await product.save();
+    const now = new Date();
+    const inventory = await Inventory.findOneAndUpdate(
+      {
+        organization: purchaseOrder.organization,
+        product: productId,
+        warehouse: purchaseOrder.warehouse
+      },
+      {
+        $inc: { quantityOnHand: quantity },
+        $set: { lastMovementAt: now },
+        $setOnInsert: {
+          quantityReserved: 0,
+          reorderPoint: 0,
+          reorderQuantity: 0
+        }
+      },
+      {
+        upsert: true,
+        new: true,
+        runValidators: true,
+        setDefaultsOnInsert: true
+      }
+    );
 
-    // 📸 Record inventory snapshot
+    const previousStock = inventory.quantityOnHand - quantity;
+
+    // Record a snapshot for analytics and PO idempotency.
     await InventorySnapshot.create({
+      organization: purchaseOrder.organization,
       product: productId,
+      warehouse: purchaseOrder.warehouse,
       purchaseOrder: purchaseOrder._id,
+      sku: product.sku,
+      stock: inventory.quantityOnHand,
+      price: product.price,
+      recordedAt: now,
+      source: 'SYSTEM',
       change: quantity,
       previousStock,
-      newStock: product.stock
+      newStock: inventory.quantityOnHand
     });
 
-    // ✅ Resolve linked reorder alert (if any)
+    // Resolve linked reorder alert (if any).
     if (reorderAlert) {
-      await ReorderAlert.findByIdAndUpdate(reorderAlert, {
-        resolved: true,
-        resolvedAt: new Date()
-      });
+      await ReorderAlert.findOneAndUpdate(
+        {
+          _id: reorderAlert,
+          organization: purchaseOrder.organization
+        },
+        {
+          resolved: true,
+          resolvedAt: new Date()
+        }
+      );
     }
   }
 };

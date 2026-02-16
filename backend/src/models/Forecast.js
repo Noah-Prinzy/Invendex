@@ -2,6 +2,12 @@ import mongoose from 'mongoose';
 
 const forecastSchema = new mongoose.Schema(
   {
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Organization',
+      required: true,
+      index: true
+    },
     product: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Product',
@@ -61,7 +67,7 @@ const forecastSchema = new mongoose.Schema(
  * ❗ Prevent duplicate forecasts for same product & timestamp
  */
 forecastSchema.index(
-  { product: 1, generatedAt: 1 },
+  { organization: 1, product: 1, generatedAt: 1 },
   { unique: true }
 );
 
@@ -69,7 +75,7 @@ forecastSchema.index(
  * ⚡ Optimized query for "latest forecast per product"
  */
 forecastSchema.index(
-  { product: 1, generatedAt: -1 }
+  { organization: 1, product: 1, generatedAt: -1 }
 );
 
 export default mongoose.model('Forecast', forecastSchema);

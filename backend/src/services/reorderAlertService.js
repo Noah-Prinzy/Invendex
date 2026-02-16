@@ -12,6 +12,7 @@ export const resolveAlertsForPurchaseOrder = async ({
   );
 
   const alerts = await ReorderAlert.find({
+    organization: purchaseOrder.organization,
     product: { $in: productIds },
     resolved: false
   });

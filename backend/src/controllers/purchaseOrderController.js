@@ -1,6 +1,7 @@
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import Supplier from '../models/Supplier.js';
 import Product from '../models/Product.js';
+import Warehouse from '../models/Warehouse.js';
 
 import { successResponse } from '../utils/response.js';
 import { AppError } from '../errors/AppError.js';
@@ -19,19 +20,34 @@ import { calculatePurchaseOrderTotals } from '../utils/calculatePurchaseOrderTot
  */
 export const createPurchaseOrder = async (req, res, next) => {
   try {
-    const { supplier, items, expectedDeliveryDate, notes } = req.body;
+    const { supplier, warehouse, items, expectedDeliveryDate, notes } = req.body;
+    const organizationId = req.organizationId;
 
-    if (!supplier || !items || !items.length) {
-      throw new AppError('Supplier and items are required', 400);
+    if (!supplier || !warehouse || !items || !items.length) {
+      throw new AppError('Supplier, warehouse, and items are required', 400);
     }
 
-    const supplierExists = await Supplier.findById(supplier);
+    const supplierExists = await Supplier.findOne({
+      _id: supplier,
+      organization: organizationId
+    });
     if (!supplierExists) {
       throw new AppError('Supplier not found', 404);
     }
 
+    const warehouseExists = await Warehouse.findOne({
+      _id: warehouse,
+      organization: organizationId
+    });
+    if (!warehouseExists) {
+      throw new AppError('Warehouse not found', 404);
+    }
+
     for (const item of items) {
-      const product = await Product.findById(item.product);
+      const product = await Product.findOne({
+        _id: item.product,
+        organization: organizationId
+      });
       if (!product) {
         throw new AppError(`Product not found: ${item.product}`, 404);
       }
@@ -44,7 +60,9 @@ export const createPurchaseOrder = async (req, res, next) => {
     } = calculatePurchaseOrderTotals(items);
 
     const purchaseOrder = await PurchaseOrder.create({
+      organization: organizationId,
       supplier,
+      warehouse,
       items: calculatedItems,
       totalQuantity,
       totalAmount,
@@ -70,9 +88,12 @@ export const createPurchaseOrder = async (req, res, next) => {
  */
 export const getPurchaseOrders = async (req, res, next) => {
   try {
-    const orders = await PurchaseOrder.find()
+    const orders = await PurchaseOrder.find({
+      organization: req.organizationId
+    })
       .sort({ createdAt: -1 })
       .populate('supplier', 'name')
+      .populate('warehouse', 'name code')
       .populate('items.product', 'name sku');
 
     return successResponse(res, orders, 'Purchase orders fetched successfully');
@@ -86,8 +107,12 @@ export const getPurchaseOrders = async (req, res, next) => {
  */
 export const getPurchaseOrderById = async (req, res, next) => {
   try {
-    const order = await PurchaseOrder.findById(req.params.id)
+    const order = await PurchaseOrder.findOne({
+      _id: req.params.id,
+      organization: req.organizationId
+    })
       .populate('supplier', 'name email phone')
+      .populate('warehouse', 'name code')
       .populate('items.product', 'name sku')
       .populate('items.reorderAlert');
 
@@ -108,7 +133,11 @@ export const receivePurchaseOrder = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const purchaseOrder = await receivePurchaseOrderService(id);
+    const purchaseOrder = await receivePurchaseOrderService({
+      purchaseOrderId: id,
+      userId: req.user?._id,
+      organizationId: req.organizationId
+    });
 
     return successResponse(
       res,
@@ -127,7 +156,11 @@ export const sendPurchaseOrder = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const purchaseOrder = await sendPurchaseOrderService(id);
+    const purchaseOrder = await sendPurchaseOrderService({
+      purchaseOrderId: id,
+      userId: req.user?._id,
+      organizationId: req.organizationId
+    });
 
     return successResponse(
       res,
@@ -146,7 +179,10 @@ export const closePurchaseOrder = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const purchaseOrder = await closePurchaseOrderService(id);
+    const purchaseOrder = await closePurchaseOrderService({
+      purchaseOrderId: id,
+      organizationId: req.organizationId
+    });
 
     return successResponse(
       res,
@@ -163,7 +199,11 @@ export const closePurchaseOrder = async (req, res, next) => {
  */
 export const generatePurchaseOrdersFromAlerts = async (req, res, next) => {
   try {
-    const orders = await generatePOsFromAlertsService();
+    const orders = await generatePOsFromAlertsService({
+      createdByUserId: req.user?._id,
+      warehouseId: req.body?.warehouse,
+      organizationId: req.organizationId
+    });
 
     return successResponse(
       res,

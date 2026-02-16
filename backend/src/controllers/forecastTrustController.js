@@ -9,10 +9,12 @@ import Forecast from '../models/Forecast.js';
 export const getForecastTrustForProduct = async (req, res, next) => {
   try {
     const { productId } = req.params;
+    const organizationId = req.organizationId;
 
-    const product = await Product.findById(productId).select(
-      '_id sku name'
-    );
+    const product = await Product.findOne({
+      _id: productId,
+      organization: organizationId
+    }).select('_id sku name');
 
     if (!product) {
       return res.status(404).json({
@@ -21,6 +23,7 @@ export const getForecastTrustForProduct = async (req, res, next) => {
     }
 
     const forecast = await Forecast.findOne({
+      organization: organizationId,
       product: product._id
     }).sort({ generatedAt: -1 });
 

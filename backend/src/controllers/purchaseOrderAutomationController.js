@@ -10,7 +10,18 @@ import { AppError } from '../errors/AppError.js';
  */
 export const generatePurchaseOrdersFromAlerts = async (req, res, next) => {
   try {
+    const organizationId = req.organizationId || req.user?.organization;
+    if (!organizationId) {
+      throw new AppError('User is not assigned to an organization', 403);
+    }
+
+    const { warehouse } = req.body;
+    if (!warehouse) {
+      throw new AppError('Warehouse is required', 400);
+    }
+
     const alerts = await ReorderAlert.find({
+      organization: organizationId,
       resolved: false,
       supplier: { $ne: null }
     }).populate('product');
@@ -35,27 +46,35 @@ export const generatePurchaseOrdersFromAlerts = async (req, res, next) => {
     const affectedOrders = [];
 
     for (const supplierId of Object.keys(grouped)) {
-      const supplier = await Supplier.findById(supplierId);
+      const supplier = await Supplier.findOne({
+        _id: supplierId,
+        organization: organizationId
+      });
       if (!supplier) continue;
 
       // 🔍 A20.4.4 — Check for existing draft PO
       let order = await PurchaseOrder.findOne({
+        organization: organizationId,
         supplier: supplier._id,
-        status: 'draft'
+        status: 'DRAFT'
       });
 
       // If no draft exists → create a new one
       if (!order) {
-        const poCount = await PurchaseOrder.countDocuments();
+        const poCount = await PurchaseOrder.countDocuments({
+          organization: organizationId
+        });
         const poNumber = `PO-${String(poCount + 1).padStart(6, '0')}`;
 
         order = await PurchaseOrder.create({
+          organization: organizationId,
           poNumber,
           supplier: supplier._id,
+          warehouse,
           items: [],
           totalQuantity: 0,
           totalAmount: 0,
-          status: 'draft',
+          status: 'DRAFT',
           createdBy: req.user._id
         });
       }

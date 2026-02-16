@@ -2,6 +2,12 @@ import mongoose from 'mongoose';
 
 const supplierProductSchema = new mongoose.Schema(
   {
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Organization',
+      required: true,
+      index: true
+    },
     supplier: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Supplier',
@@ -78,7 +84,7 @@ const supplierProductSchema = new mongoose.Schema(
  * ❗ Prevent duplicate supplier-product links
  */
 supplierProductSchema.index(
-  { supplier: 1, product: 1 },
+  { organization: 1, supplier: 1, product: 1 },
   { unique: true }
 );
 

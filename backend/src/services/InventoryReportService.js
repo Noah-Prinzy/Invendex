@@ -5,9 +5,16 @@ export const generateInventoryReport = async ({
   type = 'daily',
   from = null,
   to = null,
-  generatedBy = null
+  generatedBy = null,
+  organizationId = null
 }) => {
-  const filter = {};
+  if (!organizationId) {
+    throw new Error('organizationId is required to generate inventory reports');
+  }
+
+  const filter = {
+    organization: organizationId
+  };
 
   if (from || to) {
     filter.recordedAt = {};
@@ -29,11 +36,12 @@ export const generateInventoryReport = async ({
   }));
 
   const report = await InventoryReport.create({
+    organization: organizationId,
     type,
     generatedBy,
     filters: { from, to },
     recordCount: rows.length,
-    format: 'system'
+    format: 'csv'
   });
 
   return { report, rows };

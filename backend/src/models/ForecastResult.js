@@ -2,6 +2,12 @@ import mongoose from 'mongoose';
 
 const forecastResultSchema = new mongoose.Schema(
   {
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Organization',
+      required: true,
+      index: true
+    },
     product: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Product',
@@ -59,6 +65,7 @@ const forecastResultSchema = new mongoose.Schema(
 
 // Prevent duplicate forecasts for same product + horizon + time window
 forecastResultSchema.index({
+  organization: 1,
   product: 1,
   horizonDays: 1,
   generatedAt: -1

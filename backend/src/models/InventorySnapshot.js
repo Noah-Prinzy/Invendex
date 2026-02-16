@@ -2,10 +2,28 @@ import mongoose from 'mongoose';
 
 const inventorySnapshotSchema = new mongoose.Schema(
   {
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Organization',
+      required: true,
+      index: true
+    },
     product: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Product',
       required: true,
+      index: true
+    },
+    warehouse: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Warehouse',
+      default: null,
+      index: true
+    },
+    purchaseOrder: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'PurchaseOrder',
+      default: undefined,
       index: true
     },
 
@@ -55,6 +73,14 @@ const inventorySnapshotSchema = new mongoose.Schema(
  */
 inventorySnapshotSchema.index(
   { sku: 1, recordedAt: 1 }
+);
+inventorySnapshotSchema.index({ organization: 1, sku: 1, recordedAt: 1 });
+inventorySnapshotSchema.index(
+  { organization: 1, purchaseOrder: 1, product: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { purchaseOrder: { $exists: true } }
+  }
 );
 
 export default mongoose.model(

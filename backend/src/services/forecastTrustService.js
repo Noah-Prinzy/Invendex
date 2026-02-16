@@ -16,14 +16,19 @@ const clamp = (value, min = 0, max = 1) =>
  * - False positive forecast  → -0.10
  */
 export const updateForecastTrustForProduct = async (
-  productId
+  productId,
+  organizationId = null
 ) => {
-  const product = await Product.findById(productId);
+  const product = await Product.findOne({
+    _id: productId,
+    ...(organizationId ? { organization: organizationId } : {})
+  });
   if (!product) return;
 
   const alerts = await ReorderAlert.find({
+    ...(organizationId ? { organization: organizationId } : {}),
     product: productId,
-    source: 'FORECAST',
+    source: 'forecast',
     resolved: true,
     processed: { $ne: true }
   }).lean();
@@ -55,8 +60,9 @@ export const updateForecastTrustForProduct = async (
   // Mark alerts as processed
   await ReorderAlert.updateMany(
     {
+      ...(organizationId ? { organization: organizationId } : {}),
       product: productId,
-      source: 'FORECAST',
+      source: 'forecast',
       resolved: true,
       processed: { $ne: true }
     },
@@ -73,12 +79,16 @@ export const updateForecastTrustForProduct = async (
  * Bulk update trust scores for all products
  */
 export const updateAllForecastTrustScores =
-  async () => {
+  async (organizationId = null) => {
     const products = await Product.find({
+      ...(organizationId ? { organization: organizationId } : {}),
       isActive: true
     }).select('_id');
 
     for (const product of products) {
-      await updateForecastTrustForProduct(product._id);
+      await updateForecastTrustForProduct(
+        product._id,
+        organizationId
+      );
     }
   };

@@ -6,11 +6,12 @@ import {
 
 import { protect } from '../middlewares/authMiddleware.js';
 import requireRoles from '../middlewares/requireRoles.js';
+import requireOrganization from '../middlewares/requireOrganization.js';
 
 const router = express.Router();
 
 // 🔐 Admin only
-router.use(protect, requireRoles('admin'));
+router.use(protect, requireOrganization, requireRoles('admin'));
 
 /**
  * 📄 Get audit logs

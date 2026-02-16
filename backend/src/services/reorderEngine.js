@@ -15,8 +15,13 @@ export const runReorderEngine = async ({
   triggeredBy = 'system',
   lookbackDays = 30,
   source = 'cron',
-  runDate = null // ✅ deterministic engine date
+  runDate = null, // ✅ deterministic engine date
+  organizationId = null
 } = {}) => {
+  if (!organizationId) {
+    throw new Error('organizationId is required to run reorder engine');
+  }
+
   // ✅ ENUM-SAFE normalization
   const normalizedSource = String(source).toLowerCase();
 
@@ -40,14 +45,19 @@ export const runReorderEngine = async ({
   const avgDemandPerSku =
     await getAverageDailyDemandPerSku(
       lookbackDays,
-      engineDate
+      engineDate,
+      organizationId
     );
 
   // 📦 Active products
-  const products = await Product.find({ isActive: true }).lean();
+  const products = await Product.find({
+    organization: organizationId,
+    isActive: true
+  }).lean();
 
   // 🏭 Supplier links
   const supplierLinks = await SupplierProduct.find({
+    organization: organizationId,
     isActive: true
   }).lean();
 
@@ -88,6 +98,7 @@ export const runReorderEngine = async ({
 
     // ❗ Prevent duplicate active alerts (same product, same day)
     const exists = await ReorderAlert.findOne({
+      organization: organizationId,
       product: product._id,
       triggeredAt: { $gte: engineDate },
       resolved: false
@@ -110,6 +121,7 @@ export const runReorderEngine = async ({
     );
 
     const alert = await ReorderAlert.create({
+      organization: organizationId,
       product: product._id,
       sku: product.sku,
       stock: product.stock,

@@ -1,5 +1,8 @@
 import mongoose from 'mongoose';
 import Product from '../models/Product.js';
+import Organization from '../models/Organization.js';
+import Warehouse from '../models/Warehouse.js';
+import Inventory from '../models/Inventory.js';
 import InventorySnapshot from '../models/InventorySnapshot.js';
 import ReorderAlert from '../models/ReorderAlert.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
@@ -17,6 +20,9 @@ beforeAll(async () => {
 beforeEach(async () => {
   await Promise.all([
     Product.deleteMany({}),
+    Organization.deleteMany({}),
+    Warehouse.deleteMany({}),
+    Inventory.deleteMany({}),
     InventorySnapshot.deleteMany({}),
     ReorderAlert.deleteMany({}),
     PurchaseOrder.deleteMany({})
@@ -31,7 +37,13 @@ describe('applyPurchaseOrderToInventory', () => {
   it(
     'increments product stock and creates inventory snapshot',
     async () => {
+      const organization = await Organization.create({
+        name: 'Tenant One',
+        code: 'TENANT_ONE'
+      });
+
       const product = await Product.create({
+        organization: organization._id,
         name: 'PO Test Product',
         sku: 'PO-SKU-001',
         price: 100,
@@ -39,8 +51,14 @@ describe('applyPurchaseOrderToInventory', () => {
         lowStockThreshold: 5,
         supplierLeadTimeDays: 5
       });
+      const warehouse = await Warehouse.create({
+        organization: organization._id,
+        name: 'Main Warehouse',
+        code: 'MAIN'
+      });
 
       const alert = await ReorderAlert.create({
+        organization: organization._id,
         product: product._id,
         sku: product.sku,
         stock: 10,
@@ -51,7 +69,9 @@ describe('applyPurchaseOrderToInventory', () => {
       });
 
       const purchaseOrder = await PurchaseOrder.create({
+        organization: organization._id,
         supplier: new mongoose.Types.ObjectId(),
+        warehouse: warehouse._id,
         items: [
           {
             product: product._id,
@@ -67,11 +87,15 @@ describe('applyPurchaseOrderToInventory', () => {
 
       await applyPurchaseOrderToInventory({ purchaseOrder });
 
-      const updatedProduct = await Product.findById(product._id);
-      expect(updatedProduct.stock).toBe(30);
+      const inventory = await Inventory.findOne({
+        product: product._id,
+        warehouse: warehouse._id
+      });
+      expect(inventory.quantityOnHand).toBe(20);
 
       const snapshots = await InventorySnapshot.find({
-        product: product._id
+        product: product._id,
+        purchaseOrder: purchaseOrder._id
       });
       expect(snapshots).toHaveLength(1);
 
@@ -84,15 +108,27 @@ describe('applyPurchaseOrderToInventory', () => {
   it(
     'is idempotent when applied twice',
     async () => {
+      const organization = await Organization.create({
+        name: 'Tenant Two',
+        code: 'TENANT_TWO'
+      });
       const product = await Product.create({
+        organization: organization._id,
         name: 'Idempotent Product',
         sku: 'PO-SKU-002',
         price: 100,
         stock: 5
       });
+      const warehouse = await Warehouse.create({
+        organization: organization._id,
+        name: 'Secondary Warehouse',
+        code: 'SECONDARY'
+      });
 
       const purchaseOrder = await PurchaseOrder.create({
+        organization: organization._id,
         supplier: new mongoose.Types.ObjectId(),
+        warehouse: warehouse._id,
         items: [
           {
             product: product._id,
@@ -108,11 +144,15 @@ describe('applyPurchaseOrderToInventory', () => {
       await applyPurchaseOrderToInventory({ purchaseOrder });
       await applyPurchaseOrderToInventory({ purchaseOrder });
 
-      const updatedProduct = await Product.findById(product._id);
-      expect(updatedProduct.stock).toBe(15);
+      const inventory = await Inventory.findOne({
+        product: product._id,
+        warehouse: warehouse._id
+      });
+      expect(inventory.quantityOnHand).toBe(10);
 
       const snapshots = await InventorySnapshot.find({
-        product: product._id
+        product: product._id,
+        purchaseOrder: purchaseOrder._id
       });
       expect(snapshots).toHaveLength(1);
     },

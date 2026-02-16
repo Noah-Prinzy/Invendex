@@ -12,27 +12,30 @@ import { successResponse } from '../utils/response.js';
 export const analyzeForecastVsStatic = async (req, res, next) => {
   try {
     const { fromDate, toDate, minConfidence } = req.query;
+    const organizationId = req.organizationId;
 
     const dateFilter = {};
     if (fromDate) dateFilter.$gte = new Date(fromDate);
     if (toDate) dateFilter.$lte = new Date(toDate);
 
     const baseMatch = Object.keys(dateFilter).length
-      ? { triggeredAt: dateFilter }
-      : {};
+      ? { organization: organizationId, triggeredAt: dateFilter }
+      : { organization: organizationId };
 
     const alerts = await ReorderAlert.find(baseMatch)
       .populate('product', 'stock')
       .lean();
 
-    const purchaseOrders = await PurchaseOrder.find({})
-      .select('reorderAlert createdAt')
+    const purchaseOrders = await PurchaseOrder.find({
+      organization: organizationId
+    })
+      .select('reorderAlerts createdAt')
       .lean();
 
     const poAlertSet = new Set(
       purchaseOrders
-        .filter(po => po.reorderAlert)
-        .map(po => po.reorderAlert.toString())
+        .flatMap(po => po.reorderAlerts || [])
+        .map(alertId => alertId.toString())
     );
 
     const result = {
@@ -50,7 +53,7 @@ export const analyzeForecastVsStatic = async (req, res, next) => {
     };
 
     for (const alert of alerts) {
-      const isForecast = alert.source === 'FORECAST';
+      const isForecast = alert.source === 'forecast';
       const bucket = isForecast ? result.forecast : result.static;
 
       // Forecast confidence filter (optional)
@@ -75,10 +78,11 @@ export const analyzeForecastVsStatic = async (req, res, next) => {
       // 2️⃣ Stock dropped further after alert
       if (!isValid) {
         const laterSnapshot = await InventorySnapshot.findOne({
+          organization: organizationId,
           product: alert.product,
-          date: { $gt: alert.triggeredAt }
+          recordedAt: { $gt: alert.triggeredAt }
         })
-          .sort({ date: 1 })
+          .sort({ recordedAt: 1 })
           .lean();
 
         if (

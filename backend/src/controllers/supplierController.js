@@ -10,7 +10,10 @@ import mongoose from 'mongoose';
  */
 export const createSupplier = async (req, res, next) => {
   try {
-    const supplier = await Supplier.create(req.body);
+    const supplier = await Supplier.create({
+      ...req.body,
+      organization: req.organizationId
+    });
 
     return successResponse(
       res,
@@ -28,7 +31,9 @@ export const createSupplier = async (req, res, next) => {
  */
 export const getSuppliers = async (req, res, next) => {
   try {
-    const suppliers = await Supplier.find().sort({ createdAt: -1 });
+    const suppliers = await Supplier.find({
+      organization: req.organizationId
+    }).sort({ createdAt: -1 });
 
     return successResponse(
       res,
@@ -45,7 +50,10 @@ export const getSuppliers = async (req, res, next) => {
  */
 export const getSupplierById = async (req, res, next) => {
   try {
-    const supplier = await Supplier.findById(req.params.id);
+    const supplier = await Supplier.findOne({
+      _id: req.params.id,
+      organization: req.organizationId
+    });
 
     if (!supplier) {
       throw new AppError('Supplier not found', 404);
@@ -66,8 +74,11 @@ export const getSupplierById = async (req, res, next) => {
  */
 export const updateSupplier = async (req, res, next) => {
   try {
-    const supplier = await Supplier.findByIdAndUpdate(
-      req.params.id,
+    const supplier = await Supplier.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        organization: req.organizationId
+      },
       req.body,
       { new: true }
     );
@@ -91,7 +102,10 @@ export const updateSupplier = async (req, res, next) => {
  */
 export const deleteSupplier = async (req, res, next) => {
   try {
-    const supplier = await Supplier.findByIdAndDelete(req.params.id);
+    const supplier = await Supplier.findOneAndDelete({
+      _id: req.params.id,
+      organization: req.organizationId
+    });
 
     if (!supplier) {
       throw new AppError('Supplier not found', 404);
@@ -120,7 +134,10 @@ export const getSupplierPerformance = async (req, res, next) => {
     /**
      * 1️⃣ Alert statistics
      */
-    const alerts = await ReorderAlert.find({ supplier: supplierId });
+    const alerts = await ReorderAlert.find({
+      supplier: supplierId,
+      organization: req.organizationId
+    });
 
     const totalAlerts = alerts.length;
     const activeAlerts = alerts.filter(a => !a.resolved).length;
@@ -148,6 +165,7 @@ export const getSupplierPerformance = async (req, res, next) => {
      */
     const supplierLinks = await SupplierProduct.find({
       supplier: supplierId,
+      organization: req.organizationId,
       isActive: true
     });
 
@@ -197,6 +215,7 @@ export const getSupplierPerformance = async (req, res, next) => {
 export const getSupplierRankings = async (req, res, next) => {
   try {
     const suppliers = await Supplier.aggregate([
+      { $match: { organization: new mongoose.Types.ObjectId(req.organizationId) } },
       {
         $lookup: {
           from: 'reorderalerts',

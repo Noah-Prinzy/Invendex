@@ -17,6 +17,7 @@ import {
 import { protect } from '../middlewares/authMiddleware.js';
 import requireRoles from '../middlewares/requireRoles.js';
 import { auditMiddleware } from '../middlewares/auditMiddleware.js';
+import requireOrganization from '../middlewares/requireOrganization.js';
 import validateRequest from '../middlewares/validateRequest.js';
 
 import {
@@ -32,6 +33,7 @@ import {
 } from '../middlewares/rateLimiter.js';
 
 const router = express.Router();
+router.use(protect, requireOrganization);
 
 /**
  * 🔔 Evaluate reorder trigger (SYSTEM)

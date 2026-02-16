@@ -2,6 +2,12 @@ import mongoose from 'mongoose';
 
 const auditLogSchema = new mongoose.Schema(
   {
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Organization',
+      default: null,
+      index: true
+    },
     /* 👤 Who performed the action */
     user: {
       type: mongoose.Schema.Types.ObjectId,
@@ -92,6 +98,7 @@ const auditLogSchema = new mongoose.Schema(
 
 /* 🚀 Performance & audit-grade indexing */
 auditLogSchema.index({ createdAt: -1 });
+auditLogSchema.index({ organization: 1, createdAt: -1 });
 auditLogSchema.index({ action: 1, createdAt: -1 });
 auditLogSchema.index({ entity: 1, entityId: 1 });
 

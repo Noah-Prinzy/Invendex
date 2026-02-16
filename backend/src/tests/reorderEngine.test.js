@@ -28,7 +28,9 @@ describe('Reorder Engine', () => {
   it(
     'creates a reorder alert when stock is below calculated reorder level',
     async () => {
+      const organizationId = new mongoose.Types.ObjectId();
       const product = await Product.create({
+        organization: organizationId,
         name: 'Test Product',
         sku: 'TEST-SKU-001',
         price: 100,
@@ -39,6 +41,7 @@ describe('Reorder Engine', () => {
 
       await InventorySnapshot.create([
         {
+          organization: organizationId,
           product: product._id,
           sku: product.sku,
           stock: 20,
@@ -46,6 +49,7 @@ describe('Reorder Engine', () => {
           recordedAt: new Date('2024-01-01')
         },
         {
+          organization: organizationId,
           product: product._id,
           sku: product.sku,
           stock: 5,
@@ -54,7 +58,7 @@ describe('Reorder Engine', () => {
         }
       ]);
 
-      const result = await runReorderEngine();
+      const result = await runReorderEngine({ organizationId });
 
       const alerts = await ReorderAlert.find({ sku: product.sku });
 
@@ -69,7 +73,9 @@ describe('Reorder Engine', () => {
   it(
     'does NOT create duplicate active reorder alerts on the same day',
     async () => {
+      const organizationId = new mongoose.Types.ObjectId();
       const product = await Product.create({
+        organization: organizationId,
         name: 'Test Product',
         sku: 'TEST-SKU-002',
         price: 100,
@@ -80,6 +86,7 @@ describe('Reorder Engine', () => {
 
       await InventorySnapshot.create([
         {
+          organization: organizationId,
           product: product._id,
           sku: product.sku,
           stock: 20,
@@ -87,6 +94,7 @@ describe('Reorder Engine', () => {
           recordedAt: new Date('2024-01-01')
         },
         {
+          organization: organizationId,
           product: product._id,
           sku: product.sku,
           stock: 5,
@@ -95,10 +103,10 @@ describe('Reorder Engine', () => {
         }
       ]);
 
-      const firstRun = await runReorderEngine();
+      const firstRun = await runReorderEngine({ organizationId });
       expect(firstRun.generated).toBe(1);
 
-      const secondRun = await runReorderEngine();
+      const secondRun = await runReorderEngine({ organizationId });
       expect(secondRun.generated).toBe(0);
 
       const alerts = await ReorderAlert.find({ sku: product.sku });
@@ -111,7 +119,9 @@ describe('Reorder Engine', () => {
   it(
     'creates a NEW reorder alert after the previous one is resolved',
     async () => {
+      const organizationId = new mongoose.Types.ObjectId();
       const product = await Product.create({
+        organization: organizationId,
         name: 'Test Product',
         sku: 'TEST-SKU-003',
         price: 100,
@@ -122,6 +132,7 @@ describe('Reorder Engine', () => {
 
       await InventorySnapshot.create([
         {
+          organization: organizationId,
           product: product._id,
           sku: product.sku,
           stock: 20,
@@ -129,6 +140,7 @@ describe('Reorder Engine', () => {
           recordedAt: new Date('2024-01-01')
         },
         {
+          organization: organizationId,
           product: product._id,
           sku: product.sku,
           stock: 5,
@@ -137,14 +149,14 @@ describe('Reorder Engine', () => {
         }
       ]);
 
-      const firstRun = await runReorderEngine();
+      const firstRun = await runReorderEngine({ organizationId });
       expect(firstRun.generated).toBe(1);
 
       const alert = await ReorderAlert.findOne({ sku: product.sku });
       alert.resolved = true;
       await alert.save();
 
-      const secondRun = await runReorderEngine();
+      const secondRun = await runReorderEngine({ organizationId });
       expect(secondRun.generated).toBe(1);
 
       const alerts = await ReorderAlert.find({ sku: product.sku });
@@ -156,7 +168,9 @@ describe('Reorder Engine', () => {
   it(
     'respects supplier minimum order quantity (MOQ)',
     async () => {
+      const organizationId = new mongoose.Types.ObjectId();
       const product = await Product.create({
+        organization: organizationId,
         name: 'MOQ Product',
         sku: 'TEST-SKU-MOQ',
         price: 50,
@@ -166,6 +180,7 @@ describe('Reorder Engine', () => {
       });
 
       await SupplierProduct.create({
+        organization: organizationId,
         supplier: new mongoose.Types.ObjectId(),
         product: product._id,
         sku: product.sku,
@@ -177,6 +192,7 @@ describe('Reorder Engine', () => {
 
       await InventorySnapshot.create([
         {
+          organization: organizationId,
           product: product._id,
           sku: product.sku,
           stock: 10,
@@ -184,6 +200,7 @@ describe('Reorder Engine', () => {
           recordedAt: new Date('2024-01-01')
         },
         {
+          organization: organizationId,
           product: product._id,
           sku: product.sku,
           stock: 2,
@@ -192,7 +209,7 @@ describe('Reorder Engine', () => {
         }
       ]);
 
-      const result = await runReorderEngine();
+      const result = await runReorderEngine({ organizationId });
 
       const alert = await ReorderAlert.findOne({ sku: product.sku });
 

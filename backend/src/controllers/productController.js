@@ -3,6 +3,7 @@ import InventorySnapshot from '../models/InventorySnapshot.js';
 import { successResponse } from '../utils/response.js';
 import { AppError } from '../errors/AppError.js';
 import { logAudit } from '../utils/auditLogger.js';
+import mongoose from 'mongoose';
 
 /* ======================================================
    HELPERS
@@ -49,7 +50,10 @@ const calculateAverageDailyUsage = (stockHistory = []) => {
 
 export const getProducts = async (req, res, next) => {
   try {
-    const products = await Product.find({ isActive: true });
+    const products = await Product.find({
+      organization: req.organizationId,
+      isActive: true
+    });
     return successResponse(res, products, 'Products fetched');
   } catch (err) {
     next(err);
@@ -58,7 +62,10 @@ export const getProducts = async (req, res, next) => {
 
 export const getProductById = async (req, res, next) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findOne({
+      _id: req.params.id,
+      organization: req.organizationId
+    });
     if (!product) throw new AppError('Product not found', 404);
     return successResponse(res, product, 'Product fetched');
   } catch (err) {
@@ -69,7 +76,10 @@ export const getProductById = async (req, res, next) => {
 export const createProduct = async (req, res, next) => {
   try {
     const data = pickProductFields(req.body);
-    const product = await Product.create(data);
+    const product = await Product.create({
+      ...data,
+      organization: req.organizationId
+    });
 
     logAudit({
       req,
@@ -87,8 +97,8 @@ export const createProduct = async (req, res, next) => {
 export const updateProduct = async (req, res, next) => {
   try {
     const updates = pickProductFields(req.body);
-    const product = await Product.findByIdAndUpdate(
-      req.params.id,
+    const product = await Product.findOneAndUpdate(
+      { _id: req.params.id, organization: req.organizationId },
       updates,
       { new: true, runValidators: true }
     );
@@ -103,7 +113,10 @@ export const updateProduct = async (req, res, next) => {
 
 export const deleteProduct = async (req, res, next) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findOne({
+      _id: req.params.id,
+      organization: req.organizationId
+    });
     if (!product) throw new AppError('Product not found', 404);
 
     product.isActive = false;
@@ -117,7 +130,10 @@ export const deleteProduct = async (req, res, next) => {
 
 export const restoreProduct = async (req, res, next) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findOne({
+      _id: req.params.id,
+      organization: req.organizationId
+    });
     if (!product) throw new AppError('Product not found', 404);
 
     product.isActive = true;
@@ -133,7 +149,10 @@ export const adjustProductStock = async (req, res, next) => {
   try {
     const { amount, reason } = req.body;
 
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findOne({
+      _id: req.params.id,
+      organization: req.organizationId
+    });
     if (!product) throw new AppError('Product not found', 404);
 
     await product.adjustStock(amount, reason, req.user?._id);
@@ -147,6 +166,7 @@ export const adjustProductStock = async (req, res, next) => {
     }
 
     await InventorySnapshot.create({
+      organization: req.organizationId,
       product: product._id,
       sku: product.sku,
       stock: product.stock,
@@ -163,6 +183,7 @@ export const adjustProductStock = async (req, res, next) => {
 export const getLowStockProducts = async (req, res, next) => {
   try {
     const products = await Product.find({
+      organization: req.organizationId,
       isActive: true,
       $expr: { $lte: ['$stock', '$lowStockThreshold'] }
     });
@@ -177,6 +198,11 @@ export const getLowStockSummary = async (req, res, next) => {
   try {
     const summary = await Product.aggregate([
       { $match: { isActive: true } },
+      {
+        $match: {
+          organization: new mongoose.Types.ObjectId(req.organizationId)
+        }
+      },
       {
         $project: {
           sku: 1,
@@ -196,7 +222,10 @@ export const getLowStockSummary = async (req, res, next) => {
 
 export const getInventoryHealthOverview = async (req, res, next) => {
   try {
-    const products = await Product.find({ isActive: true }).lean();
+    const products = await Product.find({
+      organization: req.organizationId,
+      isActive: true
+    }).lean();
 
     const overview = products.map(p => ({
       sku: p.sku,
@@ -221,7 +250,10 @@ export const getInventoryHealthOverview = async (req, res, next) => {
 
 export const getReorderRecommendations = async (req, res, next) => {
   try {
-    const products = await Product.find({ isActive: true }).lean();
+    const products = await Product.find({
+      organization: req.organizationId,
+      isActive: true
+    }).lean();
 
     const recommendations = products.map(p => ({
       sku: p.sku,
@@ -243,9 +275,10 @@ export const getReorderRecommendations = async (req, res, next) => {
 
 export const getProductStockHistory = async (req, res, next) => {
   try {
-    const product = await Product.findById(req.params.id).select(
-      'sku stockHistory'
-    );
+    const product = await Product.findOne({
+      _id: req.params.id,
+      organization: req.organizationId
+    }).select('sku stockHistory');
 
     if (!product) throw new AppError('Product not found', 404);
 

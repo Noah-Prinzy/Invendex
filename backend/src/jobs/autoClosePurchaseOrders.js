@@ -10,14 +10,12 @@ export const autoClosePurchaseOrdersJob = () => {
     );
 
     const staleOrders = await PurchaseOrder.find({
-      status: 'sent',
-      received: false,
+      status: 'SENT',
       sentAt: { $lte: fourteenDaysAgo }
     });
 
     for (const po of staleOrders) {
-      po.status = 'closed';
-      po.closedReason = 'Auto-closed: not received after 14 days';
+      po.status = 'CLOSED';
       po.closedAt = new Date();
 
       await po.save();

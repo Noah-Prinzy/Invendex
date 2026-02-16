@@ -16,6 +16,12 @@ const ALERT_STATUSES = Object.freeze([
 
 const reorderAlertSchema = new mongoose.Schema(
   {
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Organization',
+      required: true,
+      index: true
+    },
     product: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Product',
@@ -171,6 +177,7 @@ const reorderAlertSchema = new mongoose.Schema(
  */
 reorderAlertSchema.index(
   {
+    organization: 1,
     product: 1,
     triggeredAt: 1,
     resolved: 1

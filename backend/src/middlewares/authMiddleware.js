@@ -15,7 +15,8 @@ export const protect = async (req, res, next) => {
     if (process.env.NODE_ENV === 'test') {
       req.user = {
         _id: '000000000000000000000000',
-        role: 'admin'
+        role: 'admin',
+        organization: '000000000000000000000001'
       };
       req.userToken = { id: req.user._id };
       return next();

@@ -41,6 +41,12 @@ const stockHistorySchema = new mongoose.Schema(
 
 const productSchema = new mongoose.Schema(
   {
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Organization',
+      required: true,
+      index: true
+    },
     name: {
       type: String,
       required: true,
@@ -201,7 +207,7 @@ productSchema.virtual('isLowStock').get(function () {
 /**
  * 🔍 Indexes
  */
-productSchema.index({ sku: 1 }, { unique: true });
+productSchema.index({ organization: 1, sku: 1 }, { unique: true });
 productSchema.index({ category: 1, isActive: 1 });
 productSchema.index({ createdAt: -1 });
 

@@ -2,8 +2,12 @@ import express from 'express';
 import {
   analyzeForecastVsStatic
 } from '../controllers/reorderAnalysisController.js';
+import { protect } from '../middlewares/authMiddleware.js';
+import requireOrganization from '../middlewares/requireOrganization.js';
+import requireRoles from '../middlewares/requireRoles.js';
 
 const router = express.Router();
+router.use(protect, requireOrganization, requireRoles('admin', 'manager'));
 
 /**
  * 📊 Forecast vs Static Reorder Alert Accuracy

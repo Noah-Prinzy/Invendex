@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import Product from '../models/Product.js';
 import InventorySnapshot from '../models/InventorySnapshot.js';
+import Organization from '../models/Organization.js';
 
 // ✅ Correct CJS ↔ ESM interop
 import forecastService from '../services/inventory/forecastService.js';
@@ -27,45 +28,54 @@ export const startForecastGenerationCron = () => {
     try {
       console.log('🔮 Running inventory forecast cron...');
 
-      const products = await Product.find({ isActive: true }).select(
-        '_id sku stock'
-      );
+      const organizations = await Organization.find({
+        isActive: true
+      }).select('_id');
 
-      for (const product of products) {
-        try {
-          // 🕒 Last 30 inventory snapshots (most recent first)
-          const snapshots = await InventorySnapshot.find({
-            product: product._id
-          })
-            .sort({ recordedAt: -1 })
-            .limit(30)
-            .lean();
+      for (const organization of organizations) {
+        const products = await Product.find({
+          organization: organization._id,
+          isActive: true
+        }).select('_id sku stock');
 
-          if (snapshots.length < 2) continue;
+        for (const product of products) {
+          try {
+            // 🕒 Last 30 inventory snapshots (most recent first)
+            const snapshots = await InventorySnapshot.find({
+              organization: organization._id,
+              product: product._id
+            })
+              .sort({ recordedAt: -1 })
+              .limit(30)
+              .lean();
 
-          // 📉 Build daily consumption history
-          const historicalDemand = [];
+            if (snapshots.length < 2) continue;
 
-          for (let i = 0; i < snapshots.length - 1; i++) {
-            const consumed =
-              snapshots[i].stock - snapshots[i + 1].stock;
+            // 📉 Build daily consumption history
+            const historicalDemand = [];
 
-            if (consumed > 0) {
-              historicalDemand.push(consumed);
+            for (let i = 0; i < snapshots.length - 1; i++) {
+              const consumed =
+                snapshots[i].stock - snapshots[i + 1].stock;
+
+              if (consumed > 0) {
+                historicalDemand.push(consumed);
+              }
             }
+
+            if (historicalDemand.length === 0) continue;
+
+            await generateProductForecast({
+              organizationId: organization._id,
+              productId: product._id,
+              historicalDemand
+            });
+          } catch (err) {
+            console.error(
+              `❌ Forecast failed for product ${product.sku}:`,
+              err.message
+            );
           }
-
-          if (historicalDemand.length === 0) continue;
-
-          await generateProductForecast({
-            productId: product._id,
-            historicalDemand
-          });
-        } catch (err) {
-          console.error(
-            `❌ Forecast failed for product ${product.sku}:`,
-            err.message
-          );
         }
       }
 

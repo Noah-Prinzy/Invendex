@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { runReorderEngine } from '../services/reorderEngine.js';
+import Organization from '../models/Organization.js';
 
 let cronStarted = false;
 
@@ -31,13 +32,22 @@ export const startForecastReorderEngineCron = () => {
         '🔮 Running forecast-aware reorder engine cron...'
       );
 
-      const alerts = await runReorderEngine({
-        triggeredBy: 'FORECAST_CRON'
-      });
+      const organizations = await Organization.find({
+        isActive: true
+      }).select('_id');
 
-      if (alerts.length > 0) {
+      let totalGenerated = 0;
+      for (const organization of organizations) {
+        const result = await runReorderEngine({
+          triggeredBy: 'FORECAST_CRON',
+          organizationId: organization._id
+        });
+        totalGenerated += result.generated;
+      }
+
+      if (totalGenerated > 0) {
         console.warn(
-          `⚠️ ${alerts.length} forecast-aware reorder alert(s) created`
+          `⚠️ ${totalGenerated} forecast-aware reorder alert(s) created`
         );
       } else {
         console.log(

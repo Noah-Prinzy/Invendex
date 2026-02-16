@@ -6,8 +6,10 @@ import {
 
 import { protect } from '../middlewares/authMiddleware.js';
 import requireRoles from '../middlewares/requireRoles.js';
+import requireOrganization from '../middlewares/requireOrganization.js';
 
 const router = express.Router();
+router.use(protect, requireOrganization);
 
 /**
  * 📊 Latest inventory metrics
@@ -15,7 +17,6 @@ const router = express.Router();
  */
 router.get(
   '/latest',
-  protect,
   requireRoles('admin', 'staff'),
   getLatestInventoryMetrics
 );
@@ -30,7 +31,6 @@ router.get(
  */
 router.get(
   '/range',
-  protect,
   requireRoles('admin', 'staff'),
   getInventoryMetricsRange
 );

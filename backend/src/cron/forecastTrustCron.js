@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import {
   updateAllForecastTrustScores
 } from '../services/forecastTrustService.js';
+import Organization from '../models/Organization.js';
 
 let cronStarted = false;
 
@@ -29,7 +30,13 @@ export const startForecastTrustCron = () => {
         '🔁 Running forecast trust score update cron...'
       );
 
-      await updateAllForecastTrustScores();
+      const organizations = await Organization.find({
+        isActive: true
+      }).select('_id');
+
+      for (const organization of organizations) {
+        await updateAllForecastTrustScores(organization._id);
+      }
 
       console.log(
         '✅ Forecast trust scores updated successfully'
