@@ -61,6 +61,26 @@ const purchaseOrderSchema = new mongoose.Schema(
       index: true
     },
 
+    /**
+     * 🆕 Origin of PO
+     */
+    source: {
+      type: String,
+      enum: ['REORDER_ENGINE', 'MANUAL'],
+      default: 'MANUAL',
+      index: true
+    },
+
+    /**
+     * 🆕 Linked reorder alerts
+     */
+    reorderAlerts: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ReorderAlert'
+      }
+    ],
+
     items: {
       type: [purchaseOrderItemSchema],
       required: true
@@ -80,7 +100,7 @@ const purchaseOrderSchema = new mongoose.Schema(
     },
 
     /**
-     * Backward compatibility (older controllers)
+     * Backward compatibility
      */
     totalAmount: {
       type: Number,
@@ -135,13 +155,31 @@ const purchaseOrderSchema = new mongoose.Schema(
 
 /**
  * 🔢 Auto-generate PO number
+ * 🔁 Keep totals in sync
  */
 purchaseOrderSchema.pre('save', function (next) {
   if (!this.poNumber) {
     this.poNumber = `PO-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   }
 
-  // Keep totals in sync (non-breaking)
+  // 🧮 Recalculate item totals (safety)
+  if (Array.isArray(this.items)) {
+    this.items.forEach(item => {
+      item.totalCost = item.quantity * item.unitCost;
+    });
+
+    this.totalQuantity = this.items.reduce(
+      (sum, item) => sum + item.quantity,
+      0
+    );
+
+    this.totalCost = this.items.reduce(
+      (sum, item) => sum + item.totalCost,
+      0
+    );
+  }
+
+  // Backward compatibility
   if (this.totalCost != null && this.totalAmount == null) {
     this.totalAmount = this.totalCost;
   }

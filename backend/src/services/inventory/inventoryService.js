@@ -1,15 +1,13 @@
 import Product from '../../models/Product.js';
 import InventorySnapshot from '../../models/InventorySnapshot.js';
 import ReorderAlert from '../../models/ReorderAlert.js';
-import AppError from '../../utils/AppError.js'; // ✅ default import
+import AppError from '../../utils/AppError.js';
 
 /**
  * Applies inventory updates when a Purchase Order is received.
- * This operation is idempotent-safe.
+ * Idempotent per purchaseOrder + product
  */
-export const applyPurchaseOrderToInventory = async ({
-  purchaseOrder
-}) => {
+export const applyPurchaseOrderToInventory = async ({ purchaseOrder }) => {
   if (!purchaseOrder || !purchaseOrder.items?.length) {
     throw new AppError(
       'Invalid purchase order supplied to inventory service',
@@ -18,18 +16,16 @@ export const applyPurchaseOrderToInventory = async ({
   }
 
   for (const item of purchaseOrder.items) {
-    const { product: productId, quantity } = item;
+    const { product: productId, quantity, reorderAlert } = item;
 
-    // Prevent double-application:
-    // Check if a snapshot already exists for this PO + product
+    // 🔒 Idempotency: if a snapshot already exists for this product + PO, skip
     const existingSnapshot = await InventorySnapshot.findOne({
       product: productId,
-      sourceType: 'PURCHASE_ORDER',
-      sourceId: purchaseOrder._id
+      purchaseOrder: purchaseOrder._id
     });
 
     if (existingSnapshot) {
-      continue; // Idempotent no-op
+      continue;
     }
 
     const product = await Product.findById(productId);
@@ -41,39 +37,30 @@ export const applyPurchaseOrderToInventory = async ({
     }
 
     const previousStock = product.stock;
-    const newStock = previousStock + quantity;
 
-    // Update product stock
-    product.stock = newStock;
+    // 📦 Apply stock increment
+    product.stock = previousStock + quantity;
     await product.save();
 
-    // Record inventory snapshot (audit trail)
+    // 📸 Record inventory snapshot
     await InventorySnapshot.create({
       product: productId,
+      purchaseOrder: purchaseOrder._id,
       change: quantity,
       previousStock,
-      newStock,
-      sourceType: 'PURCHASE_ORDER',
-      sourceId: purchaseOrder._id,
-      note: `Stock received via PO ${purchaseOrder._id}`
+      newStock: product.stock
     });
 
-    // Resolve only alerts linked to this PO + product
-    await ReorderAlert.updateMany(
-      {
-        product: productId,
-        linkedPurchaseOrder: purchaseOrder._id,
-        resolved: false
-      },
-      {
-        $set: {
-          resolved: true,
-          resolvedAt: new Date()
-        }
-      }
-    );
+    // ✅ Resolve linked reorder alert (if any)
+    if (reorderAlert) {
+      await ReorderAlert.findByIdAndUpdate(reorderAlert, {
+        resolved: true,
+        resolvedAt: new Date()
+      });
+    }
   }
 };
+
 export default {
   applyPurchaseOrderToInventory
 };
