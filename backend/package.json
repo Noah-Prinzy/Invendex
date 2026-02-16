@@ -8,7 +8,9 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --passWithNoTests",
-    "migrate:tenant": "node scripts/migrateTenantBackfill.js"
+    "test:finance-realtime": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js src/tests/valuationService.test.js src/tests/financeLifecycle.test.js src/tests/realtimeSocket.test.js src/tests/financeRealtimeSmoke.test.js",
+    "migrate:tenant": "node scripts/migrateTenantBackfill.js",
+    "migrate:financial": "node scripts/migrateFinancialBackfill.js"
   },
   "jest": {
     "testPathIgnorePatterns": [
@@ -31,12 +33,14 @@
     "mongoose": "^8.9.0",
     "morgan": "^1.10.0",
     "node-cron": "^4.2.1",
+    "socket.io": "^4.8.3",
     "xlsx": "^0.18.5",
     "xss-clean": "^0.1.4"
   },
   "devDependencies": {
     "jest": "^29.7.0",
     "nodemon": "^3.1.7",
+    "socket.io-client": "^4.8.3",
     "supertest": "^6.3.4"
   }
 }

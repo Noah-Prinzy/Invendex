@@ -15,28 +15,31 @@ import inventoryMetricsRoutes from './routes/inventoryMetricsRoutes.js';
 import supplierRoutes from './routes/supplierRoutes.js';
 import supplierProductRoutes from './routes/supplierProductRoutes.js';
 import purchaseOrderRoutes from './routes/purchaseOrderRoutes.js';
+import orderRoutes from './routes/orderRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import aiInsightsRoutes from './routes/aiInsightsRoutes.js';
 import wmsRoutes from './routes/wmsRoutes.js';
+import financeRoutes from './routes/financeRoutes.js';
+import forecastRoutes from './routes/forecastRoutes.js';
+import auditLogRoutes from './routes/auditLogRoutes.js';
+import reorderAlertRoutes from './routes/reorderAlertRoutes.js';
+import reorderAnalysisRoutes from './routes/reorderAnalysisRoutes.js';
+import forecastTrustRoutes from './routes/forecastTrustRoutes.js';
+import reportRoutes from './routes/reportRoutes.js';
 
+import { rateLimiter } from './middlewares/rateLimiter.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 
 dotenv.config();
 
 const app = express();
 
-/**
- * 🔐 SECURITY HEADERS (A26.2)
- */
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' }
   })
 );
 
-/**
- * 🌍 CORS
- */
 app.use(
   cors({
     origin: true,
@@ -44,36 +47,26 @@ app.use(
   })
 );
 
-/**
- * 🧾 Body parsing
- */
 app.use(express.json());
 app.use(cookieParser());
 
-/**
- * 🧼 MongoDB injection sanitization (A26.3)
- * Prevents $gt, $ne, $or, etc. attacks
- */
 app.use(
   mongoSanitize({
     replaceWith: '_'
   })
 );
 
-/**
- * 🛡️ XSS protection (A26.4)
- * Cleans user input from body, query, params
- */
 app.use(xss());
-
-/**
- * 📜 Logging
- */
 app.use(morgan('dev'));
 
-/**
- * 🚏 Routes
- */
+app.use(
+  '/api',
+  rateLimiter({
+    windowMs: 15 * 60 * 1000,
+    max: 300
+  })
+);
+
 app.use('/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/inventory', inventoryRoutes);
@@ -82,13 +75,18 @@ app.use('/api/inventory-metrics', inventoryMetricsRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/supplier-products', supplierProductRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
+app.use('/api/orders', orderRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/ai', aiInsightsRoutes);
 app.use('/api/wms', wmsRoutes);
+app.use('/api/finance', financeRoutes);
+app.use('/api/forecast', forecastRoutes);
+app.use('/api/audit-logs', auditLogRoutes);
+app.use('/api/reorder-alerts', reorderAlertRoutes);
+app.use('/api/reorder-analysis', reorderAnalysisRoutes);
+app.use('/api/forecast-trust', forecastTrustRoutes);
+app.use('/api/reports', reportRoutes);
 
-/**
- * ❤️ Health check
- */
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -104,9 +102,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-/**
- * ❌ Global error handler (MUST BE LAST)
- */
 app.use(errorHandler);
 
 export default app;

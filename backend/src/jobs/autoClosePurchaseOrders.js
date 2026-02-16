@@ -1,9 +1,10 @@
 import cron from 'node-cron';
 import PurchaseOrder from '../models/PurchaseOrder.js';
+import { publishPurchaseOrderUpdated } from '../realtime/publisher.js';
 
 export const autoClosePurchaseOrdersJob = () => {
   cron.schedule('0 2 * * *', async () => {
-    console.log('🧹 Running auto-close purchase orders job...');
+    console.log('Running auto-close purchase orders job...');
 
     const fourteenDaysAgo = new Date(
       Date.now() - 14 * 24 * 60 * 60 * 1000
@@ -20,7 +21,13 @@ export const autoClosePurchaseOrdersJob = () => {
 
       await po.save();
 
-      console.log(`✅ Auto-closed PO ${po.poNumber}`);
+      publishPurchaseOrderUpdated({
+        organizationId: po.organization,
+        actorUserId: null,
+        purchaseOrder: po
+      });
+
+      console.log(`Auto-closed PO ${po.poNumber}`);
     }
   });
 };

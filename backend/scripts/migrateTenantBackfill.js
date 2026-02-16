@@ -13,6 +13,9 @@ import WarehouseBin from '../src/models/WarehouseBin.js';
 import PurchaseOrder from '../src/models/PurchaseOrder.js';
 import Inventory from '../src/models/Inventory.js';
 import BinInventory from '../src/models/BinInventory.js';
+import InventoryValuationConfig from '../src/models/InventoryValuationConfig.js';
+import InventoryCostLayer from '../src/models/InventoryCostLayer.js';
+import CogsEntry from '../src/models/CogsEntry.js';
 import InventorySnapshot from '../src/models/InventorySnapshot.js';
 import ReorderAlert from '../src/models/ReorderAlert.js';
 import StockMovement from '../src/models/StockMovement.js';
@@ -84,6 +87,9 @@ const migrationTargets = [
   { model: PurchaseOrder, name: 'PurchaseOrder' },
   { model: Inventory, name: 'Inventory' },
   { model: BinInventory, name: 'BinInventory' },
+  { model: InventoryValuationConfig, name: 'InventoryValuationConfig' },
+  { model: InventoryCostLayer, name: 'InventoryCostLayer' },
+  { model: CogsEntry, name: 'CogsEntry' },
   { model: InventorySnapshot, name: 'InventorySnapshot' },
   { model: ReorderAlert, name: 'ReorderAlert' },
   { model: StockMovement, name: 'StockMovement' },
@@ -225,6 +231,9 @@ async function syncStrictTenantIndexes() {
     { model: ReorderAlert, name: 'ReorderAlert' },
     { model: WarehouseBin, name: 'WarehouseBin' },
     { model: BinInventory, name: 'BinInventory' },
+    { model: InventoryValuationConfig, name: 'InventoryValuationConfig' },
+    { model: InventoryCostLayer, name: 'InventoryCostLayer' },
+    { model: CogsEntry, name: 'CogsEntry' },
     { model: PickTicket, name: 'PickTicket' },
     { model: StockMovement, name: 'StockMovement' }
   ];

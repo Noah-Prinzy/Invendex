@@ -1,7 +1,10 @@
 const mongoose = require('mongoose');
 
 beforeAll(async () => {
-  const uri = process.env.MONGO_TEST_URI;
+  const uri =
+    process.env.MONGO_TEST_URI ||
+    process.env.DB_URL ||
+    'mongodb://127.0.0.1:27017/ledgerly_test';
 
   if (!uri) {
     throw new Error(

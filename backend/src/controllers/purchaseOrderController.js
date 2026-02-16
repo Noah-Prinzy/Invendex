@@ -14,6 +14,11 @@ import {
 } from '../services/purchaseOrderService.js';
 
 import { calculatePurchaseOrderTotals } from '../utils/calculatePurchaseOrderTotals.js';
+import {
+  publishPurchaseOrderCreated,
+  publishPurchaseOrderReceived,
+  publishPurchaseOrderUpdated
+} from '../realtime/publisher.js';
 
 /**
  * ➕ Create Purchase Order
@@ -70,6 +75,12 @@ export const createPurchaseOrder = async (req, res, next) => {
       notes,
       status: 'DRAFT',
       createdBy: req.user._id
+    });
+
+    publishPurchaseOrderCreated({
+      organizationId,
+      actorUserId: req.user?._id || null,
+      purchaseOrder
     });
 
     return successResponse(
@@ -139,6 +150,12 @@ export const receivePurchaseOrder = async (req, res, next) => {
       organizationId: req.organizationId
     });
 
+    publishPurchaseOrderReceived({
+      organizationId: req.organizationId,
+      actorUserId: req.user?._id || null,
+      purchaseOrder
+    });
+
     return successResponse(
       res,
       purchaseOrder,
@@ -160,6 +177,12 @@ export const sendPurchaseOrder = async (req, res, next) => {
       purchaseOrderId: id,
       userId: req.user?._id,
       organizationId: req.organizationId
+    });
+
+    publishPurchaseOrderUpdated({
+      organizationId: req.organizationId,
+      actorUserId: req.user?._id || null,
+      purchaseOrder
     });
 
     return successResponse(
@@ -184,6 +207,12 @@ export const closePurchaseOrder = async (req, res, next) => {
       organizationId: req.organizationId
     });
 
+    publishPurchaseOrderUpdated({
+      organizationId: req.organizationId,
+      actorUserId: req.user?._id || null,
+      purchaseOrder
+    });
+
     return successResponse(
       res,
       purchaseOrder,
@@ -204,6 +233,14 @@ export const generatePurchaseOrdersFromAlerts = async (req, res, next) => {
       warehouseId: req.body?.warehouse,
       organizationId: req.organizationId
     });
+
+    for (const order of orders) {
+      publishPurchaseOrderCreated({
+        organizationId: req.organizationId,
+        actorUserId: req.user?._id || null,
+        purchaseOrder: order
+      });
+    }
 
     return successResponse(
       res,

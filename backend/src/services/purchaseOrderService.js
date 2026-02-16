@@ -145,7 +145,10 @@ export const receivePurchaseOrder = async ({
     nextStatus: 'RECEIVED'
   });
 
-  await applyPurchaseOrderToInventory({ purchaseOrder });
+  await applyPurchaseOrderToInventory({
+    purchaseOrder,
+    actorUserId: userId
+  });
 
   purchaseOrder.status = 'RECEIVED';
   purchaseOrder.receivedAt = new Date();

@@ -6,6 +6,7 @@ import Inventory from '../models/Inventory.js';
 import InventorySnapshot from '../models/InventorySnapshot.js';
 import ReorderAlert from '../models/ReorderAlert.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
+import { getTestDbUri } from './testDbUri.js';
 
 import {
   applyPurchaseOrderToInventory
@@ -13,7 +14,7 @@ import {
 
 beforeAll(async () => {
   if (mongoose.connection.readyState === 0) {
-    await mongoose.connect(process.env.MONGO_TEST_URI);
+    await mongoose.connect(getTestDbUri());
   }
 });
 

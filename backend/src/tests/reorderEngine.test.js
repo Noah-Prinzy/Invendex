@@ -4,10 +4,11 @@ import InventorySnapshot from '../models/InventorySnapshot.js';
 import ReorderAlert from '../models/ReorderAlert.js';
 import SupplierProduct from '../models/SupplierProduct.js';
 import { runReorderEngine } from '../services/reorderEngine.js';
+import { getTestDbUri } from './testDbUri.js';
 
 beforeAll(async () => {
   if (mongoose.connection.readyState === 0) {
-    await mongoose.connect(process.env.MONGO_TEST_URI);
+    await mongoose.connect(getTestDbUri());
   }
 });
 

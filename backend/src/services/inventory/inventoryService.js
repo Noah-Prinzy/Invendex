@@ -3,12 +3,20 @@ import Inventory from '../../models/Inventory.js';
 import InventorySnapshot from '../../models/InventorySnapshot.js';
 import ReorderAlert from '../../models/ReorderAlert.js';
 import AppError from '../../utils/AppError.js';
+import { addCostLayerFromReceipt } from '../finance/valuationService.js';
+import {
+  publishInventoryUpdated,
+  publishValuationUpdated
+} from '../../realtime/publisher.js';
 
 /**
  * Applies inventory updates when a Purchase Order is received.
  * Idempotent per purchaseOrder + product
  */
-export const applyPurchaseOrderToInventory = async ({ purchaseOrder }) => {
+export const applyPurchaseOrderToInventory = async ({
+  purchaseOrder,
+  actorUserId = null
+}) => {
   if (
     !purchaseOrder ||
     !purchaseOrder.items?.length ||
@@ -96,6 +104,17 @@ export const applyPurchaseOrderToInventory = async ({ purchaseOrder }) => {
       newStock: inventory.quantityOnHand
     });
 
+    await addCostLayerFromReceipt({
+      organizationId: purchaseOrder.organization,
+      productId,
+      warehouseId: purchaseOrder.warehouse,
+      sourceType: 'PURCHASE_ORDER',
+      sourceId: purchaseOrder._id,
+      unitCost: item.unitCost,
+      quantity,
+      receivedAt: now
+    });
+
     // Resolve linked reorder alert (if any).
     if (reorderAlert) {
       await ReorderAlert.findOneAndUpdate(
@@ -109,7 +128,30 @@ export const applyPurchaseOrderToInventory = async ({ purchaseOrder }) => {
         }
       );
     }
+
+    publishInventoryUpdated({
+      organizationId: purchaseOrder.organization,
+      actorUserId,
+      warehouseId: purchaseOrder.warehouse,
+      entityId: productId,
+      data: {
+        source: 'purchase_order_receive',
+        purchaseOrderId: purchaseOrder._id,
+        quantityDelta: quantity,
+        quantityOnHand: inventory.quantityOnHand
+      }
+    });
   }
+
+  publishValuationUpdated({
+    organizationId: purchaseOrder.organization,
+    actorUserId,
+    warehouseId: purchaseOrder.warehouse,
+    data: {
+      reason: 'purchase_order_receive',
+      purchaseOrderId: purchaseOrder._id
+    }
+  });
 };
 
 export default {

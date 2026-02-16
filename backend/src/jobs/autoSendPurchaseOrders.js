@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import { sendPurchaseOrder } from '../services/purchaseOrderService.js';
+import { publishPurchaseOrderUpdated } from '../realtime/publisher.js';
 
 export const autoSendPurchaseOrdersJob = () => {
   cron.schedule('*/5 * * * *', async () => {
@@ -21,6 +22,15 @@ export const autoSendPurchaseOrdersJob = () => {
           userId: null,
           organizationId: po.organization
         });
+
+        const updated = await PurchaseOrder.findById(po._id);
+        if (updated) {
+          publishPurchaseOrderUpdated({
+            organizationId: updated.organization,
+            actorUserId: null,
+            purchaseOrder: updated
+          });
+        }
 
         console.log(`✅ Auto-sent PO ${po._id}`);
       } catch (err) {

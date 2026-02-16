@@ -4,6 +4,7 @@ import { successResponse } from '../utils/response.js';
 import { AppError } from '../errors/AppError.js';
 import { logAudit } from '../utils/auditLogger.js';
 import mongoose from 'mongoose';
+import { publishInventoryUpdated } from '../realtime/publisher.js';
 
 /* ======================================================
    HELPERS
@@ -172,6 +173,18 @@ export const adjustProductStock = async (req, res, next) => {
       stock: product.stock,
       price: product.price,
       source: 'MANUAL'
+    });
+
+    publishInventoryUpdated({
+      organizationId: req.organizationId,
+      actorUserId: req.user?._id || null,
+      entityId: product._id,
+      data: {
+        source: 'manual_stock_adjustment',
+        amount,
+        reason,
+        productStock: product.stock
+      }
     });
 
     return successResponse(res, product, 'Stock adjusted');
