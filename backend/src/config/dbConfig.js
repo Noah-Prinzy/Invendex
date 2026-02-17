@@ -1,4 +1,6 @@
 import mongoose from 'mongoose';
+import { logger } from '../observability/logger.js';
+import { enableMongoProfiling } from '../observability/mongoProfiler.js';
 
 const normalizeDbUrl = value =>
   String(value || '')
@@ -24,5 +26,6 @@ export async function connectDB() {
   }
 
   await mongoose.connect(uri);
-  console.log('Database connected');
+  enableMongoProfiling();
+  logger.info('database_connected');
 }

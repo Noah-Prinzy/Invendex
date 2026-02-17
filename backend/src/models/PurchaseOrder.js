@@ -30,6 +30,25 @@ const purchaseOrderItemSchema = new mongoose.Schema(
       required: true,
       min: 0
     },
+    trackingType: {
+      type: String,
+      enum: ['NONE', 'BATCH', 'SERIAL'],
+      default: 'NONE'
+    },
+    lotNumber: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: null
+    },
+    expiryDate: {
+      type: Date,
+      default: null
+    },
+    serialNumbers: {
+      type: [String],
+      default: []
+    },
 
     reorderAlert: {
       type: mongoose.Schema.Types.ObjectId,
@@ -177,9 +196,46 @@ purchaseOrderSchema.pre('save', function (next) {
 
   // 🧮 Recalculate item totals (safety)
   if (Array.isArray(this.items)) {
-    this.items.forEach(item => {
+    for (const item of this.items) {
       item.totalCost = item.quantity * item.unitCost;
-    });
+
+      const trackingType = String(item.trackingType || 'NONE')
+        .trim()
+        .toUpperCase();
+      item.trackingType = trackingType;
+
+      if (trackingType === 'BATCH' && !item.lotNumber) {
+        return next(
+          new Error(`lotNumber is required for BATCH item ${item.sku || ''}`)
+        );
+      }
+
+      if (trackingType === 'SERIAL') {
+        const serials = Array.isArray(item.serialNumbers)
+          ? item.serialNumbers
+              .map(value => String(value || '').trim().toUpperCase())
+              .filter(Boolean)
+          : [];
+
+        if (serials.length !== item.quantity) {
+          return next(
+            new Error(
+              `serialNumbers count must equal quantity for SERIAL item ${
+                item.sku || ''
+              }`
+            )
+          );
+        }
+
+        if (new Set(serials).size !== serials.length) {
+          return next(
+            new Error(`serialNumbers must be unique for SERIAL item ${item.sku || ''}`)
+          );
+        }
+
+        item.serialNumbers = serials;
+      }
+    }
 
     this.totalQuantity = this.items.reduce(
       (sum, item) => sum + item.quantity,

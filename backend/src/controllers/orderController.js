@@ -46,6 +46,20 @@ export const createOrder = async (req, res, next) => {
 
     await ensureProductsInOrganization(req.organizationId, products);
 
+    if (type === 'sale') {
+      for (const line of products) {
+        if (Array.isArray(line.serialNumbers) && line.serialNumbers.length) {
+          const quantity = Number(line.quantity || 0);
+          if (line.serialNumbers.length !== quantity) {
+            throw new AppError(
+              'serialNumbers count must equal quantity for sale line item',
+              400
+            );
+          }
+        }
+      }
+    }
+
     const lineWarehouses = products.map(line => line.warehouse || warehouse).filter(Boolean);
     await ensureWarehousesInOrganization(req.organizationId, lineWarehouses);
 

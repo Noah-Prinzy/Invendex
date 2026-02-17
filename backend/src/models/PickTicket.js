@@ -37,6 +37,16 @@ const pickTicketItemSchema = new mongoose.Schema(
     allocations: {
       type: [pickAllocationSchema],
       default: []
+    },
+    lotNumber: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: null
+    },
+    serialNumbers: {
+      type: [String],
+      default: []
     }
   },
   { _id: false }

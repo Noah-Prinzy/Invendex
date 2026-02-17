@@ -1,3 +1,6 @@
+import { captureException } from '../observability/errorTracker.js';
+import { logger } from '../observability/logger.js';
+
 export const errorHandler = (err, req, res, next) => {
   let statusCode = err.statusCode || 500;
   let message = err.message || 'Internal server error';
@@ -25,20 +28,32 @@ export const errorHandler = (err, req, res, next) => {
     message = 'Token expired';
   }
 
-  const level = statusCode >= 500 ? 'error' : 'warn';
-  const logger = statusCode >= 500 ? console.error : console.warn;
-  logger(
-    JSON.stringify({
-      level,
-      scope: 'api',
-      message: 'request_failed',
-      method: req?.method || null,
-      path: req?.originalUrl || null,
-      statusCode,
-      error: message,
-      occurredAt: new Date().toISOString()
-    })
-  );
+  const logMeta = {
+    scope: 'api',
+    event: 'request_failed',
+    method: req?.method || null,
+    path: req?.originalUrl || null,
+    statusCode,
+    error: message,
+    organizationId: req?.organizationId || req?.user?.organization || null,
+    userId: req?.user?._id || req?.user?.id || null
+  };
+
+  if (statusCode >= 500) {
+    logger.error('request_failed', {
+      ...logMeta,
+      err
+    });
+
+    captureException(err, {
+      ...logMeta,
+      requestId: req?.requestId || null
+    }).catch(() => {
+      // no-op: error reporting cannot block response path
+    });
+  } else {
+    logger.warn('request_failed', logMeta);
+  }
 
   res.status(statusCode).json({
     success: false,

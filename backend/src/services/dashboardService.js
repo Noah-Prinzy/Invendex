@@ -3,6 +3,7 @@ import Inventory from '../models/Inventory.js';
 import Order from '../models/Order.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import Supplier from '../models/Supplier.js';
+import { getDeadStockItems } from './finance/deadStockService.js';
 
 const normalizeDays = value => {
   const parsed = Number(value);
@@ -281,10 +282,31 @@ export const getSupplierPerformanceRanking = async ({
   return ranking;
 };
 
+export const getDeadStockIntelligence = async ({
+  organizationId,
+  days = 90,
+  warehouseId = null,
+  limit = 100
+}) => {
+  const report = await getDeadStockItems({
+    organizationId,
+    days,
+    warehouseId
+  });
+
+  const parsedLimit = Math.max(1, Math.min(Number(limit) || 100, 500));
+
+  return {
+    ...report,
+    items: report.items.slice(0, parsedLimit)
+  };
+};
+
 export default {
   getTopSellingItems,
   getTurnoverSkus,
   getSlowMovingSkus,
   getStockAgingBuckets,
-  getSupplierPerformanceRanking
+  getSupplierPerformanceRanking,
+  getDeadStockIntelligence
 };

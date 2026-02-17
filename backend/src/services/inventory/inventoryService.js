@@ -4,10 +4,12 @@ import InventorySnapshot from '../../models/InventorySnapshot.js';
 import ReorderAlert from '../../models/ReorderAlert.js';
 import AppError from '../../utils/AppError.js';
 import { addCostLayerFromReceipt } from '../finance/valuationService.js';
+import { recordInboundTrackingForReceipt } from './trackingService.js';
 import {
   publishInventoryUpdated,
   publishValuationUpdated
 } from '../../realtime/publisher.js';
+import { logInventoryMutation } from '../../observability/inventoryMutationLogger.js';
 
 /**
  * Applies inventory updates when a Purchase Order is received.
@@ -30,7 +32,15 @@ export const applyPurchaseOrderToInventory = async ({
   }
 
   for (const item of purchaseOrder.items) {
-    const { product: productId, quantity, reorderAlert } = item;
+    const {
+      product: productId,
+      quantity,
+      reorderAlert,
+      trackingType = 'NONE',
+      lotNumber = null,
+      expiryDate = null,
+      serialNumbers = []
+    } = item;
 
     // Idempotency per purchase order + product.
     const existingSnapshot = await InventorySnapshot.findOne({
@@ -115,6 +125,20 @@ export const applyPurchaseOrderToInventory = async ({
       receivedAt: now
     });
 
+    await recordInboundTrackingForReceipt({
+      organizationId: purchaseOrder.organization,
+      productId,
+      warehouseId: purchaseOrder.warehouse,
+      quantity,
+      trackingType,
+      lotNumber,
+      expiryDate,
+      serialNumbers,
+      sourceType: 'PURCHASE_ORDER',
+      sourceId: purchaseOrder._id,
+      movedBy: actorUserId
+    });
+
     // Resolve linked reorder alert (if any).
     if (reorderAlert) {
       await ReorderAlert.findOneAndUpdate(
@@ -128,6 +152,19 @@ export const applyPurchaseOrderToInventory = async ({
         }
       );
     }
+
+    logInventoryMutation({
+      operation: 'purchase_order_receive',
+      organizationId: purchaseOrder.organization,
+      warehouseId: purchaseOrder.warehouse,
+      productId,
+      quantityDelta: quantity,
+      quantityOnHand: inventory.quantityOnHand,
+      quantityReserved: inventory.quantityReserved,
+      sourceType: 'PURCHASE_ORDER',
+      sourceId: purchaseOrder._id,
+      actorUserId
+    });
 
     publishInventoryUpdated({
       organizationId: purchaseOrder.organization,

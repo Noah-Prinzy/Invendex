@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
 import { Server as SocketIOServer } from 'socket.io';
 import User from '../models/User.js';
+import { logger } from '../observability/logger.js';
+import { captureException } from '../observability/errorTracker.js';
 
 let ioInstance = null;
 let realtimeEnabled = false;
@@ -40,7 +42,7 @@ export const initSocketServer = async (
           .trim() === 'true';
 
   if (!realtimeEnabled) {
-    console.log('[realtime] disabled');
+    logger.info('realtime_disabled');
     return null;
   }
 
@@ -87,6 +89,9 @@ export const initSocketServer = async (
 
       return next();
     } catch {
+      logger.warn('realtime_auth_failed', {
+        socketId: socket.id || null
+      });
       return next(new Error('Realtime auth failed'));
     }
   });
@@ -96,9 +101,11 @@ export const initSocketServer = async (
     const organizationRoom = getOrganizationRoom(organizationId);
     socket.join(organizationRoom);
 
-    console.log(
-      `[realtime] connected socket=${socket.id} user=${userId} org=${organizationId}`
-    );
+    logger.info('realtime_connected', {
+      socketId: socket.id,
+      userId,
+      organizationId
+    });
 
     socket.on('subscribe:warehouse', payload => {
       const warehouseId = payload?.warehouseId;
@@ -117,13 +124,31 @@ export const initSocketServer = async (
     });
 
     socket.on('disconnect', reason => {
-      console.log(
-        `[realtime] disconnected socket=${socket.id} user=${userId} reason=${reason}`
-      );
+      logger.info('realtime_disconnected', {
+        socketId: socket.id,
+        userId,
+        organizationId,
+        reason
+      });
+    });
+
+    socket.on('error', error => {
+      logger.warn('realtime_socket_error', {
+        socketId: socket.id,
+        userId,
+        organizationId,
+        reason: error?.message || 'Unknown socket error'
+      });
+      captureException(error, {
+        scope: 'realtime_socket',
+        socketId: socket.id,
+        userId,
+        organizationId
+      }).catch(() => {});
     });
   });
 
-  console.log('[realtime] socket.io initialized');
+  logger.info('realtime_initialized');
   return ioInstance;
 };
 

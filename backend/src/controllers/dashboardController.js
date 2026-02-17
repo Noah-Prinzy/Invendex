@@ -1,5 +1,6 @@
 import { successResponse } from '../utils/response.js';
 import {
+  getDeadStockIntelligence,
   getSlowMovingSkus,
   getStockAgingBuckets,
   getSupplierPerformanceRanking,
@@ -35,6 +36,8 @@ export const getDashboardTurnoverSkus = async (req, res, next) => {
   }
 };
 
+export const getDashboardFastestMovingSkus = getDashboardTurnoverSkus;
+
 export const getDashboardSlowMovingSkus = async (req, res, next) => {
   try {
     const data = await getSlowMovingSkus({
@@ -69,6 +72,23 @@ export const getDashboardSupplierRanking = async (req, res, next) => {
     });
 
     return successResponse(res, data, 'Supplier ranking retrieved');
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getDashboardSupplierReliability = getDashboardSupplierRanking;
+
+export const getDashboardDeadStock = async (req, res, next) => {
+  try {
+    const data = await getDeadStockIntelligence({
+      organizationId: req.organizationId,
+      days: req.query.days || 90,
+      warehouseId: req.query.warehouseId || null,
+      limit: req.query.limit || 100
+    });
+
+    return successResponse(res, data, 'Dead stock intelligence retrieved');
   } catch (err) {
     next(err);
   }

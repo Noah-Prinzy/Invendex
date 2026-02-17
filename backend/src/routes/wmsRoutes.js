@@ -6,8 +6,10 @@ import {
   createPickWorkflowTicket,
   getBins,
   getMovementLedger,
+  getReplenishmentPlan,
   startPickWorkflowTicket,
-  transferBinStock
+  transferBinStock,
+  updateBinRules
 } from '../controllers/wmsController.js';
 import { protect } from '../middlewares/authMiddleware.js';
 import requireOrganization from '../middlewares/requireOrganization.js';
@@ -23,6 +25,7 @@ router.use(
 
 router.post('/bins', createBin);
 router.get('/bins', getBins);
+router.patch('/bins/:binId/rules', updateBinRules);
 
 router.post('/bins/allocate', allocateBinStock);
 router.post('/bins/transfer', transferBinStock);
@@ -32,5 +35,6 @@ router.patch('/pick-tickets/:ticketId/start', startPickWorkflowTicket);
 router.patch('/pick-tickets/:ticketId/complete', completePickWorkflowTicket);
 
 router.get('/movements', getMovementLedger);
+router.get('/replenishment', getReplenishmentPlan);
 
 export default router;

@@ -45,6 +45,21 @@ const warehouseBinSchema = new mongoose.Schema(
       enum: ['STORAGE', 'PICK_FACE', 'STAGING', 'QUARANTINE'],
       default: 'STORAGE'
     },
+    maxCapacityUnits: {
+      type: Number,
+      default: null,
+      min: 0
+    },
+    replenishmentMinUnits: {
+      type: Number,
+      default: null,
+      min: 0
+    },
+    replenishmentTargetUnits: {
+      type: Number,
+      default: null,
+      min: 0
+    },
     isActive: {
       type: Boolean,
       default: true,

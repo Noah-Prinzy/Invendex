@@ -10,6 +10,7 @@ import xss from 'xss-clean';
 import authRoutes from './routes/authRoutes.js';
 import productRoutes from './routes/productRoutes.js';
 import inventoryRoutes from './routes/inventoryRoutes.js';
+import inventoryTrackingRoutes from './routes/inventoryTrackingRoutes.js';
 import inventoryReportRoutes from './routes/inventoryReportRoutes.js';
 import inventoryMetricsRoutes from './routes/inventoryMetricsRoutes.js';
 import supplierRoutes from './routes/supplierRoutes.js';
@@ -29,6 +30,12 @@ import reportRoutes from './routes/reportRoutes.js';
 
 import { rateLimiter } from './middlewares/rateLimiter.js';
 import { errorHandler } from './middlewares/errorHandler.js';
+import { requestContextMiddleware } from './observability/requestContext.js';
+import { requestLoggingMiddleware } from './observability/requestLogger.js';
+import {
+  getLivenessHealth,
+  getReadinessHealth
+} from './observability/health.js';
 
 dotenv.config();
 
@@ -49,6 +56,8 @@ app.use(
 
 app.use(express.json());
 app.use(cookieParser());
+app.use(requestContextMiddleware);
+app.use(requestLoggingMiddleware);
 
 app.use(
   mongoSanitize({
@@ -57,7 +66,10 @@ app.use(
 );
 
 app.use(xss());
-app.use(morgan('dev'));
+
+if (String(process.env.HTTP_LOGGER || 'morgan').toLowerCase() === 'morgan') {
+  app.use(morgan('dev'));
+}
 
 app.use(
   '/api',
@@ -70,6 +82,7 @@ app.use(
 app.use('/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/inventory-tracking', inventoryTrackingRoutes);
 app.use('/api/inventory-reports', inventoryReportRoutes);
 app.use('/api/inventory-metrics', inventoryMetricsRoutes);
 app.use('/api/suppliers', supplierRoutes);
@@ -87,18 +100,39 @@ app.use('/api/reorder-analysis', reorderAnalysisRoutes);
 app.use('/api/forecast-trust', forecastTrustRoutes);
 app.use('/api/reports', reportRoutes);
 
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString()
-  });
+app.get('/health', async (req, res, next) => {
+  try {
+    const readiness = await getReadinessHealth();
+    const liveness = getLivenessHealth();
+
+    res.status(readiness.ready ? 200 : 503).json({
+      ...liveness,
+      readiness: readiness.ready ? 'ready' : 'degraded',
+      db: readiness.db
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/health/live', (req, res) => {
+  res.status(200).json(getLivenessHealth());
+});
+
+app.get('/health/ready', async (req, res, next) => {
+  try {
+    const readiness = await getReadinessHealth();
+    res.status(readiness.ready ? 200 : 503).json(readiness);
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     success: true,
-    message: 'API is healthy'
+    message: 'API is healthy',
+    status: 'ok'
   });
 });
 

@@ -4,6 +4,7 @@ import {
   getWarehouseRoomName,
   isRealtimeEnabled
 } from './socketServer.js';
+import { logger } from '../observability/logger.js';
 
 const eventEmitCounters = new Map();
 
@@ -15,18 +16,13 @@ const incrementEventCounter = event => {
 };
 
 const logEmit = ({ event, organizationId, warehouseId, totalEmitted }) => {
-  console.log(
-    JSON.stringify({
-      level: 'info',
-      scope: 'realtime',
-      message: 'event_emitted',
-      event,
-      organizationId: String(organizationId),
-      warehouseId: warehouseId ? String(warehouseId) : null,
-      totalEmitted,
-      occurredAt: new Date().toISOString()
-    })
-  );
+  logger.info('event_emitted', {
+    scope: 'realtime',
+    event,
+    organizationId: String(organizationId),
+    warehouseId: warehouseId ? String(warehouseId) : null,
+    totalEmitted
+  });
 };
 
 const emitToOrganization = ({

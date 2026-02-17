@@ -4,8 +4,10 @@ import {
   completePickTicket,
   createPickTicket,
   createWarehouseBin,
+  getReplenishmentRecommendations,
   listStockMovements,
   listWarehouseBins,
+  setWarehouseBinRules,
   startPickTicket,
   transferStockBetweenBins
 } from '../services/wmsService.js';
@@ -19,7 +21,10 @@ export const createBin = async (req, res, next) => {
       aisle,
       rack,
       shelf,
-      binType
+      binType,
+      maxCapacityUnits,
+      replenishmentMinUnits,
+      replenishmentTargetUnits
     } = req.body;
 
     const bin = await createWarehouseBin({
@@ -30,7 +35,10 @@ export const createBin = async (req, res, next) => {
       aisle,
       rack,
       shelf,
-      binType
+      binType,
+      maxCapacityUnits,
+      replenishmentMinUnits,
+      replenishmentTargetUnits
     });
 
     return successResponse(res, bin, 'Warehouse bin created', 201);
@@ -157,6 +165,38 @@ export const getMovementLedger = async (req, res, next) => {
     });
 
     return successResponse(res, movements, 'Stock movement ledger retrieved');
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateBinRules = async (req, res, next) => {
+  try {
+    const { warehouseId } = req.body;
+
+    const bin = await setWarehouseBinRules({
+      organizationId: req.organizationId,
+      warehouseId,
+      binId: req.params.binId,
+      maxCapacityUnits: req.body.maxCapacityUnits,
+      replenishmentMinUnits: req.body.replenishmentMinUnits,
+      replenishmentTargetUnits: req.body.replenishmentTargetUnits
+    });
+
+    return successResponse(res, bin, 'Warehouse bin rules updated');
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getReplenishmentPlan = async (req, res, next) => {
+  try {
+    const plan = await getReplenishmentRecommendations({
+      organizationId: req.organizationId,
+      warehouseId: req.query.warehouseId
+    });
+
+    return successResponse(res, plan, 'Replenishment recommendations retrieved');
   } catch (err) {
     next(err);
   }

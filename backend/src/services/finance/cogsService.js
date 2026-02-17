@@ -7,12 +7,16 @@ import {
   consumeCostLayers,
   getEffectiveMethod
 } from './valuationService.js';
+import { consumeOutboundTracking } from '../inventory/trackingService.js';
 import { AppError } from '../../errors/AppError.js';
 import {
   publishCogsRecorded,
   publishInventoryUpdated,
   publishValuationUpdated
 } from '../../realtime/publisher.js';
+import { logger } from '../../observability/logger.js';
+import { captureException } from '../../observability/errorTracker.js';
+import { logInventoryMutation } from '../../observability/inventoryMutationLogger.js';
 
 const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
@@ -131,6 +135,19 @@ export const recordCogsForCompletedSaleOrder = async ({
         );
       }
 
+      logInventoryMutation({
+        operation: 'sale_order_complete',
+        organizationId,
+        warehouseId,
+        productId: line.product,
+        quantityDelta: -quantity,
+        quantityOnHand: inventory.quantityOnHand,
+        quantityReserved: inventory.quantityReserved,
+        sourceType: 'ORDER',
+        sourceId: order._id,
+        actorUserId
+      });
+
       await Product.findOneAndUpdate(
         {
           _id: line.product,
@@ -148,6 +165,20 @@ export const recordCogsForCompletedSaleOrder = async ({
         warehouseId,
         quantity,
         method,
+        session
+      });
+
+      await consumeOutboundTracking({
+        organizationId,
+        productId: line.product,
+        warehouseId,
+        quantity,
+        lotNumber: line.lotNumber || null,
+        serialNumbers: line.serialNumbers || [],
+        sourceType: 'ORDER',
+        sourceId: order._id,
+        movedBy: actorUserId,
+        reason: 'Sale order completed',
         session
       });
 
@@ -219,29 +250,22 @@ export const recordCogsForCompletedSaleOrder = async ({
       });
     } catch (err) {
       if (!isTransactionUnsupported(err)) {
-        console.error(
-          JSON.stringify({
-            level: 'error',
-            scope: 'finance',
-            message: 'cogs_transaction_failed',
-            orderId: String(orderId),
-            organizationId: String(organizationId),
-            error: err.message,
-            occurredAt: new Date().toISOString()
-          })
-        );
-        throw err;
-      }
-      console.warn(
-        JSON.stringify({
-          level: 'warn',
-          scope: 'finance',
-          message: 'cogs_fallback_non_transaction_mode',
+        logger.error('cogs_transaction_failed', {
           orderId: String(orderId),
           organizationId: String(organizationId),
-          occurredAt: new Date().toISOString()
-        })
-      );
+          err
+        });
+        await captureException(err, {
+          scope: 'finance_cogs_transaction',
+          orderId: String(orderId),
+          organizationId: String(organizationId)
+        });
+        throw err;
+      }
+      logger.warn('cogs_fallback_non_transaction_mode', {
+        orderId: String(orderId),
+        organizationId: String(organizationId)
+      });
       result = await runMutation(null);
     }
 

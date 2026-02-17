@@ -1,3 +1,5 @@
+import { logger } from '../observability/logger.js';
+
 let redisClients = null;
 
 const isRedisAdapterEnabled = () =>
@@ -17,9 +19,10 @@ export const configureSocketRedisAdapter = async io => {
     ({ createAdapter } = await import('@socket.io/redis-adapter'));
     ({ createClient } = await import('redis'));
   } catch (err) {
-    console.warn(
-      '[realtime] Redis adapter requested but packages are missing. Install @socket.io/redis-adapter and redis.'
-    );
+    logger.warn('realtime_redis_adapter_packages_missing', {
+      reason:
+        'Install @socket.io/redis-adapter and redis when REALTIME_REDIS_ENABLED=true'
+    });
     return false;
   }
 
@@ -31,7 +34,7 @@ export const configureSocketRedisAdapter = async io => {
   io.adapter(createAdapter(pubClient, subClient));
 
   redisClients = { pubClient, subClient };
-  console.log('[realtime] Redis adapter enabled');
+  logger.info('realtime_redis_adapter_enabled');
   return true;
 };
 

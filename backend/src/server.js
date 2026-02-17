@@ -16,6 +16,8 @@ import { startForecastReorderCron } from './cron/forecastReorderCron.js';
 
 import { autoSendPurchaseOrdersJob } from './jobs/autoSendPurchaseOrders.js';
 import { autoClosePurchaseOrdersJob } from './jobs/autoClosePurchaseOrders.js';
+import { logger } from './observability/logger.js';
+import { captureException } from './observability/errorTracker.js';
 
 dotenv.config();
 
@@ -38,11 +40,15 @@ async function startServer() {
     startForecastReorderCron();
 
     httpServer.listen(PORT, () => {
-      console.log(`Ledgerly backend running on port ${PORT}`);
+      logger.info('server_started', {
+        port: PORT,
+        nodeEnv: process.env.NODE_ENV || 'development'
+      });
     });
 
     const shutdown = async () => {
       try {
+        logger.info('server_shutdown_started');
         await disconnectSocketRedisAdapter();
       } finally {
         process.exit(0);
@@ -52,9 +58,30 @@ async function startServer() {
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
   } catch (error) {
-    console.error('Server failed to start:', error);
+    logger.error('server_start_failed', {
+      err: error
+    });
+    await captureException(error, { scope: 'bootstrap' });
     process.exit(1);
   }
 }
+
+process.on('unhandledRejection', error => {
+  logger.error('unhandled_rejection', {
+    err: error
+  });
+  captureException(error, { scope: 'process_unhandled_rejection' }).catch(
+    () => {}
+  );
+});
+
+process.on('uncaughtException', error => {
+  logger.error('uncaught_exception', {
+    err: error
+  });
+  captureException(error, { scope: 'process_uncaught_exception' }).catch(
+    () => {}
+  );
+});
 
 startServer();

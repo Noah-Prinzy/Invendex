@@ -36,6 +36,16 @@ const orderProductSchema = new mongoose.Schema(
       type: Number,
       default: 0,
       min: 0
+    },
+    lotNumber: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: null
+    },
+    serialNumbers: {
+      type: [String],
+      default: []
     }
   },
   { _id: false }
@@ -124,6 +134,26 @@ orderSchema.pre('validate', function normalizeOrder(next) {
       const unitSalePrice = Number(line.unitSalePrice || 0);
       const discountAmount = Number(line.discountAmount || 0);
       const taxAmount = Number(line.taxAmount || 0);
+
+      if (Array.isArray(line.serialNumbers) && line.serialNumbers.length) {
+        const normalized = line.serialNumbers
+          .map(value => String(value || '').trim().toUpperCase())
+          .filter(Boolean);
+
+        if (normalized.length !== line.serialNumbers.length) {
+          return next(new Error('serialNumbers cannot contain blank values'));
+        }
+        if (normalized.length !== quantity) {
+          return next(
+            new Error('serialNumbers count must equal quantity for sale line item')
+          );
+        }
+        if (new Set(normalized).size !== normalized.length) {
+          return next(new Error('serialNumbers must be unique per sale line item'));
+        }
+
+        line.serialNumbers = normalized;
+      }
 
       line.lineRevenue = Math.round(
         (quantity * unitSalePrice - discountAmount + taxAmount + Number.EPSILON) * 100
