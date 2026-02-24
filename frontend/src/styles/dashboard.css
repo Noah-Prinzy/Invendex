@@ -1,0 +1,144 @@
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.metric-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fffdf9;
+  padding: 0.95rem;
+}
+
+.metric-label {
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  margin-bottom: 0.35rem;
+}
+
+.metric-value {
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  font-size: 1.02rem;
+  font-weight: 700;
+}
+
+.event-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.event-grid.one-col {
+  grid-template-columns: 1fr;
+}
+
+.event-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fffcf6;
+  padding: 0.9rem;
+  overflow: hidden;
+}
+
+.event-card h3 {
+  font-size: 0.98rem;
+  margin-bottom: 0.6rem;
+}
+
+.event-list {
+  list-style: none;
+  margin: 0 0 0.7rem;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.event-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fffdfa;
+  padding: 0.52rem 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.event-title {
+  font-size: 0.87rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.event-sub {
+  font-size: 0.78rem;
+  color: var(--text-soft);
+}
+
+.event-time {
+  font-size: 0.76rem;
+  color: var(--text-soft);
+  white-space: nowrap;
+}
+
+.event-empty {
+  font-size: 0.84rem;
+  color: var(--text-soft);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 0.65rem 0.7rem;
+}
+
+.event-pill {
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  padding: 0.22rem 0.5rem;
+  font-weight: 700;
+}
+
+.event-pill.created {
+  color: #0b6a55;
+  border-color: #8ad4bf;
+  background: #ebf8f2;
+}
+
+.event-pill.updated {
+  color: #7f5521;
+  border-color: #e1c08a;
+  background: #fff7e8;
+}
+
+.event-pill.received {
+  color: #284b8f;
+  border-color: #9db4e8;
+  background: #edf3ff;
+}
+
+.event-card pre {
+  margin: 0;
+  padding: 0.7rem;
+  border-radius: 10px;
+  background: #212932;
+  color: #d5dee7;
+  font-family: "IBM Plex Mono", Consolas, "Courier New", monospace;
+  font-size: 0.74rem;
+  line-height: 1.42;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow: auto;
+}
+
+@media (max-width: 860px) {
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .event-grid {
+    grid-template-columns: 1fr;
+  }
+}

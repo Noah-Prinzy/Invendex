@@ -166,3 +166,11 @@ Without those packages, server logs a warning and continues without Redis adapte
 ```bash
 npm run test:finance-realtime
 ```
+
+## Operations hardening
+
+See `docs/OBSERVABILITY_AND_RECOVERY.md` for:
+
+- request tracing and slow query logging settings
+- health/readiness endpoints
+- backup snapshot and restore simulation commands

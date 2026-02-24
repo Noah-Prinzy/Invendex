@@ -26,6 +26,10 @@ export const useLedgerlyRealtime = ({
   );
 
   useEffect(() => {
+    if (!accessToken) {
+      return undefined;
+    }
+
     client.connect();
     if (warehouseId) {
       client.subscribeWarehouse(warehouseId);
@@ -65,6 +69,7 @@ export const useLedgerlyRealtime = ({
     };
   }, [
     client,
+    accessToken,
     warehouseId,
     onInventoryUpdated,
     onPurchaseOrderCreated,

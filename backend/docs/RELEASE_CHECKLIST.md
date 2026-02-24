@@ -4,6 +4,7 @@
 
 - Confirm `.env` has a valid `DB_URL` with `mongodb://` or `mongodb+srv://`.
 - Confirm JWT and realtime flags are set for the target environment.
+- Confirm observability flags are set (`LOG_LEVEL`, `SLOW_QUERY_THRESHOLD_MS`, `HEALTHCHECK_DB_TIMEOUT_MS`).
 - Confirm `MIGRATION_DRY_RUN=true` before first migration run.
 
 PowerShell:
@@ -63,7 +64,22 @@ Minimum pass criteria:
 - Socket auth/isolation tests pass
 - PO receive -> realtime -> valuation smoke test passes
 
-## 5) Deploy with Safe Flags
+## 5) Backup + Restore Drill
+
+PowerShell:
+
+```powershell
+cd backend
+npm run backup:snapshot
+npm run backup:simulate-restore
+```
+
+Expected:
+
+- Snapshot directory and manifest created under `backups/snapshots`
+- Restore simulation verifies counts and checksums without write failures
+
+## 6) Deploy with Safe Flags
 
 Start with realtime disabled:
 
@@ -85,14 +101,15 @@ REALTIME_REDIS_ENABLED=true
 REALTIME_REDIS_URL=redis://<host>:6379
 ```
 
-## 6) Post-Deploy Verification
+## 7) Post-Deploy Verification
 
-- `GET /health` returns `status: ok`.
+- `GET /health/live` returns `200` and `status: ok`.
+- `GET /health/ready` returns `200` in healthy environments.
 - `GET /api/finance/valuation` succeeds for an admin/manager user.
 - `GET /api/finance/realtime-stats` shows emit counters after PO receive and sale completion events.
 - Socket clients receive only same-organization events.
 
-## 7) Rollback Triggers
+## 8) Rollback Triggers
 
 Rollback if any of the following occur:
 

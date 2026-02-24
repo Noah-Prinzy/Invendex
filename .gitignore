@@ -52,6 +52,7 @@ logs/
 uploads/
 tmp/
 temp/
+backups/
 
 # =========================
 # Database

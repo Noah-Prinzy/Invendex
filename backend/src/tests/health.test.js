@@ -8,4 +8,12 @@ describe('Health check', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
   });
+
+  it('should return liveness payload', async () => {
+    const res = await request(app).get('/health/live');
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.status).toBe('ok');
+    expect(typeof res.body.uptimeSeconds).toBe('number');
+  });
 });
