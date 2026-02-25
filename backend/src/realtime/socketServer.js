@@ -107,20 +107,48 @@ export const initSocketServer = async (
       organizationId
     });
 
-    socket.on('subscribe:warehouse', payload => {
+    socket.on('subscribe:warehouse', (payload, acknowledge) => {
       const warehouseId = payload?.warehouseId;
-      if (!warehouseId) return;
+      if (!warehouseId) {
+        if (typeof acknowledge === 'function') {
+          acknowledge({
+            ok: false,
+            error: 'warehouseId is required'
+          });
+        }
+        return;
+      }
 
       const room = getWarehouseRoom(organizationId, String(warehouseId));
       socket.join(room);
+      if (typeof acknowledge === 'function') {
+        acknowledge({
+          ok: true,
+          room
+        });
+      }
     });
 
-    socket.on('unsubscribe:warehouse', payload => {
+    socket.on('unsubscribe:warehouse', (payload, acknowledge) => {
       const warehouseId = payload?.warehouseId;
-      if (!warehouseId) return;
+      if (!warehouseId) {
+        if (typeof acknowledge === 'function') {
+          acknowledge({
+            ok: false,
+            error: 'warehouseId is required'
+          });
+        }
+        return;
+      }
 
       const room = getWarehouseRoom(organizationId, String(warehouseId));
       socket.leave(room);
+      if (typeof acknowledge === 'function') {
+        acknowledge({
+          ok: true,
+          room
+        });
+      }
     });
 
     socket.on('disconnect', reason => {

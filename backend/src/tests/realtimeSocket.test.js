@@ -1,16 +1,22 @@
 import express from 'express';
 import { createServer } from 'node:http';
+import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import { io as createClient } from 'socket.io-client';
 import Organization from '../models/Organization.js';
 import User from '../models/User.js';
-import { initSocketServer, getIo } from '../realtime/socketServer.js';
+import {
+  initSocketServer,
+  getIo,
+  getWarehouseRoomName
+} from '../realtime/socketServer.js';
 import { generateAccessToken } from '../utils/token.js';
 import { publishInventoryUpdated } from '../realtime/publisher.js';
 import { getTestDbUri } from './testDbUri.js';
 
 let httpServer;
 let baseUrl;
+let clients = [];
 
 const connectClient = token =>
   createClient(baseUrl, {
@@ -18,6 +24,19 @@ const connectClient = token =>
     reconnection: false,
     auth: { token }
   });
+
+const connectClientWithoutAuth = () =>
+  createClient(baseUrl, {
+    transports: ['websocket'],
+    reconnection: false
+  });
+
+const registerClient = client => {
+  clients.push(client);
+  return client;
+};
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 const waitForEvent = (emitter, eventName, timeoutMs = 4000) =>
   new Promise((resolve, reject) => {
@@ -28,6 +47,39 @@ const waitForEvent = (emitter, eventName, timeoutMs = 4000) =>
     emitter.once(eventName, payload => {
       clearTimeout(timeout);
       resolve(payload);
+    });
+  });
+
+const waitForNoEvent = (emitter, eventName, timeoutMs = 500) =>
+  new Promise((resolve, reject) => {
+    const handler = payload => {
+      emitter.off(eventName, handler);
+      reject(
+        new Error(
+          `Expected no event "${eventName}" but received payload: ${JSON.stringify(
+            payload
+          )}`
+        )
+      );
+    };
+
+    emitter.on(eventName, handler);
+
+    setTimeout(() => {
+      emitter.off(eventName, handler);
+      resolve();
+    }, timeoutMs);
+  });
+
+const emitWithAck = (client, eventName, payload, timeoutMs = 2000) =>
+  new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error(`Timed out waiting for ack on "${eventName}"`));
+    }, timeoutMs);
+
+    client.emit(eventName, payload, ack => {
+      clearTimeout(timeout);
+      resolve(ack);
     });
   });
 
@@ -54,7 +106,19 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
+  clients = [];
   await Promise.all([Organization.deleteMany({}), User.deleteMany({})]);
+});
+
+afterEach(() => {
+  for (const client of clients) {
+    if (client?.connected) {
+      client.disconnect();
+    } else if (typeof client?.close === 'function') {
+      client.close();
+    }
+  }
+  clients = [];
 });
 
 afterAll(async () => {
@@ -85,19 +149,50 @@ describe('realtime socket server', () => {
     });
 
     const token = generateAccessToken(user);
-    const client = connectClient(token);
+    const client = registerClient(connectClient(token));
 
     await waitForEvent(client, 'connect');
     expect(client.connected).toBe(true);
-
-    client.disconnect();
   });
 
   it('rejects invalid JWT connections', async () => {
-    const client = connectClient('invalid-token');
+    const client = registerClient(connectClient('invalid-token'));
     const err = await waitForEvent(client, 'connect_error');
     expect(String(err?.message || '')).toContain('invalid token');
-    client.close();
+  });
+
+  it('rejects missing JWT connections', async () => {
+    const client = registerClient(connectClientWithoutAuth());
+    const err = await waitForEvent(client, 'connect_error');
+    expect(String(err?.message || '')).toContain('token missing');
+  });
+
+  it('rejects expired JWT connections', async () => {
+    const organization = await Organization.create({
+      name: 'Expired Token Org',
+      code: `EXP-${Date.now()}`
+    });
+
+    const user = await User.create({
+      email: `expired-user-${Date.now()}@example.com`,
+      password: 'Password123!',
+      role: 'admin',
+      organization: organization._id
+    });
+
+    const expiredToken = jwt.sign(
+      {
+        id: user._id,
+        role: user.role,
+        organization: organization._id
+      },
+      process.env.JWT_ACCESS_SECRET,
+      { expiresIn: -1 }
+    );
+
+    const client = registerClient(connectClient(expiredToken));
+    const err = await waitForEvent(client, 'connect_error');
+    expect(String(err?.message || '')).toContain('invalid token');
   });
 
   it('isolates organization events by room', async () => {
@@ -123,19 +218,32 @@ describe('realtime socket server', () => {
       organization: orgB._id
     });
 
-    const clientA = connectClient(generateAccessToken(userA));
-    const clientB = connectClient(generateAccessToken(userB));
+    const userA2 = await User.create({
+      email: `orga-second-${Date.now()}@example.com`,
+      password: 'Password123!',
+      role: 'manager',
+      organization: orgA._id
+    });
+
+    const clientA = registerClient(connectClient(generateAccessToken(userA)));
+    const clientA2 = registerClient(connectClient(generateAccessToken(userA2)));
+    const clientB = registerClient(connectClient(generateAccessToken(userB)));
 
     await Promise.all([
       waitForEvent(clientA, 'connect'),
+      waitForEvent(clientA2, 'connect'),
       waitForEvent(clientB, 'connect')
     ]);
 
-    let receivedA = false;
+    let receivedA1 = false;
+    let receivedA2 = false;
     let receivedB = false;
 
     clientA.on('inventory.updated', () => {
-      receivedA = true;
+      receivedA1 = true;
+    });
+    clientA2.on('inventory.updated', () => {
+      receivedA2 = true;
     });
     clientB.on('inventory.updated', () => {
       receivedB = true;
@@ -148,12 +256,82 @@ describe('realtime socket server', () => {
       data: { reason: 'test' }
     });
 
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await sleep(300);
 
-    expect(receivedA).toBe(true);
+    expect(receivedA1).toBe(true);
+    expect(receivedA2).toBe(true);
     expect(receivedB).toBe(false);
+  });
 
-    clientA.disconnect();
-    clientB.disconnect();
+  it('supports warehouse room subscribe and unsubscribe routing', async () => {
+    const org = await Organization.create({
+      name: 'Warehouse Room Org',
+      code: `WHRM-${Date.now()}`
+    });
+
+    const userA = await User.create({
+      email: `warehouse-a-${Date.now()}@example.com`,
+      password: 'Password123!',
+      role: 'admin',
+      organization: org._id
+    });
+
+    const userB = await User.create({
+      email: `warehouse-b-${Date.now()}@example.com`,
+      password: 'Password123!',
+      role: 'manager',
+      organization: org._id
+    });
+
+    const clientA = registerClient(connectClient(generateAccessToken(userA)));
+    const clientB = registerClient(connectClient(generateAccessToken(userB)));
+
+    await Promise.all([
+      waitForEvent(clientA, 'connect'),
+      waitForEvent(clientB, 'connect')
+    ]);
+
+    const warehouseId = new mongoose.Types.ObjectId().toString();
+    const warehouseRoom = getWarehouseRoomName(
+      String(org._id),
+      String(warehouseId)
+    );
+    const io = getIo();
+
+    const subscribeAck = await emitWithAck(clientA, 'subscribe:warehouse', {
+      warehouseId
+    });
+    expect(subscribeAck).toEqual({
+      ok: true,
+      room: warehouseRoom
+    });
+
+    const targetedPayload = {
+      warehouseId,
+      message: 'warehouse scoped event'
+    };
+
+    const eventForA = waitForEvent(clientA, 'warehouse.targeted');
+    const noEventForB = waitForNoEvent(clientB, 'warehouse.targeted');
+    io.to(warehouseRoom).emit('warehouse.targeted', targetedPayload);
+
+    await expect(eventForA).resolves.toEqual(targetedPayload);
+    await expect(noEventForB).resolves.toBeUndefined();
+
+    const unsubscribeAck = await emitWithAck(clientA, 'unsubscribe:warehouse', {
+      warehouseId
+    });
+    expect(unsubscribeAck).toEqual({
+      ok: true,
+      room: warehouseRoom
+    });
+
+    io.to(warehouseRoom).emit('warehouse.targeted', {
+      warehouseId,
+      message: 'after unsubscribe'
+    });
+
+    await expect(waitForNoEvent(clientA, 'warehouse.targeted')).resolves.toBeUndefined();
+    await expect(waitForNoEvent(clientB, 'warehouse.targeted')).resolves.toBeUndefined();
   });
 });

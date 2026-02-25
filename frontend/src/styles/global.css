@@ -105,6 +105,18 @@ p {
   font-size: 1.8rem;
 }
 
+.auth-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.9rem;
+  align-items: flex-start;
+}
+
+.auth-mode-btn {
+  margin-top: 0.2rem;
+  white-space: nowrap;
+}
+
 .form-copy {
   color: var(--text-soft);
   margin-top: 0.3rem;
@@ -157,6 +169,11 @@ p {
   background: #fff;
   border-color: var(--border);
   color: var(--text-main);
+}
+
+.btn-ghost:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .form-error {
@@ -358,6 +375,15 @@ p {
   .auth-intro,
   .auth-card {
     padding: 1.2rem;
+  }
+
+  .auth-title-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .auth-mode-btn {
+    width: 100%;
   }
 
   .warehouse-filter {

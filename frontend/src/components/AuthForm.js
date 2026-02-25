@@ -1,10 +1,20 @@
 import React, { useState } from 'react';
 
-const AuthForm = ({ onSubmit, isLoading = false, error = '' }) => {
+const AuthForm = ({
+  onSignIn,
+  onSignUp,
+  isLoading = false,
+  error = '',
+  notice = ''
+}) => {
+  const [mode, setMode] = useState('signIn');
   const [formValues, setFormValues] = useState({
     email: '',
-    password: ''
+    password: '',
+    organizationName: ''
   });
+
+  const isSignUpMode = mode === 'signUp';
 
   const handleChange = event => {
     const { name, value } = event.target;
@@ -16,18 +26,38 @@ const AuthForm = ({ onSubmit, isLoading = false, error = '' }) => {
 
   const handleSubmit = async event => {
     event.preventDefault();
-    if (typeof onSubmit !== 'function') return;
-    await onSubmit(formValues);
+    const action = isSignUpMode ? onSignUp : onSignIn;
+    if (typeof action !== 'function') return;
+
+    const result = await action(formValues);
+    if (isSignUpMode && result?.success) {
+      setMode('signIn');
+      setFormValues(current => ({
+        ...current,
+        password: ''
+      }));
+    }
   };
 
   return (
     <form className="auth-card" onSubmit={handleSubmit}>
-      <div>
-        <p className="eyebrow">Ledgerly Control</p>
-        <h1>Sign in to continue</h1>
-        <p className="form-copy">
-          Access dashboard operations, live purchase updates, and finance events.
-        </p>
+      <div className="auth-title-row">
+        <div>
+          <p className="eyebrow">Ledgerly Control</p>
+          <h1>{isSignUpMode ? 'Create your account' : 'Sign in to continue'}</h1>
+          <p className="form-copy">
+            {isSignUpMode
+              ? 'Set up your workspace, then sign in to start operating.'
+              : 'Access dashboard operations, live purchase updates, and finance events.'}
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn-ghost auth-mode-btn"
+          onClick={() => setMode(current => (current === 'signIn' ? 'signUp' : 'signIn'))}
+        >
+          {isSignUpMode ? 'Back to Sign in' : 'Sign up'}
+        </button>
       </div>
 
       <label htmlFor="email">Email</label>
@@ -42,6 +72,22 @@ const AuthForm = ({ onSubmit, isLoading = false, error = '' }) => {
         required
       />
 
+      {isSignUpMode ? (
+        <>
+          <label htmlFor="organizationName">Organization</label>
+          <input
+            id="organizationName"
+            name="organizationName"
+            type="text"
+            placeholder="Acme Operations"
+            value={formValues.organizationName}
+            onChange={handleChange}
+            autoComplete="organization"
+            required
+          />
+        </>
+      ) : null}
+
       <label htmlFor="password">Password</label>
       <input
         id="password"
@@ -55,9 +101,16 @@ const AuthForm = ({ onSubmit, isLoading = false, error = '' }) => {
       />
 
       {error ? <p className="form-error">{error}</p> : null}
+      {notice ? <p className="form-copy">{notice}</p> : null}
 
       <button type="submit" className="btn-primary" disabled={isLoading}>
-        {isLoading ? 'Signing in...' : 'Sign in'}
+        {isLoading
+          ? isSignUpMode
+            ? 'Creating account...'
+            : 'Signing in...'
+          : isSignUpMode
+            ? 'Create account'
+            : 'Sign in'}
       </button>
     </form>
   );

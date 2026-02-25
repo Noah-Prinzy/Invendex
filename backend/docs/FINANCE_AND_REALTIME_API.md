@@ -7,6 +7,61 @@
 - Finance endpoints require role: `admin` or `manager`.
 - Realtime events are emitted to organization rooms: `org:<organizationId>`.
 
+## Auth REST Endpoints
+
+### `POST /auth/register`
+
+Creates a new organization and first admin account (signup).
+
+Body:
+
+```json
+{
+  "email": "owner@company.com",
+  "password": "Password123!",
+  "organizationName": "Company Ops"
+}
+```
+
+Notes:
+
+- Returns `201` on success.
+- Sets `refreshToken` httpOnly cookie.
+- Returns `accessToken`, `user`, and `organization`.
+
+### `POST /auth/login`
+
+Signs in an existing user.
+
+Body:
+
+```json
+{
+  "email": "owner@company.com",
+  "password": "Password123!"
+}
+```
+
+Notes:
+
+- Returns `200` on success.
+- Sets `refreshToken` httpOnly cookie.
+- Returns `accessToken` and `user`.
+
+### `POST /auth/refresh`
+
+Rotates refresh token and returns a fresh access token.
+
+### `POST /auth/logout`
+
+Invalidates current session token and clears refresh cookie.
+Requires bearer access token.
+
+### `GET /auth/me`
+
+Returns current authenticated user profile.
+Requires bearer access token.
+
 ## Finance REST Endpoints
 
 All finance endpoints enforce request validation. Invalid query/body values return `400` with a descriptive message.

@@ -1,5 +1,6 @@
 import { successResponse } from '../utils/response.js';
 import { AppError } from '../errors/AppError.js';
+import Organization from '../models/Organization.js';
 import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -9,23 +10,49 @@ import {
 } from '../utils/token.js';
 import { logAudit } from '../utils/auditLogger.js';
 
+const MAX_SESSIONS = 5;
+
+const buildOrganizationCode = (organizationName, attempt = 0) => {
+  const base = String(organizationName || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 8);
+
+  const normalizedBase = base || 'ORG';
+  const entropy = `${Date.now().toString().slice(-6)}${Math.floor(
+    Math.random() * 1000
+  )
+    .toString()
+    .padStart(3, '0')}`;
+
+  if (attempt <= 0) {
+    return `${normalizedBase}-${entropy}`;
+  }
+
+  return `${normalizedBase}-${entropy}-${attempt}`;
+};
+
 /**
  * LOGIN
  */
 export const login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const normalizedEmail = String(req.body?.email || '')
+      .trim()
+      .toLowerCase();
+    const normalizedPassword = String(req.body?.password || '').trim();
 
-    if (!email || !password) {
+    if (!normalizedEmail || !normalizedPassword) {
       throw new AppError('Email and password are required', 400);
     }
 
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email: normalizedEmail }).select('+password');
     if (!user) {
       throw new AppError('Invalid credentials', 401);
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = await bcrypt.compare(normalizedPassword, user.password);
     if (!isMatch) {
       throw new AppError('Invalid credentials', 401);
     }
@@ -34,7 +61,6 @@ export const login = async (req, res, next) => {
     const refreshToken = generateRefreshToken(user);
 
     // Store refresh token (limit sessions)
-    const MAX_SESSIONS = 5;
     user.refreshTokens.push({ token: refreshToken });
     if (user.refreshTokens.length > MAX_SESSIONS) {
       user.refreshTokens = user.refreshTokens.slice(-MAX_SESSIONS);
@@ -192,7 +218,109 @@ export const logout = async (req, res, next) => {
  */
 export const register = async (req, res, next) => {
   try {
-    throw new AppError('Register not implemented yet', 501);
+    const normalizedEmail = String(req.body?.email || '')
+      .trim()
+      .toLowerCase();
+    const normalizedPassword = String(req.body?.password || '').trim();
+    const normalizedOrganizationName = String(
+      req.body?.organizationName || req.body?.companyName || ''
+    ).trim();
+
+    if (!normalizedEmail || !normalizedPassword) {
+      throw new AppError('Email and password are required', 400);
+    }
+
+    if (normalizedPassword.length < 8) {
+      throw new AppError('Password must be at least 8 characters long', 400);
+    }
+
+    if (!normalizedOrganizationName) {
+      throw new AppError('organizationName is required', 400);
+    }
+
+    const existingUser = await User.findOne({ email: normalizedEmail });
+    if (existingUser) {
+      throw new AppError('Email already exists', 409);
+    }
+
+    let organization = null;
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        organization = await Organization.create({
+          name: normalizedOrganizationName,
+          code: buildOrganizationCode(normalizedOrganizationName, attempt)
+        });
+        break;
+      } catch (error) {
+        if (error?.code === 11000) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    if (!organization) {
+      throw new AppError(
+        'Unable to create organization. Please try again.',
+        500
+      );
+    }
+
+    const user = await User.create({
+      email: normalizedEmail,
+      password: normalizedPassword,
+      role: 'admin',
+      organization: organization._id
+    });
+
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+
+    user.refreshTokens.push({ token: refreshToken });
+    if (user.refreshTokens.length > MAX_SESSIONS) {
+      user.refreshTokens = user.refreshTokens.slice(-MAX_SESSIONS);
+    }
+    await user.save();
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+
+    await logAudit({
+      req,
+      action: 'REGISTER',
+      resource: 'AUTH',
+      resourceId: user._id,
+      organizationId: organization._id,
+      meta: {
+        organizationName: organization.name,
+        organizationCode: organization.code
+      }
+    });
+
+    return successResponse(
+      res,
+      {
+        accessToken,
+        user: {
+          _id: user._id,
+          email: user.email,
+          role: user.role,
+          organization: organization._id
+        },
+        organization: {
+          _id: organization._id,
+          name: organization.name,
+          code: organization.code
+        }
+      },
+      'Account created successfully',
+      201
+    );
   } catch (err) {
     next(err);
   }
