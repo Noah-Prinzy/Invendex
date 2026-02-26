@@ -76,7 +76,14 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
         warehouseId: selectedWarehouseId,
         idempotencyKey
       }),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      if (result?.queued) {
+        setAdjustNotice(
+          `No network. Adjustment queued for sync (queue size: ${Number(result.queueSize || 0)}).`
+        );
+        return;
+      }
+
       setAdjustNotice('Stock adjustment saved.');
       setAdjustAmount('');
       queryClient.invalidateQueries({ queryKey: ['products:index'] });

@@ -1,6 +1,7 @@
 import API_ENDPOINTS from './endpoints.js';
 import { captureFrontendException } from '../observability/errorTracker.js';
 import { createRequestTrace } from '../observability/traceContext.js';
+import { enqueueOfflineMutation } from '../offline/offlineQueue.js';
 
 class ApiError extends Error {
   constructor(message, statusCode = 500, payload = null) {
@@ -34,6 +35,10 @@ const getDefaultBaseUrl = () => {
 const API_BASE_URL = getDefaultBaseUrl();
 const CSRF_HEADER_NAME = 'x-csrf-token';
 let csrfToken = '';
+const OFFLINE_QUEUE_ENABLED =
+  String(process.env.REACT_APP_OFFLINE_QUEUE_ENABLED || 'true')
+    .trim()
+    .toLowerCase() === 'true';
 
 const emitTraceLog = (message, meta = {}) => {
   if (process.env.NODE_ENV === 'production') return;
@@ -345,25 +350,53 @@ export const getProductsLowStockSummaryRequest = (accessToken) =>
     accessToken
   }).then(readData);
 
-export const adjustProductStockRequest = ({
+export const adjustProductStockRequest = async ({
   accessToken,
   productId,
   amount,
   reason,
   warehouseId,
   idempotencyKey = null
-}) =>
-  request({
-    method: 'PATCH',
-    path: `${API_ENDPOINTS.PRODUCTS}/${productId}/stock`,
-    accessToken,
-    idempotencyKey,
-    body: {
-      amount,
-      reason,
-      warehouseId
+}) => {
+  try {
+    return await request({
+      method: 'PATCH',
+      path: `${API_ENDPOINTS.PRODUCTS}/${productId}/stock`,
+      accessToken,
+      idempotencyKey,
+      body: {
+        amount,
+        reason,
+        warehouseId
+      }
+    }).then(readData);
+  } catch (error) {
+    if (
+      OFFLINE_QUEUE_ENABLED &&
+      error instanceof ApiError &&
+      error.statusCode === 0
+    ) {
+      const queued = enqueueOfflineMutation({
+        mutationId: idempotencyKey || null,
+        type: 'inventory.adjust',
+        payload: {
+          productId,
+          warehouseId,
+          amount,
+          reason
+        }
+      });
+
+      return {
+        queued: true,
+        offlineMutationId: queued.mutationId,
+        queueSize: queued.queueSize
+      };
     }
-  }).then(readData);
+
+    throw error;
+  }
+};
 
 export const receivePurchaseOrderRequest = ({
   accessToken,
@@ -419,6 +452,47 @@ export const getObservabilityPingRequest = (accessToken) =>
     accessToken
   }).then(readData);
 
+export const getObservabilityRuntimeRequest = (accessToken) =>
+  request({
+    method: 'GET',
+    path: API_ENDPOINTS.OBSERVABILITY_RUNTIME,
+    accessToken
+  }).then(readData);
+
+export const mobileSyncBootstrapRequest = ({
+  accessToken,
+  since = null,
+  limit = 200,
+  warehouseId = null
+}) => {
+  const query = new URLSearchParams();
+  if (since) query.set('since', String(since));
+  if (limit) query.set('limit', String(limit));
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.MOBILE_SYNC_BOOTSTRAP}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const mobileSyncMutationsRequest = ({
+  accessToken,
+  deviceId,
+  mutations
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.MOBILE_SYNC_MUTATIONS,
+    accessToken,
+    body: {
+      deviceId,
+      mutations
+    }
+  }).then(readData);
+
 export { ApiError, API_BASE_URL };
 
 export default {
@@ -451,5 +525,8 @@ export default {
   getReportPurchaseOrderStatusSummaryRequest,
   getReportSpendSummaryRequest,
   getReportSpendBySupplierRequest,
-  getObservabilityPingRequest
+  getObservabilityPingRequest,
+  getObservabilityRuntimeRequest,
+  mobileSyncBootstrapRequest,
+  mobileSyncMutationsRequest
 };

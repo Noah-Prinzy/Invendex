@@ -22,7 +22,10 @@ export const API_ENDPOINTS = Object.freeze({
   REPORT_PO_STATUS_SUMMARY: '/api/reports/purchase-orders/status-summary',
   REPORT_SPEND_SUMMARY: '/api/reports/spend/summary',
   REPORT_SPEND_BY_SUPPLIER: '/api/reports/spend/by-supplier',
-  OBSERVABILITY_PING: '/api/observability/ping'
+  OBSERVABILITY_PING: '/api/observability/ping',
+  OBSERVABILITY_RUNTIME: '/api/observability/runtime',
+  MOBILE_SYNC_BOOTSTRAP: '/api/mobile-sync/bootstrap',
+  MOBILE_SYNC_MUTATIONS: '/api/mobile-sync/mutations'
 });
 
 export default API_ENDPOINTS;

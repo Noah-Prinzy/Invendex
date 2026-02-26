@@ -1,12 +1,15 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
 import { createLedgerlyQueryClient } from '../state/queryClient.js';
+import { AppStateProvider } from '../state/appState.js';
 
 export const renderWithProviders = (ui) => {
   const testQueryClient = createLedgerlyQueryClient();
 
   return render(
-    <QueryClientProvider client={testQueryClient}>{ui}</QueryClientProvider>
+    <QueryClientProvider client={testQueryClient}>
+      <AppStateProvider>{ui}</AppStateProvider>
+    </QueryClientProvider>
   );
 };
 

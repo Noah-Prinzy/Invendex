@@ -13,6 +13,12 @@ import Reports from './pages/Reports.js';
 import Users from './pages/Users.js';
 import Account from './pages/Account.js';
 import Settings from './pages/Settings.js';
+import { useAppActions, useAppState } from './state/appState.js';
+import {
+  flushOfflineMutations,
+  getOfflineQueueSize
+} from './offline/offlineQueue.js';
+import { API_BASE_URL } from './api/client.js';
 import './styles/global.css';
 import './styles/dashboard.css';
 
@@ -121,8 +127,10 @@ const App = () => {
     resetPassword,
     logout
   } = useAuth();
+  const { activeWarehouseId, isOnline, offlineQueueSize } = useAppState();
+  const { setActiveWarehouseId, setIsOnline, setOfflineQueueSize, setSession } =
+    useAppActions();
   const { tabs, activeTab, setActiveTab } = useTabs(user?.role || null);
-  const [warehouseId, setWarehouseId] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
   const [inventoryEvents, setInventoryEvents] = useState([]);
   const [financeEvents, setFinanceEvents] = useState([]);
@@ -192,7 +200,7 @@ const App = () => {
   useLedgerlyRealtime({
     baseUrl: realtimeBaseUrl,
     accessToken,
-    warehouseId: warehouseId || null,
+    warehouseId: activeWarehouseId || null,
     onInventoryUpdated: handleInventoryUpdated,
     onPurchaseOrderCreated: handlePoCreated,
     onPurchaseOrderUpdated: handlePoUpdated,
@@ -213,12 +221,57 @@ const App = () => {
     setUnreadCount(0);
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    setSession({
+      userId: user?._id || null,
+      role: user?.role || null,
+      organizationId: user?.organization || null
+    });
+  }, [setSession, user]);
+
+  useEffect(() => {
+    setOfflineQueueSize(getOfflineQueueSize());
+  }, [setOfflineQueueSize]);
+
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, [setIsOnline]);
+
+  useEffect(() => {
+    if (!isOnline || !isAuthenticated || !accessToken) {
+      return;
+    }
+
+    let cancelled = false;
+    const flush = async () => {
+      const result = await flushOfflineMutations({
+        accessToken,
+        baseUrl: API_BASE_URL
+      });
+      if (cancelled) return;
+      setOfflineQueueSize(Number(result?.remaining || 0));
+    };
+
+    flush().catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isOnline, isAuthenticated, accessToken, setOfflineQueueSize]);
+
   const page = useMemo(() => {
     if (activeTab === 'dashboard') {
       return (
         <Dashboard
           accessToken={accessToken}
-          warehouseId={warehouseId || null}
+          warehouseId={activeWarehouseId || null}
           inventoryEvents={inventoryEvents}
           financeEvents={financeEvents}
           authEvents={authEvents}
@@ -233,7 +286,7 @@ const App = () => {
         <Products
           accessToken={accessToken}
           userRole={user?.role || null}
-          warehouseId={warehouseId || null}
+          warehouseId={activeWarehouseId || null}
         />
       );
     }
@@ -261,7 +314,7 @@ const App = () => {
     return (
       <Dashboard
         accessToken={accessToken}
-        warehouseId={warehouseId || null}
+        warehouseId={activeWarehouseId || null}
         inventoryEvents={inventoryEvents}
         financeEvents={financeEvents}
         authEvents={authEvents}
@@ -271,7 +324,7 @@ const App = () => {
     activeTab,
     accessToken,
     user,
-    warehouseId,
+    activeWarehouseId,
     inventoryEvents,
     financeEvents,
     authEvents,
@@ -349,11 +402,14 @@ const App = () => {
             <input
               id="warehouseId"
               type="text"
-              value={warehouseId}
-              onChange={(event) => setWarehouseId(event.target.value)}
+              value={activeWarehouseId}
+              onChange={(event) => setActiveWarehouseId(event.target.value)}
               placeholder="Optional warehouse id"
             />
           </label>
+          <p className="section-note">
+            {isOnline ? 'Online' : 'Offline'} | Queue {offlineQueueSize}
+          </p>
           <NotificationBell count={unreadCount} onClick={clearUnread} />
           <button type="button" className="btn-ghost" onClick={logout}>
             Sign out
