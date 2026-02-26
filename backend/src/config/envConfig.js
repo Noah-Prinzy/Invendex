@@ -407,6 +407,44 @@ const validateHttpTimeouts = (issues) => {
   }
 };
 
+const validateSocketEventRateLimit = (issues) => {
+  const windowMs = asInteger(process.env.SOCKET_EVENT_WINDOW_MS);
+  const maxEvents = asInteger(process.env.SOCKET_EVENT_MAX_EVENTS);
+  const maxViolations = asInteger(process.env.SOCKET_EVENT_MAX_VIOLATIONS);
+
+  if (windowMs != null && (windowMs < 100 || windowMs > 120_000)) {
+    issues.push('SOCKET_EVENT_WINDOW_MS must be between 100 and 120000');
+  }
+
+  if (maxEvents != null && (maxEvents < 1 || maxEvents > 10_000)) {
+    issues.push('SOCKET_EVENT_MAX_EVENTS must be between 1 and 10000');
+  }
+
+  if (maxViolations != null && (maxViolations < 1 || maxViolations > 100)) {
+    issues.push('SOCKET_EVENT_MAX_VIOLATIONS must be between 1 and 100');
+  }
+};
+
+const validateInventoryIntegrityConfig = (issues) => {
+  const maxFindings = asInteger(process.env.INVENTORY_INTEGRITY_MAX_FINDINGS);
+  const alertThreshold = asInteger(
+    process.env.INVENTORY_INTEGRITY_ALERT_THRESHOLD
+  );
+
+  if (maxFindings != null && (maxFindings < 1 || maxFindings > 10_000)) {
+    issues.push('INVENTORY_INTEGRITY_MAX_FINDINGS must be between 1 and 10000');
+  }
+
+  if (
+    alertThreshold != null &&
+    (alertThreshold < 1 || alertThreshold > 1_000_000)
+  ) {
+    issues.push(
+      'INVENTORY_INTEGRITY_ALERT_THRESHOLD must be between 1 and 1000000'
+    );
+  }
+};
+
 const warnUnsafeFlags = () => {
   const nodeEnv = asString(process.env.NODE_ENV || 'development');
   const authBypass = asBoolean(process.env.AUTH_TEST_BYPASS);
@@ -431,6 +469,8 @@ export const validateRuntimeEnv = () => {
   validateErrorTracking(issues);
   validateBodyParserLimits(issues);
   validateHttpTimeouts(issues);
+  validateSocketEventRateLimit(issues);
+  validateInventoryIntegrityConfig(issues);
   warnUnsafeFlags();
 
   if (warnings.length) {

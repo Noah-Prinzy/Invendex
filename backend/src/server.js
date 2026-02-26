@@ -11,6 +11,7 @@ import {
 
 import { startInventoryReportCron } from './cron/inventoryReportCron.js';
 import { startInventoryMetricsCron } from './cron/inventoryMetricsCron.js';
+import { startInventoryIntegrityCron } from './cron/inventoryIntegrityCron.js';
 import { startForecastGenerationCron } from './cron/forecastGenerationCron.js';
 import { startForecastReorderCron } from './cron/forecastReorderCron.js';
 
@@ -51,6 +52,7 @@ async function startServer() {
 
     startInventoryReportCron();
     startInventoryMetricsCron();
+    startInventoryIntegrityCron();
     startForecastGenerationCron();
     startForecastReorderCron();
 
