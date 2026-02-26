@@ -1,4 +1,5 @@
 import CogsEntry from '../models/CogsEntry.js';
+import Organization from '../models/Organization.js';
 import { successResponse } from '../utils/response.js';
 import {
   computeInventoryValuation,
@@ -11,6 +12,11 @@ import {
   getRealtimeEmitStats,
   publishValuationUpdated
 } from '../realtime/publisher.js';
+import {
+  getOrCreateTaxConfiguration,
+  getVatComplianceSummary,
+  updateTaxConfiguration
+} from '../services/finance/taxService.js';
 
 export const getInventoryValuation = async (req, res, next) => {
   try {
@@ -127,6 +133,97 @@ export const getRealtimeStats = async (req, res, next) => {
   try {
     const stats = getRealtimeEmitStats();
     return successResponse(res, stats, 'Realtime emit stats retrieved');
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getTaxConfiguration = async (req, res, next) => {
+  try {
+    const config = await getOrCreateTaxConfiguration(req.organizationId);
+    return successResponse(res, config, 'Tax configuration retrieved');
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const patchTaxConfiguration = async (req, res, next) => {
+  try {
+    const config = await updateTaxConfiguration({
+      organizationId: req.organizationId,
+      vatEnabled: req.body.vatEnabled,
+      vatRate: req.body.vatRate,
+      taxInclusivePricing: req.body.taxInclusivePricing,
+      countryCode: req.body.countryCode,
+      currencyCode: req.body.currencyCode,
+      updatedBy: req.user?._id || null
+    });
+
+    return successResponse(res, config, 'Tax configuration updated');
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getVatSummary = async (req, res, next) => {
+  try {
+    const report = await getVatComplianceSummary({
+      organizationId: req.organizationId,
+      from: req.query.from || null,
+      to: req.query.to || null
+    });
+    return successResponse(res, report, 'VAT compliance summary generated');
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getNotificationSettings = async (req, res, next) => {
+  try {
+    const organization = await Organization.findById(req.organizationId)
+      .select('smsLowStockEnabled smsLowStockRecipients')
+      .lean();
+
+    return successResponse(
+      res,
+      {
+        smsLowStockEnabled: Boolean(organization?.smsLowStockEnabled),
+        smsLowStockRecipients: Array.isArray(
+          organization?.smsLowStockRecipients
+        )
+          ? organization.smsLowStockRecipients
+          : []
+      },
+      'Notification settings retrieved'
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const patchNotificationSettings = async (req, res, next) => {
+  try {
+    const update = {};
+    if (typeof req.body.smsLowStockEnabled === 'boolean') {
+      update.smsLowStockEnabled = req.body.smsLowStockEnabled;
+    }
+    if (Array.isArray(req.body.smsLowStockRecipients)) {
+      update.smsLowStockRecipients = req.body.smsLowStockRecipients;
+    }
+
+    const organization = await Organization.findByIdAndUpdate(
+      req.organizationId,
+      {
+        $set: update
+      },
+      {
+        new: true
+      }
+    )
+      .select('smsLowStockEnabled smsLowStockRecipients')
+      .lean();
+
+    return successResponse(res, organization, 'Notification settings updated');
   } catch (err) {
     next(err);
   }

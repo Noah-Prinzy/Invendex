@@ -1,7 +1,9 @@
 import Product from '../models/Product.js';
 import ReorderAlert from '../models/ReorderAlert.js';
 import SupplierProduct from '../models/SupplierProduct.js';
+import Organization from '../models/Organization.js';
 import { getAverageDailyDemandPerSku } from './inventoryMetricsService.js';
+import { sendLowStockSmsNotification } from './notifications/notificationService.js';
 
 const ENGINE_VERSION = 'v1.3';
 
@@ -53,6 +55,9 @@ export const runReorderEngine = async ({
   }).lean();
 
   const alertsCreated = [];
+  const organization = await Organization.findById(organizationId)
+    .select('name smsLowStockEnabled smsLowStockRecipients')
+    .lean();
 
   for (const product of products) {
     const avgDailyDemand = avgDemandPerSku[product.sku] || 0;
@@ -132,6 +137,19 @@ export const runReorderEngine = async ({
     });
 
     alertsCreated.push(alert);
+
+    // Non-blocking operational notification.
+    sendLowStockSmsNotification({
+      organizationName: organization?.name || 'Organization',
+      sku: product.sku,
+      productName: product.name,
+      currentStock: product.stock,
+      reorderLevel,
+      recipients:
+        organization?.smsLowStockEnabled === true
+          ? organization?.smsLowStockRecipients || []
+          : []
+    }).catch(() => {});
   }
 
   return {

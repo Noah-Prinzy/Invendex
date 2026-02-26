@@ -5,6 +5,7 @@ import {
   runInventoryIntegrityCheck
 } from '../services/inventory/inventoryIntegrityService.js';
 import { logger } from '../observability/logger.js';
+import { raiseOperationalAlert } from '../observability/opsAlerting.js';
 
 let cronStarted = false;
 
@@ -100,17 +101,48 @@ export const startInventoryIntegrityCron = () => {
               threshold: getAlertThreshold(),
               reportId: String(persistedReport?._id || '')
             });
+            await raiseOperationalAlert({
+              severity: 'WARN',
+              category: 'inventory_integrity',
+              message: `Inventory integrity drift threshold breached (${result.driftCount})`,
+              context: {
+                driftCount: result.driftCount,
+                threshold: getAlertThreshold(),
+                reportId: String(persistedReport?._id || '')
+              },
+              organizationId: organization._id,
+              source: 'inventory_integrity_cron'
+            });
           }
         } catch (error) {
           logger.error('inventory_integrity_check_failed', {
             organizationId: String(organization._id),
             err: error
           });
+          await raiseOperationalAlert({
+            severity: 'ERROR',
+            category: 'inventory_integrity',
+            message: 'Inventory integrity check failed',
+            context: {
+              reason: error?.message || 'Unknown integrity check failure'
+            },
+            organizationId: organization._id,
+            source: 'inventory_integrity_cron'
+          });
         }
       }
     } catch (error) {
       logger.error('inventory_integrity_cron_failed', {
         err: error
+      });
+      await raiseOperationalAlert({
+        severity: 'ERROR',
+        category: 'inventory_integrity',
+        message: 'Inventory integrity cron failed',
+        context: {
+          reason: error?.message || 'Unknown cron failure'
+        },
+        source: 'inventory_integrity_cron'
       });
     }
   });

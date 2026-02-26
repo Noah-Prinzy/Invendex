@@ -5,6 +5,7 @@ import InventoryBatch from '../models/InventoryBatch.js';
 import InventorySerial from '../models/InventorySerial.js';
 import PickTicket from '../models/PickTicket.js';
 import Product from '../models/Product.js';
+import StockTransfer from '../models/StockTransfer.js';
 import StockMovement from '../models/StockMovement.js';
 import Warehouse from '../models/Warehouse.js';
 import WarehouseBin from '../models/WarehouseBin.js';
@@ -17,6 +18,7 @@ import { AppError } from '../errors/AppError.js';
 import { logInventoryMutation } from '../observability/inventoryMutationLogger.js';
 import { runWithMongoTransactionFallback } from '../utils/runWithMongoTransactionFallback.js';
 import { logAudit } from '../utils/auditLogger.js';
+import { publishInventoryUpdated } from '../realtime/publisher.js';
 
 const toObjectId = (value) => new mongoose.Types.ObjectId(value);
 
@@ -615,6 +617,311 @@ export const transferStockBetweenBins = async ({
       };
     }
   });
+};
+
+export const transferStockBetweenWarehouses = async ({
+  organizationId,
+  productId,
+  fromWarehouseId,
+  toWarehouseId,
+  quantity,
+  movedBy = null,
+  reason = 'Inter-warehouse transfer',
+  notes = null,
+  idempotencyKey = null
+}) => {
+  const qty = ensurePositiveInteger(quantity, 'quantity');
+
+  if (String(fromWarehouseId) === String(toWarehouseId)) {
+    throw new AppError(
+      'Source and destination warehouses must be different',
+      400
+    );
+  }
+
+  const result = await runWithMongoTransactionFallback({
+    operationName: 'wms_transfer_stock_between_warehouses',
+    operationMeta: {
+      organizationId: String(organizationId),
+      fromWarehouseId: String(fromWarehouseId),
+      toWarehouseId: String(toWarehouseId),
+      productId: String(productId),
+      quantity: qty
+    },
+    runWithSession: async (session) => {
+      await ensureWarehouseInOrganization(
+        organizationId,
+        fromWarehouseId,
+        session
+      );
+      await ensureWarehouseInOrganization(
+        organizationId,
+        toWarehouseId,
+        session
+      );
+
+      const productQuery = Product.findOne({
+        _id: productId,
+        organization: organizationId
+      }).select('_id sku name');
+      if (session) {
+        productQuery.session(session);
+      }
+      const product = await productQuery;
+      if (!product) {
+        throw new AppError('Product not found in your organization', 404);
+      }
+
+      const normalizedIdempotencyKey = String(idempotencyKey || '').trim();
+      if (normalizedIdempotencyKey) {
+        const existingTransferQuery = StockTransfer.findOne({
+          organization: organizationId,
+          idempotencyKey: normalizedIdempotencyKey
+        });
+        if (session) {
+          existingTransferQuery.session(session);
+        }
+        const existingTransfer = await existingTransferQuery;
+        if (existingTransfer) {
+          return {
+            transfer: existingTransfer,
+            fromInventory: null,
+            toInventory: null,
+            deduplicated: true
+          };
+        }
+      }
+
+      const now = new Date();
+      const fromInventoryOptions = {
+        new: true,
+        runValidators: true
+      };
+      if (session) {
+        fromInventoryOptions.session = session;
+      }
+
+      const fromInventory = await Inventory.findOneAndUpdate(
+        {
+          organization: organizationId,
+          warehouse: fromWarehouseId,
+          product: productId,
+          quantityOnHand: { $gte: qty },
+          $expr: {
+            $gte: [{ $subtract: ['$quantityOnHand', '$quantityReserved'] }, qty]
+          }
+        },
+        {
+          $inc: { quantityOnHand: -qty },
+          $set: { lastMovementAt: now }
+        },
+        fromInventoryOptions
+      );
+
+      if (!fromInventory) {
+        throw new AppError(
+          'Insufficient available stock in source warehouse for transfer',
+          409
+        );
+      }
+
+      const toInventoryOptions = {
+        new: true,
+        upsert: true,
+        runValidators: true,
+        setDefaultsOnInsert: true
+      };
+      if (session) {
+        toInventoryOptions.session = session;
+      }
+
+      const toInventory = await Inventory.findOneAndUpdate(
+        {
+          organization: organizationId,
+          warehouse: toWarehouseId,
+          product: productId
+        },
+        {
+          $inc: { quantityOnHand: qty },
+          $set: { lastMovementAt: now },
+          $setOnInsert: {
+            quantityReserved: 0,
+            reorderPoint: 0,
+            reorderQuantity: 0
+          }
+        },
+        toInventoryOptions
+      );
+
+      const movementPayload = {
+        organization: organizationId,
+        movementType: 'TRANSFER',
+        product: productId,
+        quantity: qty,
+        warehouseFrom: fromWarehouseId,
+        warehouseTo: toWarehouseId,
+        reason,
+        referenceType: 'MANUAL',
+        movedBy
+      };
+      if (session) {
+        await StockMovement.create([movementPayload], { session });
+      } else {
+        await StockMovement.create(movementPayload);
+      }
+
+      let transfer;
+      const transferPayload = {
+        organization: organizationId,
+        product: productId,
+        fromWarehouse: fromWarehouseId,
+        toWarehouse: toWarehouseId,
+        quantity: qty,
+        status: 'COMPLETED',
+        reason,
+        notes,
+        requestedBy: movedBy,
+        completedBy: movedBy,
+        requestedAt: now,
+        completedAt: now,
+        idempotencyKey: normalizedIdempotencyKey || null
+      };
+      if (session) {
+        [transfer] = await StockTransfer.create([transferPayload], { session });
+      } else {
+        transfer = await StockTransfer.create(transferPayload);
+      }
+
+      await syncProductStockFromInventory({
+        organizationId,
+        productId,
+        session
+      });
+
+      await logAudit({
+        action: 'WMS_TRANSFER_STOCK_BETWEEN_WAREHOUSES',
+        entity: 'WMS_TRANSFER',
+        entityId: transfer._id,
+        organizationId,
+        source: 'system',
+        success: true,
+        meta: {
+          productId: String(productId),
+          fromWarehouseId: String(fromWarehouseId),
+          toWarehouseId: String(toWarehouseId),
+          quantity: qty,
+          reason,
+          movedBy: movedBy ? String(movedBy) : null
+        },
+        session,
+        silent: true
+      });
+
+      logInventoryMutation({
+        operation: 'warehouse_transfer_outbound',
+        organizationId,
+        warehouseId: fromWarehouseId,
+        productId,
+        quantityDelta: -qty,
+        quantityOnHand: fromInventory.quantityOnHand,
+        quantityReserved: fromInventory.quantityReserved,
+        sourceType: 'MANUAL',
+        actorUserId: movedBy,
+        metadata: {
+          toWarehouseId
+        }
+      });
+
+      logInventoryMutation({
+        operation: 'warehouse_transfer_inbound',
+        organizationId,
+        warehouseId: toWarehouseId,
+        productId,
+        quantityDelta: qty,
+        quantityOnHand: toInventory.quantityOnHand,
+        quantityReserved: toInventory.quantityReserved,
+        sourceType: 'MANUAL',
+        actorUserId: movedBy,
+        metadata: {
+          fromWarehouseId
+        }
+      });
+
+      return {
+        transfer,
+        fromInventory,
+        toInventory,
+        deduplicated: false
+      };
+    }
+  });
+
+  if (!result?.deduplicated) {
+    publishInventoryUpdated({
+      organizationId,
+      actorUserId: movedBy,
+      warehouseId: fromWarehouseId,
+      entityId: productId,
+      data: {
+        source: 'warehouse_transfer',
+        direction: 'OUTBOUND',
+        quantityDelta: -qty,
+        transferId: result?.transfer?._id || null,
+        toWarehouseId: String(toWarehouseId)
+      }
+    });
+
+    publishInventoryUpdated({
+      organizationId,
+      actorUserId: movedBy,
+      warehouseId: toWarehouseId,
+      entityId: productId,
+      data: {
+        source: 'warehouse_transfer',
+        direction: 'INBOUND',
+        quantityDelta: qty,
+        transferId: result?.transfer?._id || null,
+        fromWarehouseId: String(fromWarehouseId)
+      }
+    });
+  }
+
+  return result;
+};
+
+export const listWarehouseTransfers = async ({
+  organizationId,
+  fromWarehouseId = null,
+  toWarehouseId = null,
+  productId = null,
+  status = null,
+  limit = 100
+}) => {
+  const parsedLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
+  const query = {
+    organization: organizationId
+  };
+
+  if (fromWarehouseId) {
+    query.fromWarehouse = fromWarehouseId;
+  }
+  if (toWarehouseId) {
+    query.toWarehouse = toWarehouseId;
+  }
+  if (productId) {
+    query.product = productId;
+  }
+  if (status) {
+    query.status = String(status).toUpperCase();
+  }
+
+  return StockTransfer.find(query)
+    .sort({ createdAt: -1 })
+    .limit(parsedLimit)
+    .populate('product', 'name sku')
+    .populate('fromWarehouse toWarehouse', 'name code')
+    .populate('requestedBy completedBy', 'email role')
+    .lean();
 };
 
 export const createPickTicket = async ({
@@ -1360,6 +1667,8 @@ export default {
   listWarehouseBins,
   allocateStockToBin,
   transferStockBetweenBins,
+  transferStockBetweenWarehouses,
+  listWarehouseTransfers,
   createPickTicket,
   startPickTicket,
   completePickTicket,

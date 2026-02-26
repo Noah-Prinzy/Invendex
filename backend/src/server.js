@@ -6,7 +6,8 @@ import { connectDB } from './config/dbConfig.js';
 import { initSocketServer } from './realtime/socketServer.js';
 import {
   configureSocketRedisAdapter,
-  disconnectSocketRedisAdapter
+  disconnectSocketRedisAdapter,
+  getSocketRedisAdapterStatus
 } from './realtime/redisAdapter.js';
 
 import { startInventoryReportCron } from './cron/inventoryReportCron.js';
@@ -27,6 +28,7 @@ import {
   validateRuntimeEnv
 } from './config/envConfig.js';
 import { disconnectRateLimitStore } from './middlewares/rateLimitStore.js';
+import { raiseOperationalAlert } from './observability/opsAlerting.js';
 
 dotenv.config();
 
@@ -46,6 +48,22 @@ async function startServer() {
 
     const io = await initSocketServer(httpServer);
     await configureSocketRedisAdapter(io);
+    const socketRedisStatus = getSocketRedisAdapterStatus();
+    if (
+      String(process.env.NODE_ENV || 'development') === 'production' &&
+      String(process.env.REALTIME_ENABLED || '').toLowerCase() === 'true' &&
+      socketRedisStatus.enabled &&
+      !socketRedisStatus.connected
+    ) {
+      await raiseOperationalAlert({
+        severity: 'WARN',
+        category: 'realtime_scaling',
+        message:
+          'Realtime Redis adapter not connected in production; cross-instance realtime may degrade',
+        context: socketRedisStatus,
+        source: 'server_bootstrap'
+      });
+    }
 
     autoSendPurchaseOrdersJob();
     autoClosePurchaseOrdersJob();

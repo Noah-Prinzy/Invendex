@@ -2,7 +2,10 @@ import express from 'express';
 import {
   getInventoryIntegrityReport,
   getInventoryIntegrityHistoryReport,
+  getObservabilityRuntime,
+  getOperationalAlerts,
   getObservabilityPing,
+  patchResolveOperationalAlert,
   runInventoryIntegrityAutoFix
 } from '../controllers/observabilityController.js';
 import { protect } from '../middlewares/authMiddleware.js';
@@ -19,8 +22,15 @@ router.use(
 );
 
 router.get('/ping', getObservabilityPing);
+router.get('/runtime', getObservabilityRuntime);
 router.get('/inventory-integrity', getInventoryIntegrityReport);
 router.get('/inventory-integrity/history', getInventoryIntegrityHistoryReport);
+router.get('/alerts', getOperationalAlerts);
+router.patch(
+  '/alerts/:alertId/resolve',
+  requirePermission(PERMISSIONS.USERS_MANAGE),
+  patchResolveOperationalAlert
+);
 router.post(
   '/inventory-integrity/autofix',
   requirePermission(PERMISSIONS.INVENTORY_MANAGE),

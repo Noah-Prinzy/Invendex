@@ -138,3 +138,64 @@ export const deadStockQueryValidator = [
       return true;
     })
 ];
+
+export const patchTaxConfigurationValidator = [
+  body('vatEnabled')
+    .optional()
+    .isBoolean()
+    .withMessage('vatEnabled must be a boolean')
+    .toBoolean(),
+  body('vatRate')
+    .optional()
+    .isFloat({ min: 0, max: 100 })
+    .withMessage('vatRate must be between 0 and 100')
+    .toFloat(),
+  body('taxInclusivePricing')
+    .optional()
+    .isBoolean()
+    .withMessage('taxInclusivePricing must be a boolean')
+    .toBoolean(),
+  body('countryCode')
+    .optional({ values: 'falsy' })
+    .isString()
+    .withMessage('countryCode must be a string')
+    .bail()
+    .isLength({ min: 2, max: 3 })
+    .withMessage('countryCode must be 2-3 characters')
+    .trim()
+    .toUpperCase(),
+  body('currencyCode')
+    .optional({ values: 'falsy' })
+    .isString()
+    .withMessage('currencyCode must be a string')
+    .bail()
+    .isLength({ min: 3, max: 3 })
+    .withMessage('currencyCode must be exactly 3 characters')
+    .trim()
+    .toUpperCase()
+];
+
+export const vatSummaryQueryValidator = [
+  optionalIsoDateValidator('from'),
+  optionalIsoDateValidator('to'),
+  optionalDateRangeValidator
+];
+
+export const patchNotificationSettingsValidator = [
+  body('smsLowStockEnabled')
+    .optional()
+    .isBoolean()
+    .withMessage('smsLowStockEnabled must be a boolean')
+    .toBoolean(),
+  body('smsLowStockRecipients')
+    .optional()
+    .isArray({ max: 20 })
+    .withMessage('smsLowStockRecipients must be an array with up to 20 items'),
+  body('smsLowStockRecipients.*')
+    .optional()
+    .isString()
+    .withMessage('Each SMS recipient must be a string')
+    .bail()
+    .isLength({ min: 7, max: 24 })
+    .withMessage('Each SMS recipient must be between 7 and 24 characters')
+];

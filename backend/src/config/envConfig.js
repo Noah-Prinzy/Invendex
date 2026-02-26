@@ -294,6 +294,17 @@ const validateRateLimitRedis = (issues) => {
   }
 };
 
+const validateRealtimeScaling = (issues, warnings, nodeEnv) => {
+  const realtimeEnabled = asBoolean(process.env.REALTIME_ENABLED);
+  const redisAdapterEnabled = asBoolean(process.env.REALTIME_REDIS_ENABLED);
+
+  if (realtimeEnabled && nodeEnv === 'production' && !redisAdapterEnabled) {
+    warnings.push(
+      'REALTIME_ENABLED=true in production without REALTIME_REDIS_ENABLED=true may break multi-instance event fan-out'
+    );
+  }
+};
+
 const validateCookieSecurity = (issues, warnings, nodeEnv) => {
   const { useSecureCookies, sameSite } = getCookieSecurityProfile();
   if (sameSite === 'none' && !useSecureCookies) {
@@ -356,6 +367,51 @@ const validateErrorTracking = (issues) => {
         'ERROR_TRACKING_SENTRY_TRACES_SAMPLE_RATE must be a number between 0 and 1'
       );
     }
+  }
+};
+
+const validateOpsAlerting = (issues) => {
+  const webhook = asString(process.env.OPS_ALERT_WEBHOOK_URL);
+  if (!webhook) return;
+
+  if (!webhook.startsWith('http://') && !webhook.startsWith('https://')) {
+    issues.push('OPS_ALERT_WEBHOOK_URL must start with http:// or https://');
+  }
+
+  const timeoutMs = asInteger(process.env.OPS_ALERT_WEBHOOK_TIMEOUT_MS);
+  if (timeoutMs != null && (timeoutMs < 500 || timeoutMs > 20_000)) {
+    issues.push('OPS_ALERT_WEBHOOK_TIMEOUT_MS must be between 500 and 20000');
+  }
+
+  const cooldownMs = asInteger(process.env.OPS_ALERT_COOLDOWN_MS);
+  if (cooldownMs != null && (cooldownMs < 1000 || cooldownMs > 3_600_000)) {
+    issues.push('OPS_ALERT_COOLDOWN_MS must be between 1000 and 3600000');
+  }
+};
+
+const validateSmsConfig = (issues) => {
+  const provider = asString(process.env.SMS_PROVIDER || 'none').toLowerCase();
+  if (!['none', 'twilio'].includes(provider)) {
+    issues.push('SMS_PROVIDER must be one of: none, twilio');
+    return;
+  }
+
+  if (provider !== 'twilio') return;
+
+  const requiredKeys = [
+    'SMS_TWILIO_ACCOUNT_SID',
+    'SMS_TWILIO_AUTH_TOKEN',
+    'SMS_TWILIO_FROM'
+  ];
+  for (const key of requiredKeys) {
+    if (!asString(process.env[key])) {
+      issues.push(`${key} is required when SMS_PROVIDER=twilio`);
+    }
+  }
+
+  const timeoutMs = asInteger(process.env.SMS_TIMEOUT_MS);
+  if (timeoutMs != null && (timeoutMs < 500 || timeoutMs > 20_000)) {
+    issues.push('SMS_TIMEOUT_MS must be between 500 and 20000');
   }
 };
 
@@ -465,8 +521,11 @@ export const validateRuntimeEnv = () => {
   validateCors(issues);
   validateRealtimeCors(issues);
   validateRateLimitRedis(issues);
+  validateRealtimeScaling(issues, warnings, nodeEnv);
   validateCookieSecurity(issues, warnings, nodeEnv);
   validateErrorTracking(issues);
+  validateOpsAlerting(issues);
+  validateSmsConfig(issues);
   validateBodyParserLimits(issues);
   validateHttpTimeouts(issues);
   validateSocketEventRateLimit(issues);

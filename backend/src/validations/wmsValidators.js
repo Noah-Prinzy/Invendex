@@ -13,6 +13,12 @@ const STOCK_MOVEMENT_TYPES = [
   'PICK',
   'ADJUSTMENT'
 ];
+const STOCK_TRANSFER_STATUSES = [
+  'REQUESTED',
+  'IN_TRANSIT',
+  'COMPLETED',
+  'CANCELLED'
+];
 
 const ensureOrganizationContext = (req) => {
   if (!req.organizationId) {
@@ -358,6 +364,97 @@ export const transferBinStockValidator = [
   })
 ];
 
+export const transferWarehouseStockValidator = [
+  body('productId')
+    .exists({ checkFalsy: true })
+    .withMessage('productId is required')
+    .bail()
+    .isMongoId()
+    .withMessage('productId must be a valid ID')
+    .bail()
+    .custom(async (productId, { req }) => {
+      const organizationId = ensureOrganizationContext(req);
+      const exists = await Product.exists({
+        _id: productId,
+        organization: organizationId
+      });
+      if (!exists) {
+        throw new Error('Product not found');
+      }
+      return true;
+    }),
+  body('fromWarehouseId')
+    .exists({ checkFalsy: true })
+    .withMessage('fromWarehouseId is required')
+    .bail()
+    .isMongoId()
+    .withMessage('fromWarehouseId must be a valid ID')
+    .bail()
+    .custom(async (warehouseId, { req }) => {
+      const organizationId = ensureOrganizationContext(req);
+      const exists = await Warehouse.exists({
+        _id: warehouseId,
+        organization: organizationId
+      });
+      if (!exists) {
+        throw new Error('fromWarehouseId not found');
+      }
+      return true;
+    }),
+  body('toWarehouseId')
+    .exists({ checkFalsy: true })
+    .withMessage('toWarehouseId is required')
+    .bail()
+    .isMongoId()
+    .withMessage('toWarehouseId must be a valid ID')
+    .bail()
+    .custom(async (warehouseId, { req }) => {
+      const organizationId = ensureOrganizationContext(req);
+      const exists = await Warehouse.exists({
+        _id: warehouseId,
+        organization: organizationId
+      });
+      if (!exists) {
+        throw new Error('toWarehouseId not found');
+      }
+      return true;
+    }),
+  body('quantity')
+    .exists({ checkFalsy: true })
+    .withMessage('quantity is required')
+    .bail()
+    .isInt({ min: 1, max: 1_000_000 })
+    .withMessage('quantity must be a positive integer')
+    .toInt(),
+  body('reason')
+    .optional({ values: 'falsy' })
+    .isString()
+    .withMessage('reason must be a string')
+    .bail()
+    .isLength({ max: 500 })
+    .withMessage('reason must be at most 500 characters'),
+  body('notes')
+    .optional({ values: 'falsy' })
+    .isString()
+    .withMessage('notes must be a string')
+    .bail()
+    .isLength({ max: 2000 })
+    .withMessage('notes must be at most 2000 characters'),
+  body().custom((_, { req }) => {
+    const { fromWarehouseId, toWarehouseId } = req.body || {};
+    if (
+      fromWarehouseId &&
+      toWarehouseId &&
+      String(fromWarehouseId) === String(toWarehouseId)
+    ) {
+      throw new Error(
+        'fromWarehouseId and toWarehouseId must be different warehouses'
+      );
+    }
+    return true;
+  })
+];
+
 export const createPickTicketValidator = [
   warehouseExistsValidator('warehouseId'),
   body('items')
@@ -495,12 +592,61 @@ export const replenishmentQueryValidator = [
     })
 ];
 
+export const warehouseTransferQueryValidator = [
+  query('fromWarehouseId')
+    .optional({ values: 'falsy' })
+    .isMongoId()
+    .withMessage('fromWarehouseId must be a valid ID')
+    .bail()
+    .custom(async (warehouseId, { req }) => {
+      const organizationId = ensureOrganizationContext(req);
+      const exists = await Warehouse.exists({
+        _id: warehouseId,
+        organization: organizationId
+      });
+      if (!exists) {
+        throw new Error('fromWarehouseId not found');
+      }
+      return true;
+    }),
+  query('toWarehouseId')
+    .optional({ values: 'falsy' })
+    .isMongoId()
+    .withMessage('toWarehouseId must be a valid ID')
+    .bail()
+    .custom(async (warehouseId, { req }) => {
+      const organizationId = ensureOrganizationContext(req);
+      const exists = await Warehouse.exists({
+        _id: warehouseId,
+        organization: organizationId
+      });
+      if (!exists) {
+        throw new Error('toWarehouseId not found');
+      }
+      return true;
+    }),
+  optionalProductQueryValidator('productId'),
+  query('status')
+    .optional({ values: 'falsy' })
+    .isIn(STOCK_TRANSFER_STATUSES)
+    .withMessage(
+      'status must be REQUESTED, IN_TRANSIT, COMPLETED, or CANCELLED'
+    ),
+  query('limit')
+    .optional({ values: 'falsy' })
+    .isInt({ min: 1, max: 500 })
+    .withMessage('limit must be an integer between 1 and 500')
+    .toInt()
+];
+
 export default {
   createBinValidator,
   listBinsQueryValidator,
   updateBinRulesValidator,
   allocateBinStockValidator,
   transferBinStockValidator,
+  transferWarehouseStockValidator,
+  warehouseTransferQueryValidator,
   createPickTicketValidator,
   pickTicketIdParamValidator,
   movementLedgerQueryValidator,

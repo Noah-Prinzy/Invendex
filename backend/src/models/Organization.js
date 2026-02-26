@@ -17,6 +17,14 @@ const organizationSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
       index: true
+    },
+    smsLowStockEnabled: {
+      type: Boolean,
+      default: false
+    },
+    smsLowStockRecipients: {
+      type: [String],
+      default: []
     }
   },
   { timestamps: true }

@@ -1,5 +1,20 @@
 import { captureException } from '../observability/errorTracker.js';
 import { logger } from '../observability/logger.js';
+import { raiseOperationalAlert } from '../observability/opsAlerting.js';
+
+const recentAlertMap = new Map();
+const ALERT_COOLDOWN_MS = Number(process.env.OPS_ALERT_COOLDOWN_MS || 60_000);
+
+const shouldRaiseAlert = ({ path, statusCode }) => {
+  const key = `${String(path || 'unknown')}|${Number(statusCode || 500)}`;
+  const now = Date.now();
+  const previous = recentAlertMap.get(key) || 0;
+  if (now - previous < ALERT_COOLDOWN_MS) {
+    return false;
+  }
+  recentAlertMap.set(key, now);
+  return true;
+};
 
 export const errorHandler = (err, req, res, _next) => {
   let statusCode = err.statusCode || 500;
@@ -54,6 +69,27 @@ export const errorHandler = (err, req, res, _next) => {
     }).catch(() => {
       // no-op: error reporting cannot block response path
     });
+
+    if (
+      shouldRaiseAlert({
+        path: req?.originalUrl || null,
+        statusCode
+      })
+    ) {
+      raiseOperationalAlert({
+        severity: 'ERROR',
+        category: 'api_error',
+        message: `API request failed with ${statusCode}`,
+        context: {
+          method: req?.method || null,
+          path: req?.originalUrl || null,
+          requestId: req?.requestId || null,
+          clientTraceId: req?.clientTraceId || null
+        },
+        organizationId: req?.organizationId || req?.user?.organization || null,
+        source: 'error_handler'
+      }).catch(() => {});
+    }
   } else {
     logger.warn('request_failed', logMeta);
   }

@@ -1,9 +1,15 @@
 import { successResponse } from '../utils/response.js';
 import { isRealtimeEnabled } from '../realtime/socketServer.js';
+import { getSocketRedisAdapterStatus } from '../realtime/redisAdapter.js';
+import { getRateLimitStoreStatus } from '../middlewares/rateLimitStore.js';
 import {
   getInventoryIntegrityHistory,
   runInventoryIntegrityCheck
 } from '../services/inventory/inventoryIntegrityService.js';
+import {
+  listOperationalAlerts,
+  resolveOperationalAlert
+} from '../observability/opsAlerting.js';
 
 const sanitize = (value) => String(value || '').trim();
 
@@ -45,7 +51,11 @@ export const getObservabilityPing = async (req, res, next) => {
           clientTraceId: req.clientTraceId || null
         },
         realtime: {
-          enabled: isRealtimeEnabled()
+          enabled: isRealtimeEnabled(),
+          redisAdapter: getSocketRedisAdapterStatus()
+        },
+        rateLimiting: {
+          store: getRateLimitStoreStatus()
         },
         errorTracking: {
           provider,
@@ -54,6 +64,32 @@ export const getObservabilityPing = async (req, res, next) => {
         }
       },
       'Observability ping successful'
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getObservabilityRuntime = async (req, res, next) => {
+  try {
+    return successResponse(
+      res,
+      {
+        runtime: {
+          nodeVersion: process.version,
+          pid: process.pid,
+          uptimeSeconds: Math.floor(process.uptime()),
+          environment: sanitize(process.env.NODE_ENV || 'development')
+        },
+        realtime: {
+          enabled: isRealtimeEnabled(),
+          redisAdapter: getSocketRedisAdapterStatus()
+        },
+        rateLimiting: {
+          store: getRateLimitStoreStatus()
+        }
+      },
+      'Observability runtime status retrieved'
     );
   } catch (error) {
     next(error);
@@ -121,9 +157,46 @@ export const getInventoryIntegrityHistoryReport = async (req, res, next) => {
   }
 };
 
+export const getOperationalAlerts = async (req, res, next) => {
+  try {
+    const alerts = await listOperationalAlerts({
+      organizationId: req.organizationId || null,
+      severity: req.query.severity || null,
+      limit: req.query.limit || 50,
+      includeResolved: req.query.includeResolved === 'true'
+    });
+
+    return successResponse(
+      res,
+      {
+        count: alerts.length,
+        alerts
+      },
+      'Operational alerts retrieved'
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const patchResolveOperationalAlert = async (req, res, next) => {
+  try {
+    const alert = await resolveOperationalAlert({
+      alertId: req.params.alertId
+    });
+
+    return successResponse(res, alert, 'Operational alert resolved');
+  } catch (error) {
+    next(error);
+  }
+};
+
 export default {
   getObservabilityPing,
+  getObservabilityRuntime,
   getInventoryIntegrityReport,
   runInventoryIntegrityAutoFix,
-  getInventoryIntegrityHistoryReport
+  getInventoryIntegrityHistoryReport,
+  getOperationalAlerts,
+  patchResolveOperationalAlert
 };

@@ -4,8 +4,13 @@ import {
   getDeadStock,
   getGrossMargin,
   getInventoryValuation,
+  getNotificationSettings,
   getRealtimeStats,
+  getTaxConfiguration,
+  getVatSummary,
   getValuationConfig,
+  patchNotificationSettings,
+  patchTaxConfiguration,
   patchValuationMethod
 } from '../controllers/financeController.js';
 import { protect } from '../middlewares/authMiddleware.js';
@@ -18,7 +23,10 @@ import {
   deadStockQueryValidator,
   financeValuationQueryValidator,
   grossMarginQueryValidator,
-  patchValuationMethodValidator
+  patchNotificationSettingsValidator,
+  patchTaxConfigurationValidator,
+  patchValuationMethodValidator,
+  vatSummaryQueryValidator
 } from '../validations/financeValidators.js';
 
 const router = express.Router();
@@ -56,6 +64,28 @@ router.get(
   deadStockQueryValidator,
   validateRequest,
   getDeadStock
+);
+router.get('/tax-config', getTaxConfiguration);
+router.patch(
+  '/tax-config',
+  requirePermission(PERMISSIONS.FINANCE_MANAGE),
+  patchTaxConfigurationValidator,
+  validateRequest,
+  patchTaxConfiguration
+);
+router.get(
+  '/vat-summary',
+  vatSummaryQueryValidator,
+  validateRequest,
+  getVatSummary
+);
+router.get('/notification-settings', getNotificationSettings);
+router.patch(
+  '/notification-settings',
+  requirePermission(PERMISSIONS.FINANCE_MANAGE),
+  patchNotificationSettingsValidator,
+  validateRequest,
+  patchNotificationSettings
 );
 router.get('/realtime-stats', getRealtimeStats);
 

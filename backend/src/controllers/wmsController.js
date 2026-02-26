@@ -5,11 +5,13 @@ import {
   createPickTicket,
   createWarehouseBin,
   getReplenishmentRecommendations,
+  listWarehouseTransfers,
   listStockMovements,
   listWarehouseBins,
   setWarehouseBinRules,
   startPickTicket,
-  transferStockBetweenBins
+  transferStockBetweenBins,
+  transferStockBetweenWarehouses
 } from '../services/wmsService.js';
 
 export const createBin = async (req, res, next) => {
@@ -98,6 +100,56 @@ export const transferBinStock = async (req, res, next) => {
     });
 
     return successResponse(res, result, 'Stock transferred between bins');
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const transferWarehouseStock = async (req, res, next) => {
+  try {
+    const {
+      productId,
+      fromWarehouseId,
+      toWarehouseId,
+      quantity,
+      reason,
+      notes
+    } = req.body;
+
+    const result = await transferStockBetweenWarehouses({
+      organizationId: req.organizationId,
+      productId,
+      fromWarehouseId,
+      toWarehouseId,
+      quantity,
+      reason,
+      notes,
+      movedBy: req.user?._id || null,
+      idempotencyKey: req.headers?.['idempotency-key'] || null
+    });
+
+    const message = result?.deduplicated
+      ? 'Warehouse transfer already processed'
+      : 'Stock transferred between warehouses';
+
+    return successResponse(res, result, message);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getWarehouseTransferLedger = async (req, res, next) => {
+  try {
+    const rows = await listWarehouseTransfers({
+      organizationId: req.organizationId,
+      fromWarehouseId: req.query.fromWarehouseId || null,
+      toWarehouseId: req.query.toWarehouseId || null,
+      productId: req.query.productId || null,
+      status: req.query.status || null,
+      limit: req.query.limit || 100
+    });
+
+    return successResponse(res, rows, 'Warehouse transfer ledger retrieved');
   } catch (err) {
     next(err);
   }

@@ -4,6 +4,7 @@ import Warehouse from '../models/Warehouse.js';
 import { AppError } from '../errors/AppError.js';
 import { successResponse } from '../utils/response.js';
 import { recordCogsForCompletedSaleOrder } from '../services/finance/cogsService.js';
+import { applySaleTaxDefaults } from '../services/finance/taxService.js';
 
 const ensureProductsInOrganization = async (organizationId, lines) => {
   const productIds = lines.map((line) => line.product);
@@ -52,8 +53,17 @@ export const createOrder = async (req, res, next) => {
 
     await ensureProductsInOrganization(req.organizationId, products);
 
+    let normalizedProducts = products;
+
     if (type === 'sale') {
-      for (const line of products) {
+      const taxApplied = await applySaleTaxDefaults({
+        organizationId: req.organizationId,
+        type,
+        products
+      });
+      normalizedProducts = taxApplied.products;
+
+      for (const line of normalizedProducts) {
         if (Array.isArray(line.serialNumbers) && line.serialNumbers.length) {
           const quantity = Number(line.quantity || 0);
           if (line.serialNumbers.length !== quantity) {
@@ -66,7 +76,7 @@ export const createOrder = async (req, res, next) => {
       }
     }
 
-    const lineWarehouses = products
+    const lineWarehouses = normalizedProducts
       .map((line) => line.warehouse || warehouse)
       .filter(Boolean);
     await ensureWarehousesInOrganization(req.organizationId, lineWarehouses);
@@ -75,7 +85,7 @@ export const createOrder = async (req, res, next) => {
       organization: req.organizationId,
       type,
       warehouse: warehouse || null,
-      products,
+      products: normalizedProducts,
       status
     });
 

@@ -5,10 +5,12 @@ import {
   createBin,
   createPickWorkflowTicket,
   getBins,
+  getWarehouseTransferLedger,
   getMovementLedger,
   getReplenishmentPlan,
   startPickWorkflowTicket,
   transferBinStock,
+  transferWarehouseStock,
   updateBinRules
 } from '../controllers/wmsController.js';
 import { protect } from '../middlewares/authMiddleware.js';
@@ -27,6 +29,8 @@ import {
   pickTicketIdParamValidator,
   replenishmentQueryValidator,
   transferBinStockValidator,
+  transferWarehouseStockValidator,
+  warehouseTransferQueryValidator,
   updateBinRulesValidator
 } from '../validations/wmsValidators.js';
 
@@ -84,6 +88,24 @@ router.post(
     resource: 'WMS_MOVEMENT'
   }),
   transferBinStock
+);
+router.post(
+  '/warehouses/transfer',
+  requirePermission(PERMISSIONS.WMS_MANAGE),
+  wmsMutationLimiter,
+  transferWarehouseStockValidator,
+  validateRequest,
+  auditMiddleware({
+    action: 'TRANSFER_WMS_WAREHOUSE_STOCK',
+    resource: 'WMS_TRANSFER'
+  }),
+  transferWarehouseStock
+);
+router.get(
+  '/warehouses/transfers',
+  warehouseTransferQueryValidator,
+  validateRequest,
+  getWarehouseTransferLedger
 );
 
 router.post(
