@@ -338,4 +338,133 @@ describe('realtime socket server', () => {
       waitForNoEvent(clientB, 'warehouse.targeted')
     ).resolves.toBeUndefined();
   });
+
+  it('rate-limits inbound warehouse subscription spam', async () => {
+    const originalMaxEvents = process.env.SOCKET_EVENT_MAX_EVENTS;
+    const originalWindow = process.env.SOCKET_EVENT_WINDOW_MS;
+    const originalViolations = process.env.SOCKET_EVENT_MAX_VIOLATIONS;
+    const originalEnabled = process.env.SOCKET_EVENT_RATE_LIMIT_ENABLED;
+
+    process.env.SOCKET_EVENT_RATE_LIMIT_ENABLED = 'true';
+    process.env.SOCKET_EVENT_WINDOW_MS = '10000';
+    process.env.SOCKET_EVENT_MAX_EVENTS = '2';
+    process.env.SOCKET_EVENT_MAX_VIOLATIONS = '10';
+
+    try {
+      const org = await Organization.create({
+        name: 'Limiter Org',
+        code: `LIM-${Date.now()}`
+      });
+
+      const user = await User.create({
+        email: `limiter-user-${Date.now()}@example.com`,
+        password: 'Password123!',
+        role: 'admin',
+        organization: org._id
+      });
+
+      const client = registerClient(connectClient(generateAccessToken(user)));
+      await waitForEvent(client, 'connect');
+
+      const warehouseId = new mongoose.Types.ObjectId().toString();
+      const ack1 = await emitWithAck(client, 'subscribe:warehouse', {
+        warehouseId
+      });
+      const ack2 = await emitWithAck(client, 'subscribe:warehouse', {
+        warehouseId
+      });
+      const ack3 = await emitWithAck(client, 'subscribe:warehouse', {
+        warehouseId
+      });
+
+      expect(ack1.ok).toBe(true);
+      expect(ack2.ok).toBe(true);
+      expect(ack3).toMatchObject({
+        ok: false,
+        error: 'rate_limited'
+      });
+      expect(client.connected).toBe(true);
+    } finally {
+      if (originalEnabled === undefined) {
+        delete process.env.SOCKET_EVENT_RATE_LIMIT_ENABLED;
+      } else {
+        process.env.SOCKET_EVENT_RATE_LIMIT_ENABLED = originalEnabled;
+      }
+      if (originalWindow === undefined) {
+        delete process.env.SOCKET_EVENT_WINDOW_MS;
+      } else {
+        process.env.SOCKET_EVENT_WINDOW_MS = originalWindow;
+      }
+      if (originalMaxEvents === undefined) {
+        delete process.env.SOCKET_EVENT_MAX_EVENTS;
+      } else {
+        process.env.SOCKET_EVENT_MAX_EVENTS = originalMaxEvents;
+      }
+      if (originalViolations === undefined) {
+        delete process.env.SOCKET_EVENT_MAX_VIOLATIONS;
+      } else {
+        process.env.SOCKET_EVENT_MAX_VIOLATIONS = originalViolations;
+      }
+    }
+  });
+
+  it('disconnects socket after repeated rate-limit violations', async () => {
+    const originalMaxEvents = process.env.SOCKET_EVENT_MAX_EVENTS;
+    const originalWindow = process.env.SOCKET_EVENT_WINDOW_MS;
+    const originalViolations = process.env.SOCKET_EVENT_MAX_VIOLATIONS;
+    const originalEnabled = process.env.SOCKET_EVENT_RATE_LIMIT_ENABLED;
+
+    process.env.SOCKET_EVENT_RATE_LIMIT_ENABLED = 'true';
+    process.env.SOCKET_EVENT_WINDOW_MS = '10000';
+    process.env.SOCKET_EVENT_MAX_EVENTS = '1';
+    process.env.SOCKET_EVENT_MAX_VIOLATIONS = '1';
+
+    try {
+      const org = await Organization.create({
+        name: 'Limiter Disconnect Org',
+        code: `LIMDISC-${Date.now()}`
+      });
+
+      const user = await User.create({
+        email: `limiter-disc-user-${Date.now()}@example.com`,
+        password: 'Password123!',
+        role: 'admin',
+        organization: org._id
+      });
+
+      const client = registerClient(connectClient(generateAccessToken(user)));
+      await waitForEvent(client, 'connect');
+
+      const warehouseId = new mongoose.Types.ObjectId().toString();
+      await emitWithAck(client, 'subscribe:warehouse', { warehouseId });
+      await emitWithAck(client, 'subscribe:warehouse', { warehouseId });
+
+      const disconnected = waitForEvent(client, 'disconnect');
+      client.emit('subscribe:warehouse', { warehouseId }, () => {});
+
+      await expect(disconnected).resolves.toBeDefined();
+      expect(client.connected).toBe(false);
+    } finally {
+      if (originalEnabled === undefined) {
+        delete process.env.SOCKET_EVENT_RATE_LIMIT_ENABLED;
+      } else {
+        process.env.SOCKET_EVENT_RATE_LIMIT_ENABLED = originalEnabled;
+      }
+      if (originalWindow === undefined) {
+        delete process.env.SOCKET_EVENT_WINDOW_MS;
+      } else {
+        process.env.SOCKET_EVENT_WINDOW_MS = originalWindow;
+      }
+      if (originalMaxEvents === undefined) {
+        delete process.env.SOCKET_EVENT_MAX_EVENTS;
+      } else {
+        process.env.SOCKET_EVENT_MAX_EVENTS = originalMaxEvents;
+      }
+      if (originalViolations === undefined) {
+        delete process.env.SOCKET_EVENT_MAX_VIOLATIONS;
+      } else {
+        process.env.SOCKET_EVENT_MAX_VIOLATIONS = originalViolations;
+      }
+    }
+  });
 });

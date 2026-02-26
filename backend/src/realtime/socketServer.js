@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { Server as SocketIOServer } from 'socket.io';
 import User from '../models/User.js';
+import { createSocketRateLimiter } from './socketRateLimiter.js';
 import { logger } from '../observability/logger.js';
 import { captureException } from '../observability/errorTracker.js';
 import { getSocketCorsOrigin } from '../config/envConfig.js';
@@ -160,6 +161,12 @@ export const initSocketServer = async (httpServer, { enabled = null } = {}) => {
 
   ioInstance.on('connection', (socket) => {
     const { id: userId, organizationId } = socket.data.user;
+    const inboundRateLimiter = createSocketRateLimiter({
+      socketId: socket.id,
+      organizationId,
+      userId
+    });
+
     const organizationRoom = getOrganizationRoom(organizationId);
     socket.join(organizationRoom);
     addOnlineUserSession({
@@ -175,6 +182,15 @@ export const initSocketServer = async (httpServer, { enabled = null } = {}) => {
     });
 
     socket.on('subscribe:warehouse', (payload, acknowledge) => {
+      const allowed = inboundRateLimiter.guardInboundEvent({
+        eventName: 'subscribe:warehouse',
+        acknowledge,
+        disconnect: (close) => socket.disconnect(close)
+      });
+      if (!allowed) {
+        return;
+      }
+
       const warehouseId = payload?.warehouseId;
       if (!warehouseId) {
         if (typeof acknowledge === 'function') {
@@ -197,6 +213,15 @@ export const initSocketServer = async (httpServer, { enabled = null } = {}) => {
     });
 
     socket.on('unsubscribe:warehouse', (payload, acknowledge) => {
+      const allowed = inboundRateLimiter.guardInboundEvent({
+        eventName: 'unsubscribe:warehouse',
+        acknowledge,
+        disconnect: (close) => socket.disconnect(close)
+      });
+      if (!allowed) {
+        return;
+      }
+
       const warehouseId = payload?.warehouseId;
       if (!warehouseId) {
         if (typeof acknowledge === 'function') {
