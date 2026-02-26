@@ -283,6 +283,13 @@ export const getProductsRequest = (accessToken) =>
     accessToken
   }).then(readData);
 
+export const getPurchaseOrdersRequest = (accessToken) =>
+  request({
+    method: 'GET',
+    path: API_ENDPOINTS.PURCHASE_ORDERS,
+    accessToken
+  }).then(readData);
+
 export const getUsersRequest = (accessToken) =>
   request({
     method: 'GET',
@@ -434,6 +441,7 @@ export default {
   createUserInviteRequest,
   revokeUserInviteRequest,
   updateUserStatusRequest,
+  getPurchaseOrdersRequest,
   getProductsRequest,
   getProductsLowStockSummaryRequest,
   adjustProductStockRequest,

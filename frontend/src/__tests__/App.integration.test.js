@@ -9,6 +9,7 @@ import App from '../App.js';
 import useAuth from '../hooks/auth/useAuth.js';
 import { useLedgerlyRealtime } from '../hooks/realtime/useLedgerlyRealtime.js';
 import { renderWithProviders } from '../test/renderWithProviders.js';
+import { getPurchaseOrdersRequest } from '../api/client.js';
 
 jest.mock('../hooks/auth/useAuth.js', () => ({
   __esModule: true,
@@ -18,6 +19,10 @@ jest.mock('../hooks/auth/useAuth.js', () => ({
 jest.mock('../hooks/realtime/useLedgerlyRealtime.js', () => ({
   __esModule: true,
   useLedgerlyRealtime: jest.fn()
+}));
+
+jest.mock('../api/client.js', () => ({
+  getPurchaseOrdersRequest: jest.fn()
 }));
 
 const buildAuthState = (overrides) => ({
@@ -50,6 +55,7 @@ describe('App integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     useLedgerlyRealtime.mockImplementation(() => ({}));
+    getPurchaseOrdersRequest.mockResolvedValue([]);
   });
 
   it('renders session initialization state', () => {

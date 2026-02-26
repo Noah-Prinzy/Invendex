@@ -226,7 +226,7 @@ const App = () => {
       );
     }
     if (activeTab === 'purchaseOrders') {
-      return <PurchaseOrders poEvents={poEvents} />;
+      return <PurchaseOrders accessToken={accessToken} poEvents={poEvents} />;
     }
     if (activeTab === 'products') {
       return (
