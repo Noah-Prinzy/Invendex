@@ -4,6 +4,7 @@ import Product from '../models/Product.js';
 import Warehouse from '../models/Warehouse.js';
 import { getTestDbUri } from './testDbUri.js';
 import InventoryCostLayer from '../models/InventoryCostLayer.js';
+import InventoryValuationConfig from '../models/InventoryValuationConfig.js';
 import {
   consumeCostLayers,
   getOrCreateValuationConfig
@@ -20,7 +21,8 @@ beforeEach(async () => {
     Organization.deleteMany({}),
     Product.deleteMany({}),
     Warehouse.deleteMany({}),
-    InventoryCostLayer.deleteMany({})
+    InventoryCostLayer.deleteMany({}),
+    InventoryValuationConfig.deleteMany({})
   ]);
 });
 
@@ -181,5 +183,26 @@ describe('valuationService.consumeCostLayers', () => {
       0
     );
     expect(remainingQty).toBe(14);
+  });
+
+  it('creates a single valuation config under parallel get-or-create calls', async () => {
+    const organization = await Organization.create({
+      name: 'Valuation Config Concurrency Org',
+      code: 'VALUATION_CONFIG_CONCURRENCY_ORG'
+    });
+
+    const results = await Promise.all(
+      Array.from({ length: 8 }).map(() =>
+        getOrCreateValuationConfig(organization._id)
+      )
+    );
+
+    const ids = new Set(results.map((entry) => String(entry._id)));
+    expect(ids.size).toBe(1);
+
+    const count = await InventoryValuationConfig.countDocuments({
+      organization: organization._id
+    });
+    expect(count).toBe(1);
   });
 });

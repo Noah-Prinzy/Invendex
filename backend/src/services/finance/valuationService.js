@@ -97,16 +97,22 @@ const estimateCostForQuantity = ({ layers, quantity, method }) => {
 };
 
 export const getOrCreateValuationConfig = async (organizationId) => {
-  const existing = await InventoryValuationConfig.findOne({
-    organization: organizationId
-  });
-  if (existing) return existing;
-
-  return InventoryValuationConfig.create({
-    organization: organizationId,
-    defaultMethod: 'WEIGHTED_AVG',
-    allowMethodOverride: true
-  });
+  return InventoryValuationConfig.findOneAndUpdate(
+    { organization: organizationId },
+    {
+      $setOnInsert: {
+        organization: organizationId,
+        defaultMethod: 'WEIGHTED_AVG',
+        allowMethodOverride: true
+      }
+    },
+    {
+      upsert: true,
+      new: true,
+      runValidators: true,
+      setDefaultsOnInsert: true
+    }
+  );
 };
 
 export const getEffectiveMethod = async (
