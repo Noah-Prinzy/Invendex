@@ -19,7 +19,8 @@ import { logInventoryMutation } from '../../observability/inventoryMutationLogge
 export const applyPurchaseOrderToInventory = async ({
   purchaseOrder,
   actorUserId = null,
-  session = null
+  session = null,
+  deferRealtimePublish = false
 }) => {
   if (
     !purchaseOrder ||
@@ -32,6 +33,8 @@ export const applyPurchaseOrderToInventory = async ({
       400
     );
   }
+
+  const pendingInventoryRealtimeEvents = [];
 
   for (const item of purchaseOrder.items) {
     const {
@@ -205,7 +208,7 @@ export const applyPurchaseOrderToInventory = async ({
         actorUserId
       });
 
-      publishInventoryUpdated({
+      pendingInventoryRealtimeEvents.push({
         organizationId: purchaseOrder.organization,
         actorUserId,
         warehouseId: purchaseOrder.warehouse,
@@ -232,7 +235,7 @@ export const applyPurchaseOrderToInventory = async ({
     }
   }
 
-  publishValuationUpdated({
+  const pendingValuationRealtimeEvent = {
     organizationId: purchaseOrder.organization,
     actorUserId,
     warehouseId: purchaseOrder.warehouse,
@@ -240,7 +243,20 @@ export const applyPurchaseOrderToInventory = async ({
       reason: 'purchase_order_receive',
       purchaseOrderId: purchaseOrder._id
     }
-  });
+  };
+
+  if (!deferRealtimePublish) {
+    for (const realtimePayload of pendingInventoryRealtimeEvents) {
+      publishInventoryUpdated(realtimePayload);
+    }
+
+    publishValuationUpdated(pendingValuationRealtimeEvent);
+  }
+
+  return {
+    inventoryRealtimeEvents: pendingInventoryRealtimeEvents,
+    valuationRealtimeEvent: pendingValuationRealtimeEvent
+  };
 };
 
 export default {

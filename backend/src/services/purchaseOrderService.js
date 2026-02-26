@@ -6,6 +6,10 @@ import { applyPurchaseOrderToInventory } from './inventory/inventoryService.js';
 import AppError from '../utils/AppError.js';
 import { runWithMongoTransactionFallback } from '../utils/runWithMongoTransactionFallback.js';
 import { logAudit } from '../utils/auditLogger.js';
+import {
+  publishInventoryUpdated,
+  publishValuationUpdated
+} from '../realtime/publisher.js';
 
 /**
  * 🤖 Generate Purchase Orders from active reorder alerts
@@ -194,7 +198,7 @@ export const receivePurchaseOrder = async ({
   userId,
   organizationId
 }) => {
-  return runWithMongoTransactionFallback({
+  const result = await runWithMongoTransactionFallback({
     operationName: 'receive_purchase_order',
     operationMeta: {
       organizationId: String(organizationId),
@@ -220,10 +224,11 @@ export const receivePurchaseOrder = async ({
         nextStatus: 'RECEIVED'
       });
 
-      await applyPurchaseOrderToInventory({
+      const inventoryResult = await applyPurchaseOrderToInventory({
         purchaseOrder,
         actorUserId: userId,
-        session
+        session,
+        deferRealtimePublish: true
       });
 
       purchaseOrder.status = 'RECEIVED';
@@ -247,9 +252,23 @@ export const receivePurchaseOrder = async ({
         session,
         silent: true
       });
-      return purchaseOrder;
+      return {
+        purchaseOrder,
+        inventoryRealtimeEvents: inventoryResult?.inventoryRealtimeEvents || [],
+        valuationRealtimeEvent: inventoryResult?.valuationRealtimeEvent || null
+      };
     }
   });
+
+  for (const realtimePayload of result.inventoryRealtimeEvents || []) {
+    publishInventoryUpdated(realtimePayload);
+  }
+
+  if (result.valuationRealtimeEvent) {
+    publishValuationUpdated(result.valuationRealtimeEvent);
+  }
+
+  return result.purchaseOrder;
 };
 
 /**
