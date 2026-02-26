@@ -30,8 +30,21 @@ export const createProductValidator = [
 
   body('stock')
     .optional()
-    .isInt({ min: 0 })
-    .withMessage('Stock must be a non-negative integer'),
+    .custom((value) => {
+      if (value === null || value === undefined || value === '') {
+        return true;
+      }
+      const parsed = Number(value);
+      if (!Number.isInteger(parsed) || parsed < 0) {
+        throw new Error('Stock must be a non-negative integer');
+      }
+      if (parsed !== 0) {
+        throw new Error(
+          'Initial stock must be 0. Use per-warehouse stock adjustment after product creation.'
+        );
+      }
+      return true;
+    }),
 
   body('lowStockThreshold')
     .optional()

@@ -152,44 +152,21 @@ const productSchema = new mongoose.Schema(
 
 /**
  * 📦 Adjust stock safely
- * NOTE: InventorySnapshot must be created by caller
+ * NOTE:
+ * Product.stock is now a derived compatibility cache from warehouse Inventory.
+ * Direct mutation is intentionally blocked.
  */
 productSchema.methods.adjustStock = async function (
   amount,
   reason,
   userId = null
 ) {
-  if (!Number.isInteger(amount) || amount === 0) {
-    throw new Error('Stock adjustment amount must be a non-zero integer');
-  }
-
-  const normalizedReason = String(reason).trim().toLowerCase();
-
-  if (!STOCK_REASONS.includes(normalizedReason)) {
-    throw new Error('Invalid stock adjustment reason');
-  }
-
-  const newStock = this.stock + amount;
-
-  if (newStock < 0) {
-    throw new Error('Insufficient stock');
-  }
-
-  this.stockHistory.push({
-    previousStock: this.stock,
-    newStock,
-    changeAmount: amount,
-    reason: normalizedReason,
-    changedBy: userId,
-    changedAt: new Date()
-  });
-
-  if (this.stockHistory.length > 100) {
-    this.stockHistory.shift();
-  }
-
-  this.stock = newStock;
-  return this.save();
+  void amount;
+  void reason;
+  void userId;
+  throw new Error(
+    'Direct Product.adjustStock is disabled. Use warehouse inventory adjustment service with warehouseId.'
+  );
 };
 
 /**

@@ -499,6 +499,44 @@ export const runInventoryIntegrityCheck = async ({
             quantityOnHand: correctedOnHand,
             quantityReserved: correctedReserved
           };
+
+          const updatedProductOnHand =
+            Number(inventoryOnHandByProductKey.get(productKey) || 0) -
+            quantityOnHand +
+            correctedOnHand;
+          inventoryOnHandByProductKey.set(productKey, updatedProductOnHand);
+        }
+      }
+
+      const productStockIssue = finding.issues.find(
+        (issue) => issue.code === 'PRODUCT_STOCK_DRIFT'
+      );
+      if (productStockIssue) {
+        const expectedProductStock = Math.max(
+          Number(inventoryOnHandByProductKey.get(productKey) || 0),
+          0
+        );
+        const productUpdateResult = await Product.findOneAndUpdate(
+          {
+            _id: inventory.product,
+            organization: inventory.organization
+          },
+          {
+            $set: {
+              stock: expectedProductStock
+            }
+          },
+          {
+            new: true,
+            runValidators: true
+          }
+        );
+
+        if (productUpdateResult) {
+          autoFixAppliedCount += 1;
+          finding.autoFixApplied = true;
+          finding.productStockAutoFixApplied = true;
+          finding.productStockCorrectedValue = expectedProductStock;
         }
       }
     }

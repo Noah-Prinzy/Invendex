@@ -125,7 +125,7 @@ describe('inventory integrity service', () => {
       name: 'Integrity Fix Product',
       sku: 'IFX-001',
       price: 30,
-      stock: 0
+      stock: 12
     });
 
     const inventory = await Inventory.create({
@@ -156,6 +156,60 @@ describe('inventory integrity service', () => {
     const updated = await Inventory.findById(inventory._id).lean();
     expect(updated.quantityOnHand).toBe(9);
     expect(updated.quantityReserved).toBe(1);
+  });
+
+  it('detects and auto-fixes PRODUCT_STOCK_DRIFT from inventory totals', async () => {
+    const organization = await Organization.create({
+      name: 'Product Drift Org',
+      code: `PDRIFT-${Date.now()}`
+    });
+
+    const warehouse = await Warehouse.create({
+      organization: organization._id,
+      name: 'Product Drift Warehouse',
+      code: 'PDRIFT-WH'
+    });
+
+    const product = await Product.create({
+      organization: organization._id,
+      name: 'Product Drift Product',
+      sku: 'PDRIFT-001',
+      price: 25,
+      stock: 99
+    });
+
+    await Inventory.create({
+      organization: organization._id,
+      product: product._id,
+      warehouse: warehouse._id,
+      quantityOnHand: 7,
+      quantityReserved: 0
+    });
+
+    const detectReport = await runInventoryIntegrityCheck({
+      organizationId: organization._id,
+      autoFix: false
+    });
+
+    const productDriftFinding = detectReport.findings.find((finding) =>
+      finding.issues.some((issue) => issue.code === 'PRODUCT_STOCK_DRIFT')
+    );
+    expect(productDriftFinding).toBeDefined();
+    expect(
+      productDriftFinding.issues.some(
+        (issue) => issue.code === 'PRODUCT_STOCK_DRIFT'
+      )
+    ).toBe(true);
+
+    const fixReport = await runInventoryIntegrityCheck({
+      organizationId: organization._id,
+      autoFix: true
+    });
+
+    expect(fixReport.autoFixAppliedCount).toBe(1);
+
+    const updatedProduct = await Product.findById(product._id).lean();
+    expect(updatedProduct.stock).toBe(7);
   });
 
   it('persists report summaries and returns scoped history', async () => {
