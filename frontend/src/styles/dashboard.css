@@ -286,6 +286,12 @@
   gap: 0.45rem;
 }
 
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
 .pagination-text {
   font-size: 0.8rem;
   color: var(--ink-muted);

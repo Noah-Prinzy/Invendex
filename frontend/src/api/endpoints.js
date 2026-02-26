@@ -15,6 +15,7 @@ export const API_ENDPOINTS = Object.freeze({
   USERS_ONLINE: '/api/users/online',
   USERS_INVITES: '/api/users/invites',
   PRODUCTS: '/api/products',
+  PRODUCTS_DELETED: '/api/products/deleted',
   PURCHASE_ORDERS: '/api/purchase-orders',
   PRODUCTS_LOW_STOCK_SUMMARY: '/api/products/alerts/low-stock/summary',
   SUPPLIERS: '/api/suppliers',

@@ -288,6 +288,57 @@ export const getProductsRequest = (accessToken) =>
     accessToken
   }).then(readData);
 
+export const getDeletedProductsRequest = (accessToken) =>
+  request({
+    method: 'GET',
+    path: API_ENDPOINTS.PRODUCTS_DELETED,
+    accessToken
+  }).then(readData);
+
+export const createProductRequest = ({
+  accessToken,
+  name,
+  sku,
+  price,
+  category = '',
+  description = '',
+  lowStockThreshold = 5
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.PRODUCTS,
+    accessToken,
+    body: {
+      name,
+      sku,
+      price,
+      category,
+      description,
+      lowStockThreshold
+    }
+  }).then(readData);
+
+export const softDeleteProductRequest = ({ accessToken, productId }) =>
+  request({
+    method: 'DELETE',
+    path: `${API_ENDPOINTS.PRODUCTS}/${productId}`,
+    accessToken
+  }).then(readData);
+
+export const restoreDeletedProductRequest = ({ accessToken, productId }) =>
+  request({
+    method: 'PATCH',
+    path: `${API_ENDPOINTS.PRODUCTS}/${productId}/restore`,
+    accessToken
+  }).then(readData);
+
+export const permanentlyDeleteProductRequest = ({ accessToken, productId }) =>
+  request({
+    method: 'DELETE',
+    path: `${API_ENDPOINTS.PRODUCTS}/${productId}/permanent`,
+    accessToken
+  }).then(readData);
+
 export const getPurchaseOrdersRequest = (accessToken) =>
   request({
     method: 'GET',
@@ -517,6 +568,11 @@ export default {
   updateUserStatusRequest,
   getPurchaseOrdersRequest,
   getProductsRequest,
+  getDeletedProductsRequest,
+  createProductRequest,
+  softDeleteProductRequest,
+  restoreDeletedProductRequest,
+  permanentlyDeleteProductRequest,
   getProductsLowStockSummaryRequest,
   adjustProductStockRequest,
   receivePurchaseOrderRequest,

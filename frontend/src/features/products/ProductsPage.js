@@ -2,12 +2,29 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   adjustProductStockRequest,
+  createProductRequest,
+  getDeletedProductsRequest,
   getProductsLowStockSummaryRequest,
-  getProductsRequest
+  getProductsRequest,
+  permanentlyDeleteProductRequest,
+  restoreDeletedProductRequest,
+  softDeleteProductRequest
 } from '../../api/client.js';
 import { createIdempotencyKey } from '../../api/idempotency.js';
 
-const ROLES_WITH_LOW_STOCK_ACCESS = new Set(['admin', 'staff']);
+const ROLES_WITH_LOW_STOCK_ACCESS = new Set([
+  'owner',
+  'admin',
+  'manager',
+  'staff'
+]);
+const ROLES_WITH_PRODUCT_MANAGE = new Set([
+  'owner',
+  'admin',
+  'manager',
+  'staff'
+]);
+const ROLES_WITH_DELETED_REVIEW = new Set(['owner', 'admin']);
 const PAGE_SIZE = 8;
 const PRODUCTS_QUERY_STALE_TIME_MS = 45 * 1000;
 const STOCK_ADJUST_REASONS = ['sale', 'restock', 'adjustment', 'return'];
@@ -19,6 +36,16 @@ const formatCurrency = (value) =>
     maximumFractionDigits: 2
   }).format(Number(value || 0));
 
+const resolveProductId = (product) =>
+  String(product?.id || product?._id || '').trim();
+
+const toUserDateTime = (value) => {
+  if (!value) return '-';
+  const asDate = new Date(value);
+  if (Number.isNaN(asDate.getTime())) return '-';
+  return asDate.toLocaleString();
+};
+
 const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [stockFilter, setStockFilter] = useState('all');
@@ -29,18 +56,35 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
   const [adjustAmount, setAdjustAmount] = useState('');
   const [adjustReason, setAdjustReason] = useState('adjustment');
   const [adjustNotice, setAdjustNotice] = useState('');
-  const queryClient = useQueryClient();
+  const [managementNotice, setManagementNotice] = useState('');
+  const [createForm, setCreateForm] = useState({
+    name: '',
+    sku: '',
+    price: '',
+    category: '',
+    lowStockThreshold: '5',
+    description: ''
+  });
 
-  const canReadLowStockSummary = ROLES_WITH_LOW_STOCK_ACCESS.has(
-    String(userRole || '')
-  );
+  const queryClient = useQueryClient();
+  const normalizedRole = String(userRole || '')
+    .trim()
+    .toLowerCase();
+
+  const canReadLowStockSummary =
+    ROLES_WITH_LOW_STOCK_ACCESS.has(normalizedRole);
+  const canManageProducts = ROLES_WITH_PRODUCT_MANAGE.has(normalizedRole);
+  const canReviewDeletedProducts =
+    ROLES_WITH_DELETED_REVIEW.has(normalizedRole);
+
   const productsQueryKey = useMemo(
     () => [
       'products:index',
       String(accessToken || ''),
-      String(canReadLowStockSummary)
+      String(canReadLowStockSummary),
+      String(canReviewDeletedProducts)
     ],
-    [accessToken, canReadLowStockSummary]
+    [accessToken, canReadLowStockSummary, canReviewDeletedProducts]
   );
 
   const { data, error, isLoading, isFetching, refetch } = useQuery({
@@ -48,14 +92,23 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
     enabled: Boolean(accessToken),
     staleTime: PRODUCTS_QUERY_STALE_TIME_MS,
     queryFn: async () => {
-      const productsData = await getProductsRequest(accessToken);
-      const lowStockData = canReadLowStockSummary
-        ? await getProductsLowStockSummaryRequest(accessToken)
-        : [];
+      const [productsData, lowStockData, deletedProductsData] =
+        await Promise.all([
+          getProductsRequest(accessToken),
+          canReadLowStockSummary
+            ? getProductsLowStockSummaryRequest(accessToken)
+            : Promise.resolve([]),
+          canReviewDeletedProducts
+            ? getDeletedProductsRequest(accessToken)
+            : Promise.resolve([])
+        ]);
 
       return {
         products: Array.isArray(productsData) ? productsData : [],
-        lowStockSummary: Array.isArray(lowStockData) ? lowStockData : []
+        lowStockSummary: Array.isArray(lowStockData) ? lowStockData : [],
+        deletedProducts: Array.isArray(deletedProductsData)
+          ? deletedProductsData
+          : []
       };
     }
   });
@@ -96,12 +149,98 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
     }
   });
 
+  const createProductMutation = useMutation({
+    mutationFn: async (payload) =>
+      createProductRequest({
+        accessToken,
+        ...payload
+      }),
+    onSuccess: () => {
+      setManagementNotice('Product created successfully.');
+      setCreateForm({
+        name: '',
+        sku: '',
+        price: '',
+        category: '',
+        lowStockThreshold: '5',
+        description: ''
+      });
+      queryClient.invalidateQueries({ queryKey: ['products:index'] });
+      refetch();
+    },
+    onError: (mutationError) => {
+      setManagementNotice(
+        String(mutationError?.message || 'Unable to create product')
+      );
+    }
+  });
+
+  const softDeleteProductMutation = useMutation({
+    mutationFn: async (productId) =>
+      softDeleteProductRequest({
+        accessToken,
+        productId
+      }),
+    onSuccess: () => {
+      setManagementNotice(
+        'Product removed from active list and sent for admin review.'
+      );
+      queryClient.invalidateQueries({ queryKey: ['products:index'] });
+      refetch();
+    },
+    onError: (mutationError) => {
+      setManagementNotice(
+        String(mutationError?.message || 'Unable to remove product')
+      );
+    }
+  });
+
+  const restoreProductMutation = useMutation({
+    mutationFn: async (productId) =>
+      restoreDeletedProductRequest({
+        accessToken,
+        productId
+      }),
+    onSuccess: () => {
+      setManagementNotice('Deleted product restored to active list.');
+      queryClient.invalidateQueries({ queryKey: ['products:index'] });
+      refetch();
+    },
+    onError: (mutationError) => {
+      setManagementNotice(
+        String(mutationError?.message || 'Unable to restore product')
+      );
+    }
+  });
+
+  const permanentDeleteProductMutation = useMutation({
+    mutationFn: async (productId) =>
+      permanentlyDeleteProductRequest({
+        accessToken,
+        productId
+      }),
+    onSuccess: () => {
+      setManagementNotice('Product permanently deleted.');
+      queryClient.invalidateQueries({ queryKey: ['products:index'] });
+      refetch();
+    },
+    onError: (mutationError) => {
+      setManagementNotice(
+        String(mutationError?.message || 'Unable to permanently delete product')
+      );
+    }
+  });
+
   const products = useMemo(
     () => (Array.isArray(data?.products) ? data.products : []),
     [data]
   );
   const lowStockSummary = useMemo(
     () => (Array.isArray(data?.lowStockSummary) ? data.lowStockSummary : []),
+    [data]
+  );
+  const deletedProducts = useMemo(
+    () => (Array.isArray(data?.deletedProducts) ? data.deletedProducts : []),
     [data]
   );
   const errorMessage = String(error?.message || '').trim();
@@ -137,6 +276,83 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
     });
   };
 
+  const handleCreateInputChange = (field) => (event) => {
+    const value = event.target.value;
+    setCreateForm((current) => ({
+      ...current,
+      [field]: value
+    }));
+  };
+
+  const handleCreateProductSubmit = async (event) => {
+    event.preventDefault();
+    setManagementNotice('');
+
+    const name = String(createForm.name || '').trim();
+    const sku = String(createForm.sku || '').trim();
+    const category = String(createForm.category || '').trim();
+    const description = String(createForm.description || '').trim();
+    const price = Number(createForm.price);
+    const lowStockThreshold = Number(createForm.lowStockThreshold);
+
+    if (!name || !sku) {
+      setManagementNotice('Name and SKU are required.');
+      return;
+    }
+
+    if (!Number.isFinite(price) || price < 0) {
+      setManagementNotice('Price must be a positive number.');
+      return;
+    }
+
+    if (!Number.isInteger(lowStockThreshold) || lowStockThreshold < 0) {
+      setManagementNotice(
+        'Low stock threshold must be a non-negative integer.'
+      );
+      return;
+    }
+
+    await createProductMutation.mutateAsync({
+      name,
+      sku,
+      price,
+      category,
+      description,
+      lowStockThreshold
+    });
+  };
+
+  const handleSoftDeleteProduct = async (productId) => {
+    if (!productId) return;
+
+    const confirmed = window.confirm(
+      'Remove this product from active list and send it for admin review?'
+    );
+    if (!confirmed) return;
+
+    setManagementNotice('');
+    await softDeleteProductMutation.mutateAsync(productId);
+  };
+
+  const handleRestoreProduct = async (productId) => {
+    if (!productId) return;
+
+    setManagementNotice('');
+    await restoreProductMutation.mutateAsync(productId);
+  };
+
+  const handlePermanentDeleteProduct = async (productId) => {
+    if (!productId) return;
+
+    const confirmed = window.confirm(
+      'Permanently delete this product? This cannot be undone.'
+    );
+    if (!confirmed) return;
+
+    setManagementNotice('');
+    await permanentDeleteProductMutation.mutateAsync(productId);
+  };
+
   const stats = useMemo(() => {
     const total = products.length;
     const lowStockCount = lowStockSummary.length;
@@ -147,8 +363,9 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
             0
           ) / total
         : 0;
-    return { total, lowStockCount, avgPrice };
-  }, [products, lowStockSummary]);
+    const pendingDeletionCount = deletedProducts.length;
+    return { total, lowStockCount, avgPrice, pendingDeletionCount };
+  }, [products, lowStockSummary, deletedProducts]);
 
   const lowStockSkus = useMemo(
     () =>
@@ -261,14 +478,17 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
           <p className="metric-label">Average price</p>
           <p className="metric-value">{formatCurrency(stats.avgPrice)}</p>
         </article>
+        {canReviewDeletedProducts ? (
+          <article className="metric-card">
+            <p className="metric-label">Pending delete review</p>
+            <p className="metric-value">{stats.pendingDeletionCount}</p>
+          </article>
+        ) : null}
       </div>
 
       {errorMessage ? <p className="form-error">{errorMessage}</p> : null}
-      {!canReadLowStockSummary ? (
-        <p className="section-note">
-          Low-stock summary is restricted to `admin` and `staff` roles in
-          current backend policy.
-        </p>
+      {managementNotice ? (
+        <p className="section-note">{managementNotice}</p>
       ) : null}
 
       <article className="data-card">
@@ -282,14 +502,14 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
               disabled={!canAdjustStock || isLoading || isFetching}
             >
               <option value="">Select product</option>
-              {products.map((product) => (
-                <option
-                  key={product.id || product._id}
-                  value={product.id || product._id}
-                >
-                  {product.name || product.sku || product.id || product._id}
-                </option>
-              ))}
+              {products.map((product) => {
+                const productId = resolveProductId(product);
+                return (
+                  <option key={productId} value={productId}>
+                    {product.name || product.sku || productId}
+                  </option>
+                );
+              })}
             </select>
           </label>
           <label className="control-field">
@@ -335,6 +555,85 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
         </form>
         {adjustNotice ? <p className="section-note">{adjustNotice}</p> : null}
       </article>
+
+      {canManageProducts ? (
+        <article className="data-card">
+          <h3>Add product</h3>
+          <form className="control-row" onSubmit={handleCreateProductSubmit}>
+            <label className="control-field">
+              <span>Name</span>
+              <input
+                type="text"
+                value={createForm.name}
+                onChange={handleCreateInputChange('name')}
+                placeholder="Product name"
+                disabled={createProductMutation.isPending}
+              />
+            </label>
+            <label className="control-field">
+              <span>SKU</span>
+              <input
+                type="text"
+                value={createForm.sku}
+                onChange={handleCreateInputChange('sku')}
+                placeholder="SKU"
+                disabled={createProductMutation.isPending}
+              />
+            </label>
+            <label className="control-field">
+              <span>Price</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={createForm.price}
+                onChange={handleCreateInputChange('price')}
+                placeholder="0.00"
+                disabled={createProductMutation.isPending}
+              />
+            </label>
+            <label className="control-field">
+              <span>Category</span>
+              <input
+                type="text"
+                value={createForm.category}
+                onChange={handleCreateInputChange('category')}
+                placeholder="Optional"
+                disabled={createProductMutation.isPending}
+              />
+            </label>
+            <label className="control-field">
+              <span>Low-stock threshold</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={createForm.lowStockThreshold}
+                onChange={handleCreateInputChange('lowStockThreshold')}
+                placeholder="5"
+                disabled={createProductMutation.isPending}
+              />
+            </label>
+            <label className="control-field">
+              <span>Description</span>
+              <input
+                type="text"
+                value={createForm.description}
+                onChange={handleCreateInputChange('description')}
+                placeholder="Optional description"
+                disabled={createProductMutation.isPending}
+              />
+            </label>
+            <button
+              type="submit"
+              className="btn-ghost"
+              disabled={createProductMutation.isPending}
+            >
+              {createProductMutation.isPending ? 'Saving...' : 'Add product'}
+            </button>
+          </form>
+        </article>
+      ) : null}
 
       <article className="data-card">
         <h3>Catalog</h3>
@@ -408,19 +707,35 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
                   <th>Stock</th>
                   <th>Threshold</th>
                   <th>Price</th>
+                  {canManageProducts ? <th>Actions</th> : null}
                 </tr>
               </thead>
               <tbody>
-                {paginatedProducts.map((product) => (
-                  <tr key={product.id || product._id}>
-                    <td>{product.name || '-'}</td>
-                    <td>{product.sku || '-'}</td>
-                    <td>{product.category || '-'}</td>
-                    <td>{Number(product.stock || 0)}</td>
-                    <td>{Number(product.lowStockThreshold || 0)}</td>
-                    <td>{formatCurrency(product.price)}</td>
-                  </tr>
-                ))}
+                {paginatedProducts.map((product) => {
+                  const productId = resolveProductId(product);
+                  return (
+                    <tr key={productId}>
+                      <td>{product.name || '-'}</td>
+                      <td>{product.sku || '-'}</td>
+                      <td>{product.category || '-'}</td>
+                      <td>{Number(product.stock || 0)}</td>
+                      <td>{Number(product.lowStockThreshold || 0)}</td>
+                      <td>{formatCurrency(product.price)}</td>
+                      {canManageProducts ? (
+                        <td>
+                          <button
+                            type="button"
+                            className="btn-ghost"
+                            onClick={() => handleSoftDeleteProduct(productId)}
+                            disabled={softDeleteProductMutation.isPending}
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      ) : null}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -458,6 +773,68 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
           </div>
         </footer>
       </article>
+
+      {canReviewDeletedProducts ? (
+        <article className="data-card">
+          <h3>Deleted items (admin review)</h3>
+          {deletedProducts.length ? (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>SKU</th>
+                    <th>Category</th>
+                    <th>Deleted by role</th>
+                    <th>Deleted at</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deletedProducts.map((product) => {
+                    const productId = resolveProductId(product);
+                    return (
+                      <tr key={productId}>
+                        <td>{product.name || '-'}</td>
+                        <td>{product.sku || '-'}</td>
+                        <td>{product.category || '-'}</td>
+                        <td>{String(product.deletedByRole || '-')}</td>
+                        <td>{toUserDateTime(product.deletedAt)}</td>
+                        <td>
+                          <div className="action-row">
+                            <button
+                              type="button"
+                              className="btn-ghost"
+                              onClick={() => handleRestoreProduct(productId)}
+                              disabled={restoreProductMutation.isPending}
+                            >
+                              Restore
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-ghost"
+                              onClick={() =>
+                                handlePermanentDeleteProduct(productId)
+                              }
+                              disabled={
+                                permanentDeleteProductMutation.isPending
+                              }
+                            >
+                              Delete permanently
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="muted">No deleted products waiting for review.</p>
+          )}
+        </article>
+      ) : null}
     </section>
   );
 };

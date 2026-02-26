@@ -105,6 +105,31 @@ const productSchema = new mongoose.Schema(
       index: true
     },
 
+    deleteStatus: {
+      type: String,
+      enum: ['active', 'pending_admin_review'],
+      default: 'active',
+      index: true
+    },
+
+    deletedAt: {
+      type: Date,
+      default: null,
+      index: true
+    },
+
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+
+    deletedByRole: {
+      type: String,
+      enum: ['owner', 'admin', 'manager', 'staff', null],
+      default: null
+    },
+
     /**
      * ⚠️ Cached / derived metric
      * Source of truth = InventorySnapshot analytics
@@ -181,6 +206,7 @@ productSchema.virtual('isLowStock').get(function () {
  */
 productSchema.index({ organization: 1, sku: 1 }, { unique: true });
 productSchema.index({ category: 1, isActive: 1 });
+productSchema.index({ organization: 1, isActive: 1, deleteStatus: 1 });
 productSchema.index({ createdAt: -1 });
 
 export default mongoose.model('Product', productSchema);

@@ -1,10 +1,12 @@
 import express from 'express';
 import {
   getProducts,
+  getDeletedProducts,
   getProductById,
   createProduct,
   updateProduct,
   deleteProduct,
+  permanentlyDeleteProduct,
   restoreProduct,
   adjustProductStock,
   getLowStockProducts,
@@ -66,6 +68,12 @@ router.get(
 );
 
 router.get(
+  '/deleted',
+  requirePermission(PERMISSIONS.PRODUCTS_DELETE),
+  getDeletedProducts
+);
+
+router.get(
   '/:id/stock-history',
   requirePermission(PERMISSIONS.PRODUCTS_VIEW),
   getProductStockHistory
@@ -92,7 +100,7 @@ router.patch(
  */
 router.post(
   '/',
-  requirePermission(PERMISSIONS.PRODUCTS_MANAGE),
+  requirePermission(PERMISSIONS.PRODUCTS_EDIT),
   createProductLimiter,
   createProductValidator,
   validateRequest,
@@ -108,7 +116,7 @@ router.post(
  */
 router.put(
   '/:id',
-  requirePermission(PERMISSIONS.PRODUCTS_MANAGE),
+  requirePermission(PERMISSIONS.PRODUCTS_EDIT),
   updateProductLimiter,
   updateProductValidator,
   validateRequest,
@@ -124,12 +132,25 @@ router.put(
  */
 router.delete(
   '/:id',
-  requirePermission(PERMISSIONS.PRODUCTS_DELETE),
+  requirePermission(PERMISSIONS.PRODUCTS_EDIT),
   auditMiddleware({
-    action: 'DELETE_PRODUCT',
+    action: 'SOFT_DELETE_PRODUCT',
     resource: 'PRODUCT'
   }),
   deleteProduct
+);
+
+/**
+ * 🗑️ Permanently delete product (ADMIN/OWNER ONLY)
+ */
+router.delete(
+  '/:id/permanent',
+  requirePermission(PERMISSIONS.PRODUCTS_DELETE),
+  auditMiddleware({
+    action: 'PERMANENT_DELETE_PRODUCT',
+    resource: 'PRODUCT'
+  }),
+  permanentlyDeleteProduct
 );
 
 /**
@@ -137,7 +158,7 @@ router.delete(
  */
 router.patch(
   '/:id/restore',
-  requirePermission(PERMISSIONS.PRODUCTS_MANAGE),
+  requirePermission(PERMISSIONS.PRODUCTS_DELETE),
   auditMiddleware({
     action: 'RESTORE_PRODUCT',
     resource: 'PRODUCT'

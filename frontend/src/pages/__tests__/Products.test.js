@@ -3,14 +3,24 @@ import Products from '../Products.js';
 import { renderWithProviders } from '../../test/renderWithProviders.js';
 import {
   adjustProductStockRequest,
+  createProductRequest,
+  getDeletedProductsRequest,
   getProductsLowStockSummaryRequest,
-  getProductsRequest
+  getProductsRequest,
+  permanentlyDeleteProductRequest,
+  restoreDeletedProductRequest,
+  softDeleteProductRequest
 } from '../../api/client.js';
 
 jest.mock('../../api/client.js', () => ({
   adjustProductStockRequest: jest.fn(),
+  createProductRequest: jest.fn(),
+  getDeletedProductsRequest: jest.fn(),
   getProductsRequest: jest.fn(),
-  getProductsLowStockSummaryRequest: jest.fn()
+  getProductsLowStockSummaryRequest: jest.fn(),
+  permanentlyDeleteProductRequest: jest.fn(),
+  restoreDeletedProductRequest: jest.fn(),
+  softDeleteProductRequest: jest.fn()
 }));
 
 const buildProducts = (count) =>
@@ -31,6 +41,11 @@ describe('Products page', () => {
       id: 'noop',
       stock: 1
     });
+    createProductRequest.mockResolvedValue({});
+    softDeleteProductRequest.mockResolvedValue({});
+    restoreDeletedProductRequest.mockResolvedValue({});
+    permanentlyDeleteProductRequest.mockResolvedValue({});
+    getDeletedProductsRequest.mockResolvedValue([]);
   });
 
   it('shows loading and renders error state on failed fetch', async () => {
