@@ -5,6 +5,7 @@ import ReorderAlert from '../../models/ReorderAlert.js';
 import AppError from '../../utils/AppError.js';
 import { addCostLayerFromReceipt } from '../finance/valuationService.js';
 import { recordInboundTrackingForReceipt } from './trackingService.js';
+import { syncProductStockFromInventory } from './stockSyncService.js';
 import {
   publishInventoryUpdated,
   publishValuationUpdated
@@ -42,165 +43,193 @@ export const applyPurchaseOrderToInventory = async ({
       expiryDate = null,
       serialNumbers = []
     } = item;
+    let snapshotRecord = null;
 
-    // Idempotency per purchase order + product.
-    const existingSnapshotQuery = InventorySnapshot.findOne({
-      organization: purchaseOrder.organization,
-      product: productId,
-      purchaseOrder: purchaseOrder._id,
-      warehouse: purchaseOrder.warehouse
-    });
-    if (session) {
-      existingSnapshotQuery.session(session);
-    }
-    const existingSnapshot = await existingSnapshotQuery;
+    try {
+      const productQuery = Product.findOne({
+        _id: productId,
+        organization: purchaseOrder.organization
+      }).select('sku price stock');
+      if (session) {
+        productQuery.session(session);
+      }
+      const product = await productQuery;
+      if (!product) {
+        throw new AppError(
+          `Product not found for inventory update (${productId})`,
+          404
+        );
+      }
 
-    if (existingSnapshot) {
-      continue;
-    }
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        throw new AppError(
+          `Invalid item quantity for inventory update (${productId})`,
+          400
+        );
+      }
 
-    const productQuery = Product.findOne({
-      _id: productId,
-      organization: purchaseOrder.organization
-    }).select('sku price');
-    if (session) {
-      productQuery.session(session);
-    }
-    const product = await productQuery;
-    if (!product) {
-      throw new AppError(
-        `Product not found for inventory update (${productId})`,
-        404
-      );
-    }
+      const now = new Date();
 
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      throw new AppError(
-        `Invalid item quantity for inventory update (${productId})`,
-        400
-      );
-    }
-
-    const now = new Date();
-    const inventoryOptions = {
-      upsert: true,
-      new: true,
-      runValidators: true,
-      setDefaultsOnInsert: true
-    };
-    if (session) {
-      inventoryOptions.session = session;
-    }
-
-    const inventory = await Inventory.findOneAndUpdate(
-      {
+      // Idempotency gate: only one receiver can claim snapshot creation.
+      const idempotencySnapshotPayload = {
         organization: purchaseOrder.organization,
         product: productId,
-        warehouse: purchaseOrder.warehouse
-      },
-      {
-        $inc: { quantityOnHand: quantity },
-        $set: { lastMovementAt: now },
-        $setOnInsert: {
-          quantityReserved: 0,
-          reorderPoint: 0,
-          reorderQuantity: 0
+        warehouse: purchaseOrder.warehouse,
+        purchaseOrder: purchaseOrder._id,
+        sku: product.sku,
+        stock: Number(product.stock || 0),
+        price: product.price,
+        recordedAt: now,
+        source: 'SYSTEM'
+      };
+
+      try {
+        if (session) {
+          [snapshotRecord] = await InventorySnapshot.create(
+            [idempotencySnapshotPayload],
+            { session }
+          );
+        } else {
+          snapshotRecord = await InventorySnapshot.create(
+            idempotencySnapshotPayload
+          );
         }
-      },
-      inventoryOptions
-    );
+      } catch (err) {
+        if (err?.code === 11000) {
+          continue;
+        }
+        throw err;
+      }
 
-    const previousStock = inventory.quantityOnHand - quantity;
+      const inventoryOptions = {
+        upsert: true,
+        new: true,
+        runValidators: true,
+        setDefaultsOnInsert: true
+      };
+      if (session) {
+        inventoryOptions.session = session;
+      }
 
-    // Record a snapshot for analytics and PO idempotency.
-    const snapshotPayload = {
-      organization: purchaseOrder.organization,
-      product: productId,
-      warehouse: purchaseOrder.warehouse,
-      purchaseOrder: purchaseOrder._id,
-      sku: product.sku,
-      stock: inventory.quantityOnHand,
-      price: product.price,
-      recordedAt: now,
-      source: 'SYSTEM',
-      change: quantity,
-      previousStock,
-      newStock: inventory.quantityOnHand
-    };
-
-    if (session) {
-      await InventorySnapshot.create([snapshotPayload], { session });
-    } else {
-      await InventorySnapshot.create(snapshotPayload);
-    }
-
-    await addCostLayerFromReceipt({
-      organizationId: purchaseOrder.organization,
-      productId,
-      warehouseId: purchaseOrder.warehouse,
-      sourceType: 'PURCHASE_ORDER',
-      sourceId: purchaseOrder._id,
-      unitCost: item.unitCost,
-      quantity,
-      receivedAt: now,
-      session
-    });
-
-    await recordInboundTrackingForReceipt({
-      organizationId: purchaseOrder.organization,
-      productId,
-      warehouseId: purchaseOrder.warehouse,
-      quantity,
-      trackingType,
-      lotNumber,
-      expiryDate,
-      serialNumbers,
-      sourceType: 'PURCHASE_ORDER',
-      sourceId: purchaseOrder._id,
-      movedBy: actorUserId,
-      session
-    });
-
-    // Resolve linked reorder alert (if any).
-    if (reorderAlert) {
-      await ReorderAlert.findOneAndUpdate(
+      const inventory = await Inventory.findOneAndUpdate(
         {
-          _id: reorderAlert,
-          organization: purchaseOrder.organization
+          organization: purchaseOrder.organization,
+          product: productId,
+          warehouse: purchaseOrder.warehouse
         },
         {
-          resolved: true,
-          resolvedAt: new Date()
+          $inc: { quantityOnHand: quantity },
+          $set: { lastMovementAt: now },
+          $setOnInsert: {
+            quantityReserved: 0,
+            reorderPoint: 0,
+            reorderQuantity: 0
+          }
+        },
+        inventoryOptions
+      );
+
+      const previousStock = Number(product.stock || 0);
+
+      const syncedProduct = await syncProductStockFromInventory({
+        organizationId: purchaseOrder.organization,
+        productId,
+        session
+      });
+      const newStock = Number(syncedProduct.stock || 0);
+
+      await InventorySnapshot.findByIdAndUpdate(
+        snapshotRecord._id,
+        {
+          $set: {
+            stock: newStock,
+            recordedAt: now,
+            source: 'SYSTEM'
+          }
         },
         session ? { session } : undefined
       );
-    }
 
-    logInventoryMutation({
-      operation: 'purchase_order_receive',
-      organizationId: purchaseOrder.organization,
-      warehouseId: purchaseOrder.warehouse,
-      productId,
-      quantityDelta: quantity,
-      quantityOnHand: inventory.quantityOnHand,
-      quantityReserved: inventory.quantityReserved,
-      sourceType: 'PURCHASE_ORDER',
-      sourceId: purchaseOrder._id,
-      actorUserId
-    });
+      await addCostLayerFromReceipt({
+        organizationId: purchaseOrder.organization,
+        productId,
+        warehouseId: purchaseOrder.warehouse,
+        sourceType: 'PURCHASE_ORDER',
+        sourceId: purchaseOrder._id,
+        unitCost: item.unitCost,
+        quantity,
+        receivedAt: now,
+        session
+      });
 
-    publishInventoryUpdated({
-      organizationId: purchaseOrder.organization,
-      actorUserId,
-      warehouseId: purchaseOrder.warehouse,
-      entityId: productId,
-      data: {
-        source: 'purchase_order_receive',
-        purchaseOrderId: purchaseOrder._id,
-        quantityDelta: quantity,
-        quantityOnHand: inventory.quantityOnHand
+      await recordInboundTrackingForReceipt({
+        organizationId: purchaseOrder.organization,
+        productId,
+        warehouseId: purchaseOrder.warehouse,
+        quantity,
+        trackingType,
+        lotNumber,
+        expiryDate,
+        serialNumbers,
+        sourceType: 'PURCHASE_ORDER',
+        sourceId: purchaseOrder._id,
+        movedBy: actorUserId,
+        session
+      });
+
+      // Resolve linked reorder alert (if any).
+      if (reorderAlert) {
+        await ReorderAlert.findOneAndUpdate(
+          {
+            _id: reorderAlert,
+            organization: purchaseOrder.organization
+          },
+          {
+            resolved: true,
+            resolvedAt: new Date()
+          },
+          session ? { session } : undefined
+        );
       }
-    });
+
+      logInventoryMutation({
+        operation: 'purchase_order_receive',
+        organizationId: purchaseOrder.organization,
+        warehouseId: purchaseOrder.warehouse,
+        productId,
+        quantityDelta: quantity,
+        quantityOnHand: inventory.quantityOnHand,
+        quantityReserved: inventory.quantityReserved,
+        sourceType: 'PURCHASE_ORDER',
+        sourceId: purchaseOrder._id,
+        actorUserId
+      });
+
+      publishInventoryUpdated({
+        organizationId: purchaseOrder.organization,
+        actorUserId,
+        warehouseId: purchaseOrder.warehouse,
+        entityId: productId,
+        data: {
+          source: 'purchase_order_receive',
+          purchaseOrderId: purchaseOrder._id,
+          quantityDelta: quantity,
+          quantityOnHand: inventory.quantityOnHand,
+          previousStock,
+          newStock
+        }
+      });
+    } catch (err) {
+      if (snapshotRecord?._id) {
+        await InventorySnapshot.deleteOne(
+          {
+            _id: snapshotRecord._id
+          },
+          session ? { session } : undefined
+        );
+      }
+      throw err;
+    }
   }
 
   publishValuationUpdated({

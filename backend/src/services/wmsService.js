@@ -12,8 +12,11 @@ import {
   consumeOutboundTracking,
   reserveInventorySerials
 } from './inventory/trackingService.js';
+import { syncProductStockFromInventory } from './inventory/stockSyncService.js';
 import { AppError } from '../errors/AppError.js';
 import { logInventoryMutation } from '../observability/inventoryMutationLogger.js';
+import { runWithMongoTransactionFallback } from '../utils/runWithMongoTransactionFallback.js';
+import { logAudit } from '../utils/auditLogger.js';
 
 const toObjectId = (value) => new mongoose.Types.ObjectId(value);
 
@@ -34,26 +37,43 @@ const normalizeOptionalPositiveInteger = (value, label) => {
   return parsed;
 };
 
-const ensureWarehouseInOrganization = async (organizationId, warehouseId) => {
-  const warehouse = await Warehouse.findOne({
+const ensureWarehouseInOrganization = async (
+  organizationId,
+  warehouseId,
+  session = null
+) => {
+  const query = Warehouse.findOne({
     _id: warehouseId,
     organization: organizationId,
     isActive: true,
     isArchived: false
   }).select('_id');
+  if (session) {
+    query.session(session);
+  }
+  const warehouse = await query;
 
   if (!warehouse) {
     throw new AppError('Warehouse not found in your organization', 404);
   }
 };
 
-const ensureBinInWarehouse = async ({ organizationId, warehouseId, binId }) => {
-  const bin = await WarehouseBin.findOne({
+const ensureBinInWarehouse = async ({
+  organizationId,
+  warehouseId,
+  binId,
+  session = null
+}) => {
+  const query = WarehouseBin.findOne({
     _id: binId,
     organization: organizationId,
     warehouse: warehouseId,
     isActive: true
   });
+  if (session) {
+    query.session(session);
+  }
+  const bin = await query;
 
   if (!bin) {
     throw new AppError('Bin not found in the selected warehouse', 404);
@@ -62,8 +82,13 @@ const ensureBinInWarehouse = async ({ organizationId, warehouseId, binId }) => {
   return bin;
 };
 
-const getBinTotalOnHand = async ({ organizationId, warehouseId, binId }) => {
-  const rows = await BinInventory.aggregate([
+const getBinTotalOnHand = async ({
+  organizationId,
+  warehouseId,
+  binId,
+  session = null
+}) => {
+  const aggregateQuery = BinInventory.aggregate([
     {
       $match: {
         organization: toObjectId(organizationId),
@@ -78,6 +103,10 @@ const getBinTotalOnHand = async ({ organizationId, warehouseId, binId }) => {
       }
     }
   ]);
+  if (session) {
+    aggregateQuery.session(session);
+  }
+  const rows = await aggregateQuery;
 
   return rows[0]?.totalOnHand || 0;
 };
@@ -86,7 +115,8 @@ const assertBinCapacity = async ({
   organizationId,
   warehouseId,
   bin,
-  incomingQuantity
+  incomingQuantity,
+  session = null
 }) => {
   const maxCapacityUnits =
     bin.maxCapacityUnits == null ? null : Number(bin.maxCapacityUnits);
@@ -95,7 +125,8 @@ const assertBinCapacity = async ({
   const currentOnHand = await getBinTotalOnHand({
     organizationId,
     warehouseId,
-    binId: bin._id
+    binId: bin._id,
+    session
   });
 
   if (currentOnHand + incomingQuantity > maxCapacityUnits) {
@@ -106,13 +137,22 @@ const assertBinCapacity = async ({
   }
 };
 
-const getFefoBatches = async ({ organizationId, warehouseId, productId }) => {
-  const batches = await InventoryBatch.find({
+const getFefoBatches = async ({
+  organizationId,
+  warehouseId,
+  productId,
+  session = null
+}) => {
+  const query = InventoryBatch.find({
     organization: organizationId,
     warehouse: warehouseId,
     product: productId,
     isRecalled: false
   });
+  if (session) {
+    query.session(session);
+  }
+  const batches = await query;
 
   const farFuture = Number.MAX_SAFE_INTEGER;
   const sorted = batches
@@ -143,9 +183,10 @@ const getFefoBatches = async ({ organizationId, warehouseId, productId }) => {
 const getBinnedQuantity = async ({
   organizationId,
   warehouseId,
-  productId
+  productId,
+  session = null
 }) => {
-  const rows = await BinInventory.aggregate([
+  const aggregateQuery = BinInventory.aggregate([
     {
       $match: {
         organization: toObjectId(organizationId),
@@ -160,6 +201,10 @@ const getBinnedQuantity = async ({
       }
     }
   ]);
+  if (session) {
+    aggregateQuery.session(session);
+  }
+  const rows = await aggregateQuery;
 
   return rows[0]?.quantityOnHand || 0;
 };
@@ -256,101 +301,153 @@ export const allocateStockToBin = async ({
   reason = 'Manual allocation'
 }) => {
   const qty = ensurePositiveInteger(quantity, 'quantity');
-  await ensureWarehouseInOrganization(organizationId, warehouseId);
-  const bin = await ensureBinInWarehouse({
-    organizationId,
-    warehouseId,
-    binId
-  });
 
-  const product = await Product.findOne({
-    _id: productId,
-    organization: organizationId
-  }).select('_id sku name');
-  if (!product) {
-    throw new AppError('Product not found in your organization', 404);
-  }
-
-  const inventory = await Inventory.findOne({
-    organization: organizationId,
-    warehouse: warehouseId,
-    product: productId
-  });
-
-  if (!inventory || inventory.quantityOnHand <= 0) {
-    throw new AppError(
-      'No warehouse inventory available for this product',
-      400
-    );
-  }
-
-  const binnedQty = await getBinnedQuantity({
-    organizationId,
-    warehouseId,
-    productId
-  });
-
-  const unallocatedQty = inventory.quantityOnHand - binnedQty;
-  if (unallocatedQty < qty) {
-    throw new AppError(
-      `Only ${Math.max(unallocatedQty, 0)} units are available for bin allocation`,
-      409
-    );
-  }
-
-  await assertBinCapacity({
-    organizationId,
-    warehouseId,
-    bin,
-    incomingQuantity: qty
-  });
-
-  const binInventory = await BinInventory.findOneAndUpdate(
-    {
-      organization: organizationId,
-      warehouse: warehouseId,
-      bin: binId,
-      product: productId
+  return runWithMongoTransactionFallback({
+    operationName: 'wms_allocate_stock_to_bin',
+    operationMeta: {
+      organizationId: String(organizationId),
+      warehouseId: String(warehouseId),
+      binId: String(binId),
+      productId: String(productId),
+      quantity: qty
     },
-    {
-      $inc: { quantityOnHand: qty }
-    },
-    {
-      new: true,
-      upsert: true,
-      runValidators: true,
-      setDefaultsOnInsert: true
+    runWithSession: async (session) => {
+      await ensureWarehouseInOrganization(organizationId, warehouseId, session);
+      const bin = await ensureBinInWarehouse({
+        organizationId,
+        warehouseId,
+        binId,
+        session
+      });
+
+      const productQuery = Product.findOne({
+        _id: productId,
+        organization: organizationId
+      }).select('_id sku name');
+      if (session) {
+        productQuery.session(session);
+      }
+      const product = await productQuery;
+      if (!product) {
+        throw new AppError('Product not found in your organization', 404);
+      }
+
+      const inventoryQuery = Inventory.findOne({
+        organization: organizationId,
+        warehouse: warehouseId,
+        product: productId
+      });
+      if (session) {
+        inventoryQuery.session(session);
+      }
+      const inventory = await inventoryQuery;
+
+      if (!inventory || inventory.quantityOnHand <= 0) {
+        throw new AppError(
+          'No warehouse inventory available for this product',
+          400
+        );
+      }
+
+      const binnedQty = await getBinnedQuantity({
+        organizationId,
+        warehouseId,
+        productId,
+        session
+      });
+
+      const unallocatedQty = inventory.quantityOnHand - binnedQty;
+      if (unallocatedQty < qty) {
+        throw new AppError(
+          `Only ${Math.max(unallocatedQty, 0)} units are available for bin allocation`,
+          409
+        );
+      }
+
+      await assertBinCapacity({
+        organizationId,
+        warehouseId,
+        bin,
+        incomingQuantity: qty,
+        session
+      });
+
+      const binInventoryOptions = {
+        new: true,
+        upsert: true,
+        runValidators: true,
+        setDefaultsOnInsert: true
+      };
+      if (session) {
+        binInventoryOptions.session = session;
+      }
+
+      const binInventory = await BinInventory.findOneAndUpdate(
+        {
+          organization: organizationId,
+          warehouse: warehouseId,
+          bin: binId,
+          product: productId
+        },
+        {
+          $inc: { quantityOnHand: qty }
+        },
+        binInventoryOptions
+      );
+
+      const stockMovementPayload = {
+        organization: organizationId,
+        movementType: 'ALLOCATION',
+        product: productId,
+        quantity: qty,
+        warehouseTo: warehouseId,
+        binTo: binId,
+        reason,
+        referenceType: 'MANUAL',
+        movedBy
+      };
+      if (session) {
+        await StockMovement.create([stockMovementPayload], { session });
+      } else {
+        await StockMovement.create(stockMovementPayload);
+      }
+
+      await logAudit({
+        action: 'WMS_ALLOCATE_STOCK_TO_BIN',
+        entity: 'WMS_BIN',
+        entityId: binId,
+        organizationId,
+        source: 'system',
+        success: true,
+        meta: {
+          warehouseId: String(warehouseId),
+          productId: String(productId),
+          quantity: qty,
+          reason,
+          movedBy: movedBy ? String(movedBy) : null
+        },
+        session,
+        silent: true
+      });
+
+      logInventoryMutation({
+        operation: 'bin_allocation',
+        organizationId,
+        warehouseId,
+        productId,
+        quantityDelta: 0,
+        sourceType: 'MANUAL',
+        actorUserId: movedBy,
+        metadata: {
+          binId,
+          reason,
+          allocatedQuantity: qty
+        }
+      });
+
+      return binInventory;
     }
-  );
-
-  await StockMovement.create({
-    organization: organizationId,
-    movementType: 'ALLOCATION',
-    product: productId,
-    quantity: qty,
-    warehouseTo: warehouseId,
-    binTo: binId,
-    reason,
-    referenceType: 'MANUAL',
-    movedBy
   });
-
-  logInventoryMutation({
-    operation: 'bin_allocation',
-    organizationId,
-    warehouseId,
-    productId,
-    quantityDelta: 0,
-    sourceType: 'MANUAL',
-    actorUserId: movedBy,
-    metadata: {
-      binId,
-      reason,
-      allocatedQuantity: qty
-    }
-  });
-
-  return binInventory;
 };
 
 export const transferStockBetweenBins = async ({
@@ -369,96 +466,155 @@ export const transferStockBetweenBins = async ({
     throw new AppError('Source and destination bins must be different', 400);
   }
 
-  await ensureWarehouseInOrganization(organizationId, warehouseId);
-  await ensureBinInWarehouse({ organizationId, warehouseId, binId: fromBinId });
-  const toBin = await ensureBinInWarehouse({
-    organizationId,
-    warehouseId,
-    binId: toBinId
-  });
-
-  const fromInventory = await BinInventory.findOne({
-    organization: organizationId,
-    warehouse: warehouseId,
-    bin: fromBinId,
-    product: productId
-  });
-
-  if (!fromInventory) {
-    throw new AppError('No stock found in source bin', 404);
-  }
-
-  const available =
-    fromInventory.quantityOnHand - fromInventory.quantityReserved;
-  if (available < qty) {
-    throw new AppError(
-      `Only ${Math.max(available, 0)} units are available in the source bin`,
-      409
-    );
-  }
-
-  await assertBinCapacity({
-    organizationId,
-    warehouseId,
-    bin: toBin,
-    incomingQuantity: qty
-  });
-
-  fromInventory.quantityOnHand -= qty;
-  await fromInventory.save();
-
-  const toInventory = await BinInventory.findOneAndUpdate(
-    {
-      organization: organizationId,
-      warehouse: warehouseId,
-      bin: toBinId,
-      product: productId
+  return runWithMongoTransactionFallback({
+    operationName: 'wms_transfer_stock_between_bins',
+    operationMeta: {
+      organizationId: String(organizationId),
+      warehouseId: String(warehouseId),
+      productId: String(productId),
+      fromBinId: String(fromBinId),
+      toBinId: String(toBinId),
+      quantity: qty
     },
-    {
-      $inc: { quantityOnHand: qty }
-    },
-    {
-      new: true,
-      upsert: true,
-      runValidators: true,
-      setDefaultsOnInsert: true
+    runWithSession: async (session) => {
+      await ensureWarehouseInOrganization(organizationId, warehouseId, session);
+      await ensureBinInWarehouse({
+        organizationId,
+        warehouseId,
+        binId: fromBinId,
+        session
+      });
+      const toBin = await ensureBinInWarehouse({
+        organizationId,
+        warehouseId,
+        binId: toBinId,
+        session
+      });
+
+      await assertBinCapacity({
+        organizationId,
+        warehouseId,
+        bin: toBin,
+        incomingQuantity: qty,
+        session
+      });
+
+      const fromInventoryOptions = {
+        new: true,
+        runValidators: true
+      };
+      if (session) {
+        fromInventoryOptions.session = session;
+      }
+
+      const fromInventory = await BinInventory.findOneAndUpdate(
+        {
+          organization: organizationId,
+          warehouse: warehouseId,
+          bin: fromBinId,
+          product: productId,
+          quantityOnHand: { $gte: qty },
+          quantityReserved: { $lte: Number.MAX_SAFE_INTEGER - qty },
+          $expr: {
+            $gte: [{ $subtract: ['$quantityOnHand', '$quantityReserved'] }, qty]
+          }
+        },
+        {
+          $inc: { quantityOnHand: -qty }
+        },
+        fromInventoryOptions
+      );
+
+      if (!fromInventory) {
+        throw new AppError(
+          'Insufficient available stock in source bin for transfer',
+          409
+        );
+      }
+
+      const toInventoryOptions = {
+        new: true,
+        upsert: true,
+        runValidators: true,
+        setDefaultsOnInsert: true
+      };
+      if (session) {
+        toInventoryOptions.session = session;
+      }
+
+      const toInventory = await BinInventory.findOneAndUpdate(
+        {
+          organization: organizationId,
+          warehouse: warehouseId,
+          bin: toBinId,
+          product: productId
+        },
+        {
+          $inc: { quantityOnHand: qty }
+        },
+        toInventoryOptions
+      );
+
+      const stockMovementPayload = {
+        organization: organizationId,
+        movementType: 'TRANSFER',
+        product: productId,
+        quantity: qty,
+        warehouseFrom: warehouseId,
+        warehouseTo: warehouseId,
+        binFrom: fromBinId,
+        binTo: toBinId,
+        reason,
+        referenceType: 'MANUAL',
+        movedBy
+      };
+      if (session) {
+        await StockMovement.create([stockMovementPayload], { session });
+      } else {
+        await StockMovement.create(stockMovementPayload);
+      }
+
+      await logAudit({
+        action: 'WMS_TRANSFER_STOCK_BETWEEN_BINS',
+        entity: 'WMS_MOVEMENT',
+        organizationId,
+        source: 'system',
+        success: true,
+        meta: {
+          warehouseId: String(warehouseId),
+          productId: String(productId),
+          fromBinId: String(fromBinId),
+          toBinId: String(toBinId),
+          quantity: qty,
+          reason,
+          movedBy: movedBy ? String(movedBy) : null
+        },
+        session,
+        silent: true
+      });
+
+      logInventoryMutation({
+        operation: 'bin_transfer',
+        organizationId,
+        warehouseId,
+        productId,
+        quantityDelta: 0,
+        sourceType: 'MANUAL',
+        actorUserId: movedBy,
+        metadata: {
+          fromBinId,
+          toBinId,
+          reason,
+          transferredQuantity: qty
+        }
+      });
+
+      return {
+        from: fromInventory,
+        to: toInventory
+      };
     }
-  );
-
-  await StockMovement.create({
-    organization: organizationId,
-    movementType: 'TRANSFER',
-    product: productId,
-    quantity: qty,
-    warehouseFrom: warehouseId,
-    warehouseTo: warehouseId,
-    binFrom: fromBinId,
-    binTo: toBinId,
-    reason,
-    referenceType: 'MANUAL',
-    movedBy
   });
-
-  logInventoryMutation({
-    operation: 'bin_transfer',
-    organizationId,
-    warehouseId,
-    productId,
-    quantityDelta: 0,
-    sourceType: 'MANUAL',
-    actorUserId: movedBy,
-    metadata: {
-      fromBinId,
-      toBinId,
-      reason,
-      transferredQuantity: qty
-    }
-  });
-
-  return {
-    from: fromInventory,
-    to: toInventory
-  };
 };
 
 export const createPickTicket = async ({
@@ -472,213 +628,339 @@ export const createPickTicket = async ({
     throw new AppError('Pick ticket items are required', 400);
   }
 
-  await ensureWarehouseInOrganization(organizationId, warehouseId);
+  return runWithMongoTransactionFallback({
+    operationName: 'wms_create_pick_ticket',
+    operationMeta: {
+      organizationId: String(organizationId),
+      warehouseId: String(warehouseId),
+      itemCount: items.length
+    },
+    runWithSession: async (session) => {
+      await ensureWarehouseInOrganization(organizationId, warehouseId, session);
 
-  const normalizedItems = [];
+      const normalizedItems = [];
 
-  for (const item of items) {
-    const productId = item.productId || item.product;
-    const requestedQty = ensurePositiveInteger(
-      item.quantity || item.requestedQuantity,
-      'item quantity'
-    );
-    const fefoOverride =
-      item.fefoOverride === true || item.allowFefoOverride === true;
-
-    let lotNumber = item.lotNumber
-      ? String(item.lotNumber).trim().toUpperCase()
-      : null;
-    let serialNumbers = Array.isArray(item.serialNumbers)
-      ? item.serialNumbers
-          .map((value) =>
-            String(value || '')
-              .trim()
-              .toUpperCase()
-          )
-          .filter(Boolean)
-      : [];
-
-    const fefoBatches = await getFefoBatches({
-      organizationId,
-      warehouseId,
-      productId
-    });
-
-    if (fefoBatches.length) {
-      const fefoLotNumber = fefoBatches[0].lotNumber;
-      if (!lotNumber) {
-        lotNumber = fefoLotNumber;
-      } else if (lotNumber !== fefoLotNumber && !fefoOverride) {
-        throw new AppError(
-          `FEFO enforcement: lot ${fefoLotNumber} must be picked before lot ${lotNumber}`,
-          409
+      for (const item of items) {
+        const productId = item.productId || item.product;
+        const requestedQty = ensurePositiveInteger(
+          item.quantity || item.requestedQuantity,
+          'item quantity'
         );
-      }
-    }
+        const fefoOverride =
+          item.fefoOverride === true || item.allowFefoOverride === true;
 
-    if (!serialNumbers.length) {
-      const serialRows = await InventorySerial.find({
-        organization: organizationId,
-        warehouse: warehouseId,
-        product: productId,
-        status: 'AVAILABLE',
-        ...(lotNumber ? { lotNumber } : {})
-      })
-        .sort({ expiryDate: 1, receivedAt: 1, createdAt: 1 })
-        .limit(requestedQty);
+        let lotNumber = item.lotNumber
+          ? String(item.lotNumber).trim().toUpperCase()
+          : null;
+        let serialNumbers = Array.isArray(item.serialNumbers)
+          ? item.serialNumbers
+              .map((value) =>
+                String(value || '')
+                  .trim()
+                  .toUpperCase()
+              )
+              .filter(Boolean)
+          : [];
 
-      if (serialRows.length) {
-        if (serialRows.length !== requestedQty) {
+        const fefoBatches = await getFefoBatches({
+          organizationId,
+          warehouseId,
+          productId,
+          session
+        });
+
+        if (fefoBatches.length) {
+          const fefoLotNumber = fefoBatches[0].lotNumber;
+          if (!lotNumber) {
+            lotNumber = fefoLotNumber;
+          } else if (lotNumber !== fefoLotNumber && !fefoOverride) {
+            throw new AppError(
+              `FEFO enforcement: lot ${fefoLotNumber} must be picked before lot ${lotNumber}`,
+              409
+            );
+          }
+        }
+
+        if (!serialNumbers.length) {
+          const serialQuery = InventorySerial.find({
+            organization: organizationId,
+            warehouse: warehouseId,
+            product: productId,
+            status: 'AVAILABLE',
+            ...(lotNumber ? { lotNumber } : {})
+          })
+            .sort({ expiryDate: 1, receivedAt: 1, createdAt: 1 })
+            .limit(requestedQty);
+          if (session) {
+            serialQuery.session(session);
+          }
+          const serialRows = await serialQuery;
+
+          if (serialRows.length) {
+            if (serialRows.length !== requestedQty) {
+              throw new AppError(
+                `Insufficient AVAILABLE serials for product ${productId} in lot ${lotNumber || 'N/A'}`,
+                409
+              );
+            }
+
+            serialNumbers = serialRows.map((row) => row.serialNumber);
+          }
+        }
+
+        if (serialNumbers.length && serialNumbers.length !== requestedQty) {
           throw new AppError(
-            `Insufficient AVAILABLE serials for product ${productId} in lot ${lotNumber || 'N/A'}`,
+            'serialNumbers count must equal requested quantity for pick item',
+            400
+          );
+        }
+
+        if (serialNumbers.length) {
+          const serialCountQuery = InventorySerial.countDocuments({
+            organization: organizationId,
+            warehouse: warehouseId,
+            product: productId,
+            status: 'AVAILABLE',
+            serialNumber: { $in: serialNumbers },
+            ...(lotNumber ? { lotNumber } : {})
+          });
+          if (session) {
+            serialCountQuery.session(session);
+          }
+          const matchingSerialCount = await serialCountQuery;
+
+          if (matchingSerialCount !== serialNumbers.length) {
+            throw new AppError(
+              'One or more serialNumbers are not AVAILABLE for picking',
+              409
+            );
+          }
+        }
+
+        const binStocksQuery = BinInventory.find({
+          organization: organizationId,
+          warehouse: warehouseId,
+          product: productId,
+          quantityOnHand: { $gt: 0 }
+        }).sort({ quantityOnHand: -1 });
+        if (session) {
+          binStocksQuery.session(session);
+        }
+        const binStocks = await binStocksQuery;
+
+        let remaining = requestedQty;
+        const allocations = [];
+
+        for (const binStock of binStocks) {
+          const available = binStock.quantityOnHand - binStock.quantityReserved;
+          if (available <= 0) continue;
+
+          const allocated = Math.min(remaining, available);
+          if (allocated <= 0) continue;
+
+          const reserveOptions = {
+            new: true,
+            runValidators: true
+          };
+          if (session) {
+            reserveOptions.session = session;
+          }
+
+          const reservedBinStock = await BinInventory.findOneAndUpdate(
+            {
+              _id: binStock._id,
+              organization: organizationId,
+              warehouse: warehouseId,
+              product: productId,
+              $expr: {
+                $gte: [
+                  { $subtract: ['$quantityOnHand', '$quantityReserved'] },
+                  allocated
+                ]
+              }
+            },
+            {
+              $inc: { quantityReserved: allocated }
+            },
+            reserveOptions
+          );
+
+          if (!reservedBinStock) {
+            continue;
+          }
+
+          allocations.push({
+            bin: binStock.bin,
+            quantity: allocated
+          });
+
+          remaining -= allocated;
+          if (remaining === 0) break;
+        }
+
+        if (remaining > 0) {
+          throw new AppError(
+            `Insufficient bin stock to reserve ${requestedQty} units for product ${productId}`,
             409
           );
         }
 
-        serialNumbers = serialRows.map((row) => row.serialNumber);
-      }
-    }
+        const inventoryReserveOptions = {
+          runValidators: true,
+          new: true
+        };
+        if (session) {
+          inventoryReserveOptions.session = session;
+        }
 
-    if (serialNumbers.length && serialNumbers.length !== requestedQty) {
-      throw new AppError(
-        'serialNumbers count must equal requested quantity for pick item',
-        400
-      );
-    }
-
-    if (serialNumbers.length) {
-      const matchingSerialCount = await InventorySerial.countDocuments({
-        organization: organizationId,
-        warehouse: warehouseId,
-        product: productId,
-        status: 'AVAILABLE',
-        serialNumber: { $in: serialNumbers },
-        ...(lotNumber ? { lotNumber } : {})
-      });
-
-      if (matchingSerialCount !== serialNumbers.length) {
-        throw new AppError(
-          'One or more serialNumbers are not AVAILABLE for picking',
-          409
+        const reservedInventory = await Inventory.findOneAndUpdate(
+          {
+            organization: organizationId,
+            warehouse: warehouseId,
+            product: productId,
+            $expr: {
+              $gte: [
+                { $subtract: ['$quantityOnHand', '$quantityReserved'] },
+                requestedQty
+              ]
+            }
+          },
+          {
+            $inc: { quantityReserved: requestedQty }
+          },
+          inventoryReserveOptions
         );
+
+        if (!reservedInventory) {
+          throw new AppError(
+            `Insufficient warehouse stock to reserve ${requestedQty} units for product ${productId}`,
+            409
+          );
+        }
+
+        logInventoryMutation({
+          operation: 'pick_reservation_created',
+          organizationId,
+          warehouseId,
+          productId,
+          quantityDelta: 0,
+          sourceType: 'PICK_TICKET',
+          actorUserId: createdBy,
+          metadata: {
+            reservedQuantity: requestedQty,
+            lotNumber
+          }
+        });
+
+        normalizedItems.push({
+          product: productId,
+          requestedQuantity: requestedQty,
+          pickedQuantity: 0,
+          allocations,
+          lotNumber,
+          serialNumbers
+        });
       }
-    }
 
-    const binStocks = await BinInventory.find({
-      organization: organizationId,
-      warehouse: warehouseId,
-      product: productId,
-      quantityOnHand: { $gt: 0 }
-    }).sort({ quantityOnHand: -1 });
-
-    let remaining = requestedQty;
-    const allocations = [];
-
-    for (const binStock of binStocks) {
-      const available = binStock.quantityOnHand - binStock.quantityReserved;
-      if (available <= 0) continue;
-
-      const allocated = Math.min(remaining, available);
-      if (allocated <= 0) continue;
-
-      binStock.quantityReserved += allocated;
-      await binStock.save();
-
-      allocations.push({
-        bin: binStock.bin,
-        quantity: allocated
-      });
-
-      remaining -= allocated;
-      if (remaining === 0) break;
-    }
-
-    if (remaining > 0) {
-      throw new AppError(
-        `Insufficient bin stock to reserve ${requestedQty} units for product ${productId}`,
-        409
-      );
-    }
-
-    await Inventory.findOneAndUpdate(
-      {
+      let ticket;
+      const payload = {
         organization: organizationId,
         warehouse: warehouseId,
-        product: productId
-      },
-      {
-        $inc: { quantityReserved: requestedQty }
+        items: normalizedItems,
+        notes,
+        createdBy
+      };
+      if (session) {
+        [ticket] = await PickTicket.create([payload], { session });
+      } else {
+        ticket = await PickTicket.create(payload);
       }
-    );
 
-    logInventoryMutation({
-      operation: 'pick_reservation_created',
-      organizationId,
-      warehouseId,
-      productId,
-      quantityDelta: 0,
-      sourceType: 'PICK_TICKET',
-      actorUserId: createdBy,
-      metadata: {
-        reservedQuantity: requestedQty,
-        lotNumber
-      }
-    });
+      await logAudit({
+        action: 'WMS_CREATE_PICK_TICKET',
+        entity: 'WMS_PICK_TICKET',
+        entityId: ticket._id,
+        organizationId,
+        source: 'system',
+        success: true,
+        meta: {
+          warehouseId: String(warehouseId),
+          createdBy: createdBy ? String(createdBy) : null,
+          itemCount: normalizedItems.length
+        },
+        session,
+        silent: true
+      });
 
-    normalizedItems.push({
-      product: productId,
-      requestedQuantity: requestedQty,
-      pickedQuantity: 0,
-      allocations,
-      lotNumber,
-      serialNumbers
-    });
-  }
-
-  return PickTicket.create({
-    organization: organizationId,
-    warehouse: warehouseId,
-    items: normalizedItems,
-    notes,
-    createdBy
+      return ticket;
+    }
   });
 };
 
 export const startPickTicket = async ({ organizationId, ticketId }) => {
-  const ticket = await PickTicket.findOne({
-    _id: ticketId,
-    organization: organizationId
-  });
+  return runWithMongoTransactionFallback({
+    operationName: 'wms_start_pick_ticket',
+    operationMeta: {
+      organizationId: String(organizationId),
+      ticketId: String(ticketId)
+    },
+    runWithSession: async (session) => {
+      const ticketQuery = PickTicket.findOne({
+        _id: ticketId,
+        organization: organizationId
+      });
+      if (session) {
+        ticketQuery.session(session);
+      }
+      const ticket = await ticketQuery;
 
-  if (!ticket) {
-    throw new AppError('Pick ticket not found', 404);
-  }
+      if (!ticket) {
+        throw new AppError('Pick ticket not found', 404);
+      }
 
-  if (ticket.status !== 'CREATED') {
-    throw new AppError('Only CREATED tickets can be started', 409);
-  }
+      if (ticket.status !== 'CREATED') {
+        throw new AppError('Only CREATED tickets can be started', 409);
+      }
 
-  for (const item of ticket.items) {
-    if (!Array.isArray(item.serialNumbers) || !item.serialNumbers.length) {
-      continue;
+      for (const item of ticket.items) {
+        if (!Array.isArray(item.serialNumbers) || !item.serialNumbers.length) {
+          continue;
+        }
+
+        await reserveInventorySerials({
+          organizationId,
+          productId: item.product,
+          warehouseId: ticket.warehouse,
+          serialNumbers: item.serialNumbers,
+          lotNumber: item.lotNumber || null,
+          referenceType: 'PICK_TICKET',
+          referenceId: ticket._id,
+          session
+        });
+      }
+
+      ticket.status = 'PICKING';
+      ticket.startedAt = new Date();
+      await ticket.save(session ? { session } : undefined);
+
+      await logAudit({
+        action: 'WMS_START_PICK_TICKET',
+        entity: 'WMS_PICK_TICKET',
+        entityId: ticket._id,
+        organizationId,
+        source: 'system',
+        success: true,
+        meta: {
+          warehouseId: String(ticket.warehouse || ''),
+          status: ticket.status
+        },
+        session,
+        silent: true
+      });
+
+      return ticket;
     }
-
-    await reserveInventorySerials({
-      organizationId,
-      productId: item.product,
-      warehouseId: ticket.warehouse,
-      serialNumbers: item.serialNumbers,
-      lotNumber: item.lotNumber || null,
-      referenceType: 'PICK_TICKET',
-      referenceId: ticket._id
-    });
-  }
-
-  ticket.status = 'PICKING';
-  ticket.startedAt = new Date();
-  await ticket.save();
-
-  return ticket;
+  });
 };
 
 export const completePickTicket = async ({
@@ -686,117 +968,181 @@ export const completePickTicket = async ({
   ticketId,
   movedBy = null
 }) => {
-  const ticket = await PickTicket.findOne({
-    _id: ticketId,
-    organization: organizationId
-  });
-
-  if (!ticket) {
-    throw new AppError('Pick ticket not found', 404);
-  }
-
-  if (!['CREATED', 'PICKING'].includes(ticket.status)) {
-    throw new AppError('Only CREATED or PICKING tickets can be completed', 409);
-  }
-
-  for (const item of ticket.items) {
-    for (const allocation of item.allocations) {
-      const binInventory = await BinInventory.findOne({
-        organization: organizationId,
-        warehouse: ticket.warehouse,
-        bin: allocation.bin,
-        product: item.product
+  return runWithMongoTransactionFallback({
+    operationName: 'wms_complete_pick_ticket',
+    operationMeta: {
+      organizationId: String(organizationId),
+      ticketId: String(ticketId)
+    },
+    runWithSession: async (session) => {
+      const ticketQuery = PickTicket.findOne({
+        _id: ticketId,
+        organization: organizationId
       });
+      if (session) {
+        ticketQuery.session(session);
+      }
+      const ticket = await ticketQuery;
 
-      if (
-        !binInventory ||
-        binInventory.quantityReserved < allocation.quantity
-      ) {
+      if (!ticket) {
+        throw new AppError('Pick ticket not found', 404);
+      }
+
+      if (!['CREATED', 'PICKING'].includes(ticket.status)) {
         throw new AppError(
-          'Reserved bin stock is inconsistent for pick completion',
+          'Only CREATED or PICKING tickets can be completed',
           409
         );
       }
 
-      if (binInventory.quantityOnHand < allocation.quantity) {
-        throw new AppError(
-          'Bin stock is insufficient to complete the pick',
-          409
-        );
-      }
+      for (const item of ticket.items) {
+        for (const allocation of item.allocations) {
+          const binUpdateOptions = {
+            runValidators: true,
+            new: true
+          };
+          if (session) {
+            binUpdateOptions.session = session;
+          }
 
-      binInventory.quantityOnHand -= allocation.quantity;
-      binInventory.quantityReserved -= allocation.quantity;
-      await binInventory.save();
+          const binInventory = await BinInventory.findOneAndUpdate(
+            {
+              organization: organizationId,
+              warehouse: ticket.warehouse,
+              bin: allocation.bin,
+              product: item.product,
+              quantityReserved: { $gte: allocation.quantity },
+              quantityOnHand: { $gte: allocation.quantity }
+            },
+            {
+              $inc: {
+                quantityOnHand: -allocation.quantity,
+                quantityReserved: -allocation.quantity
+              }
+            },
+            binUpdateOptions
+          );
 
-      await StockMovement.create({
-        organization: organizationId,
-        movementType: 'PICK',
-        product: item.product,
-        quantity: allocation.quantity,
-        warehouseFrom: ticket.warehouse,
-        binFrom: allocation.bin,
-        reason: 'Pick ticket packed',
-        referenceType: 'PICK_TICKET',
-        referenceId: ticket._id,
-        movedBy
-      });
-    }
+          if (!binInventory) {
+            throw new AppError(
+              'Reserved bin stock is inconsistent for pick completion',
+              409
+            );
+          }
 
-    const inventory = await Inventory.findOneAndUpdate(
-      {
-        organization: organizationId,
-        warehouse: ticket.warehouse,
-        product: item.product
-      },
-      {
-        $inc: {
-          quantityOnHand: -item.requestedQuantity,
-          quantityReserved: -item.requestedQuantity
-        },
-        $set: {
-          lastMovementAt: new Date()
+          const movementPayload = {
+            organization: organizationId,
+            movementType: 'PICK',
+            product: item.product,
+            quantity: allocation.quantity,
+            warehouseFrom: ticket.warehouse,
+            binFrom: allocation.bin,
+            reason: 'Pick ticket packed',
+            referenceType: 'PICK_TICKET',
+            referenceId: ticket._id,
+            movedBy
+          };
+          if (session) {
+            await StockMovement.create([movementPayload], { session });
+          } else {
+            await StockMovement.create(movementPayload);
+          }
         }
-      },
-      { runValidators: true, new: true }
-    );
 
-    if (inventory) {
-      logInventoryMutation({
-        operation: 'pick_ticket_completed',
+        const inventoryUpdateOptions = {
+          runValidators: true,
+          new: true
+        };
+        if (session) {
+          inventoryUpdateOptions.session = session;
+        }
+
+        const inventory = await Inventory.findOneAndUpdate(
+          {
+            organization: organizationId,
+            warehouse: ticket.warehouse,
+            product: item.product,
+            quantityOnHand: { $gte: item.requestedQuantity },
+            quantityReserved: { $gte: item.requestedQuantity }
+          },
+          {
+            $inc: {
+              quantityOnHand: -item.requestedQuantity,
+              quantityReserved: -item.requestedQuantity
+            },
+            $set: {
+              lastMovementAt: new Date()
+            }
+          },
+          inventoryUpdateOptions
+        );
+
+        if (!inventory) {
+          throw new AppError(
+            'Warehouse inventory is inconsistent for pick completion',
+            409
+          );
+        }
+
+        logInventoryMutation({
+          operation: 'pick_ticket_completed',
+          organizationId,
+          warehouseId: ticket.warehouse,
+          productId: item.product,
+          quantityDelta: -item.requestedQuantity,
+          quantityOnHand: inventory.quantityOnHand,
+          quantityReserved: inventory.quantityReserved,
+          sourceType: 'PICK_TICKET',
+          sourceId: ticket._id,
+          actorUserId: movedBy
+        });
+
+        await consumeOutboundTracking({
+          organizationId,
+          productId: item.product,
+          warehouseId: ticket.warehouse,
+          quantity: item.requestedQuantity,
+          lotNumber: item.lotNumber || null,
+          serialNumbers: item.serialNumbers || [],
+          sourceType: 'PICK_TICKET',
+          sourceId: ticket._id,
+          movedBy,
+          reason: 'Pick ticket packed',
+          session
+        });
+
+        await syncProductStockFromInventory({
+          organizationId,
+          productId: item.product,
+          session
+        });
+
+        item.pickedQuantity = item.requestedQuantity;
+      }
+
+      ticket.status = 'PACKED';
+      ticket.packedAt = new Date();
+      await ticket.save(session ? { session } : undefined);
+
+      await logAudit({
+        action: 'WMS_COMPLETE_PICK_TICKET',
+        entity: 'WMS_PICK_TICKET',
+        entityId: ticket._id,
         organizationId,
-        warehouseId: ticket.warehouse,
-        productId: item.product,
-        quantityDelta: -item.requestedQuantity,
-        quantityOnHand: inventory.quantityOnHand,
-        quantityReserved: inventory.quantityReserved,
-        sourceType: 'PICK_TICKET',
-        sourceId: ticket._id,
-        actorUserId: movedBy
+        source: 'system',
+        success: true,
+        meta: {
+          warehouseId: String(ticket.warehouse || ''),
+          movedBy: movedBy ? String(movedBy) : null,
+          status: ticket.status
+        },
+        session,
+        silent: true
       });
+
+      return ticket;
     }
-
-    await consumeOutboundTracking({
-      organizationId,
-      productId: item.product,
-      warehouseId: ticket.warehouse,
-      quantity: item.requestedQuantity,
-      lotNumber: item.lotNumber || null,
-      serialNumbers: item.serialNumbers || [],
-      sourceType: 'PICK_TICKET',
-      sourceId: ticket._id,
-      movedBy,
-      reason: 'Pick ticket packed'
-    });
-
-    item.pickedQuantity = item.requestedQuantity;
-  }
-
-  ticket.status = 'PACKED';
-  ticket.packedAt = new Date();
-  await ticket.save();
-
-  return ticket;
+  });
 };
 
 export const listStockMovements = async ({
@@ -837,49 +1183,85 @@ export const setWarehouseBinRules = async ({
   binId,
   ...input
 }) => {
-  await ensureWarehouseInOrganization(organizationId, warehouseId);
+  return runWithMongoTransactionFallback({
+    operationName: 'wms_set_warehouse_bin_rules',
+    operationMeta: {
+      organizationId: String(organizationId),
+      warehouseId: String(warehouseId),
+      binId: String(binId)
+    },
+    runWithSession: async (session) => {
+      await ensureWarehouseInOrganization(organizationId, warehouseId, session);
 
-  const bin = await WarehouseBin.findOne({
-    _id: binId,
-    organization: organizationId,
-    warehouse: warehouseId
+      const binQuery = WarehouseBin.findOne({
+        _id: binId,
+        organization: organizationId,
+        warehouse: warehouseId
+      });
+      if (session) {
+        binQuery.session(session);
+      }
+      const bin = await binQuery;
+      if (!bin) {
+        throw new AppError('Bin not found in the selected warehouse', 404);
+      }
+
+      if (Object.prototype.hasOwnProperty.call(input, 'maxCapacityUnits')) {
+        bin.maxCapacityUnits = normalizeOptionalPositiveInteger(
+          input.maxCapacityUnits,
+          'maxCapacityUnits'
+        );
+      }
+      if (
+        Object.prototype.hasOwnProperty.call(input, 'replenishmentMinUnits')
+      ) {
+        bin.replenishmentMinUnits = normalizeOptionalPositiveInteger(
+          input.replenishmentMinUnits,
+          'replenishmentMinUnits'
+        );
+      }
+      if (
+        Object.prototype.hasOwnProperty.call(input, 'replenishmentTargetUnits')
+      ) {
+        bin.replenishmentTargetUnits = normalizeOptionalPositiveInteger(
+          input.replenishmentTargetUnits,
+          'replenishmentTargetUnits'
+        );
+      }
+
+      if (
+        bin.replenishmentMinUnits != null &&
+        bin.replenishmentTargetUnits != null &&
+        bin.replenishmentTargetUnits < bin.replenishmentMinUnits
+      ) {
+        throw new AppError(
+          'replenishmentTargetUnits must be greater than or equal to replenishmentMinUnits',
+          400
+        );
+      }
+
+      await bin.save(session ? { session } : undefined);
+
+      await logAudit({
+        action: 'WMS_UPDATE_BIN_RULES',
+        entity: 'WMS_BIN',
+        entityId: bin._id,
+        organizationId,
+        source: 'system',
+        success: true,
+        meta: {
+          warehouseId: String(warehouseId),
+          maxCapacityUnits: bin.maxCapacityUnits,
+          replenishmentMinUnits: bin.replenishmentMinUnits,
+          replenishmentTargetUnits: bin.replenishmentTargetUnits
+        },
+        session,
+        silent: true
+      });
+
+      return bin;
+    }
   });
-  if (!bin) {
-    throw new AppError('Bin not found in the selected warehouse', 404);
-  }
-
-  if (Object.prototype.hasOwnProperty.call(input, 'maxCapacityUnits')) {
-    bin.maxCapacityUnits = normalizeOptionalPositiveInteger(
-      input.maxCapacityUnits,
-      'maxCapacityUnits'
-    );
-  }
-  if (Object.prototype.hasOwnProperty.call(input, 'replenishmentMinUnits')) {
-    bin.replenishmentMinUnits = normalizeOptionalPositiveInteger(
-      input.replenishmentMinUnits,
-      'replenishmentMinUnits'
-    );
-  }
-  if (Object.prototype.hasOwnProperty.call(input, 'replenishmentTargetUnits')) {
-    bin.replenishmentTargetUnits = normalizeOptionalPositiveInteger(
-      input.replenishmentTargetUnits,
-      'replenishmentTargetUnits'
-    );
-  }
-
-  if (
-    bin.replenishmentMinUnits != null &&
-    bin.replenishmentTargetUnits != null &&
-    bin.replenishmentTargetUnits < bin.replenishmentMinUnits
-  ) {
-    throw new AppError(
-      'replenishmentTargetUnits must be greater than or equal to replenishmentMinUnits',
-      400
-    );
-  }
-
-  await bin.save();
-  return bin;
 };
 
 export const getReplenishmentRecommendations = async ({

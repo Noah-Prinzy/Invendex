@@ -1,54 +1,11 @@
-import mongoose from 'mongoose';
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import ReorderAlert from '../models/ReorderAlert.js';
 
 import { assertPurchaseOrderTransition } from '../utils/assertPurchaseOrderTransition.js';
 import { applyPurchaseOrderToInventory } from './inventory/inventoryService.js';
 import AppError from '../utils/AppError.js';
-import { logger } from '../observability/logger.js';
-
-const isTransactionUnsupported = (err) => {
-  const message = String(err?.message || '').toLowerCase();
-  return (
-    message.includes('transaction numbers are only allowed') ||
-    message.includes('replica set') ||
-    message.includes('standalone')
-  );
-};
-
-const runWithOptionalTransaction = async ({
-  operationName,
-  operationMeta = {},
-  runWithSession
-}) => {
-  const session = await mongoose.startSession();
-  try {
-    let result;
-    try {
-      await session.withTransaction(async () => {
-        result = await runWithSession(session);
-      });
-      return result;
-    } catch (err) {
-      if (!isTransactionUnsupported(err)) {
-        logger.error('mongo_transaction_failed', {
-          operationName,
-          ...operationMeta,
-          err
-        });
-        throw err;
-      }
-
-      logger.warn('mongo_transaction_fallback_non_transaction_mode', {
-        operationName,
-        ...operationMeta
-      });
-      return runWithSession(null);
-    }
-  } finally {
-    await session.endSession();
-  }
-};
+import { runWithMongoTransactionFallback } from '../utils/runWithMongoTransactionFallback.js';
+import { logAudit } from '../utils/auditLogger.js';
 
 /**
  * 🤖 Generate Purchase Orders from active reorder alerts
@@ -80,7 +37,7 @@ export const generatePurchaseOrdersFromAlerts = async ({
     );
   }
 
-  return runWithOptionalTransaction({
+  return runWithMongoTransactionFallback({
     operationName: 'generate_purchase_orders_from_alerts',
     operationMeta: {
       organizationId: String(organizationId),
@@ -175,6 +132,23 @@ export const generatePurchaseOrdersFromAlerts = async ({
         );
 
         createdPurchaseOrders.push(purchaseOrder);
+
+        await logAudit({
+          action: 'GENERATE_PURCHASE_ORDER_FROM_ALERTS',
+          entity: 'PURCHASE_ORDER',
+          entityId: purchaseOrder._id,
+          organizationId,
+          source: 'system',
+          success: true,
+          meta: {
+            supplierId: String(supplierId),
+            warehouseId: String(warehouseId),
+            itemCount: items.length,
+            createdBy: String(createdByUserId)
+          },
+          session,
+          silent: true
+        });
       }
 
       return createdPurchaseOrders;
@@ -220,7 +194,7 @@ export const receivePurchaseOrder = async ({
   userId,
   organizationId
 }) => {
-  return runWithOptionalTransaction({
+  return runWithMongoTransactionFallback({
     operationName: 'receive_purchase_order',
     operationMeta: {
       organizationId: String(organizationId),
@@ -257,6 +231,22 @@ export const receivePurchaseOrder = async ({
       purchaseOrder.receivedBy = userId;
 
       await purchaseOrder.save(session ? { session } : undefined);
+
+      await logAudit({
+        action: 'RECEIVE_PURCHASE_ORDER',
+        entity: 'PURCHASE_ORDER',
+        entityId: purchaseOrder._id,
+        organizationId,
+        source: 'system',
+        success: true,
+        meta: {
+          status: purchaseOrder.status,
+          receivedBy: userId ? String(userId) : null,
+          warehouseId: String(purchaseOrder.warehouse || '')
+        },
+        session,
+        silent: true
+      });
       return purchaseOrder;
     }
   });

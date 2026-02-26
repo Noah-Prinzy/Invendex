@@ -1,10 +1,9 @@
 import Product from '../models/Product.js';
-import InventorySnapshot from '../models/InventorySnapshot.js';
 import { successResponse } from '../utils/response.js';
 import { AppError } from '../errors/AppError.js';
 import { logAudit } from '../utils/auditLogger.js';
 import mongoose from 'mongoose';
-import { publishInventoryUpdated } from '../realtime/publisher.js';
+import { adjustInventoryFromManualInput } from '../services/inventory/manualAdjustmentService.js';
 
 /* ======================================================
    HELPERS
@@ -17,27 +16,6 @@ const pickProductFields = (source = {}) =>
     if (source[key] !== undefined) obj[key] = source[key];
     return obj;
   }, {});
-
-/**
- * 📊 Recalculate average daily usage from stock history
- */
-const calculateAverageDailyUsage = (stockHistory = []) => {
-  const sales = stockHistory.filter((h) => h.reason === 'sale' && h.change < 0);
-
-  if (sales.length < 2) return 0;
-
-  const totalUnitsSold = sales.reduce((sum, s) => sum + Math.abs(s.change), 0);
-
-  const firstDate = new Date(sales[0].createdAt);
-  const lastDate = new Date(sales[sales.length - 1].createdAt);
-
-  const days = Math.max(
-    1,
-    Math.ceil((lastDate - firstDate) / (1000 * 60 * 60 * 24))
-  );
-
-  return Number((totalUnitsSold / days).toFixed(2));
-};
 
 /* ======================================================
    CONTROLLERS
@@ -142,46 +120,18 @@ export const restoreProduct = async (req, res, next) => {
 
 export const adjustProductStock = async (req, res, next) => {
   try {
-    const { amount, reason } = req.body;
-
-    const product = await Product.findOne({
-      _id: req.params.id,
-      organization: req.organizationId
-    });
-    if (!product) throw new AppError('Product not found', 404);
-
-    await product.adjustStock(amount, reason, req.user?._id);
-
-    // 🔁 Recalculate usage after sales
-    if (reason === 'sale') {
-      product.averageDailyUsage = calculateAverageDailyUsage(
-        product.stockHistory
-      );
-      await product.save();
-    }
-
-    await InventorySnapshot.create({
-      organization: req.organizationId,
-      product: product._id,
-      sku: product.sku,
-      stock: product.stock,
-      price: product.price,
-      source: 'MANUAL'
-    });
-
-    publishInventoryUpdated({
+    const { amount, reason, warehouseId } = req.body;
+    const result = await adjustInventoryFromManualInput({
       organizationId: req.organizationId,
+      productId: req.params.id,
+      amount,
+      reason,
+      warehouseId: warehouseId || null,
       actorUserId: req.user?._id || null,
-      entityId: product._id,
-      data: {
-        source: 'manual_stock_adjustment',
-        amount,
-        reason,
-        productStock: product.stock
-      }
+      actorRole: req.user?.role || null
     });
 
-    return successResponse(res, product, 'Stock adjusted');
+    return successResponse(res, result.product, 'Stock adjusted');
   } catch (err) {
     next(err);
   }

@@ -1,6 +1,11 @@
 import { body, param } from 'express-validator';
 import { STOCK_REASONS } from '../models/Product.js';
 
+const isWarehouseRequired = () =>
+  String(process.env.INVENTORY_ADJUST_REQUIRE_WAREHOUSE_ID || 'true')
+    .trim()
+    .toLowerCase() === 'true';
+
 /**
  * 🧾 Create Product Validation
  */
@@ -69,5 +74,17 @@ export const adjustStockValidator = [
     .trim()
     .toLowerCase()
     .isIn(STOCK_REASONS)
-    .withMessage(`Reason must be one of: ${STOCK_REASONS.join(', ')}`)
+    .withMessage(`Reason must be one of: ${STOCK_REASONS.join(', ')}`),
+
+  body('warehouseId')
+    .custom((warehouseId) => {
+      if (isWarehouseRequired() && !warehouseId) {
+        throw new Error('warehouseId is required');
+      }
+      return true;
+    })
+    .bail()
+    .optional({ values: 'falsy' })
+    .isMongoId()
+    .withMessage('warehouseId must be a valid Mongo ID')
 ];

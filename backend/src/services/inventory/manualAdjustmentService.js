@@ -1,0 +1,356 @@
+import Inventory from '../../models/Inventory.js';
+import InventorySnapshot from '../../models/InventorySnapshot.js';
+import Product, { STOCK_REASONS } from '../../models/Product.js';
+import Warehouse from '../../models/Warehouse.js';
+import { AppError } from '../../errors/AppError.js';
+import { runWithMongoTransactionFallback } from '../../utils/runWithMongoTransactionFallback.js';
+import { syncProductStockFromInventory } from './stockSyncService.js';
+import { logAudit } from '../../utils/auditLogger.js';
+import { logInventoryMutation } from '../../observability/inventoryMutationLogger.js';
+import { logger } from '../../observability/logger.js';
+import { publishInventoryUpdated } from '../../realtime/publisher.js';
+
+const isWarehouseStrictMode = () =>
+  String(process.env.INVENTORY_ADJUST_REQUIRE_WAREHOUSE_ID || 'true')
+    .trim()
+    .toLowerCase() === 'true';
+
+const calculateAverageDailyUsage = (stockHistory = []) => {
+  const sales = stockHistory.filter(
+    (entry) => entry.reason === 'sale' && Number(entry.changeAmount || 0) < 0
+  );
+
+  if (sales.length < 2) return 0;
+
+  const totalUnitsSold = sales.reduce(
+    (sum, entry) => sum + Math.abs(Number(entry.changeAmount || 0)),
+    0
+  );
+
+  const firstDate = new Date(sales[0].changedAt || sales[0].createdAt);
+  const lastDate = new Date(
+    sales[sales.length - 1].changedAt || sales[sales.length - 1].createdAt
+  );
+
+  const days = Math.max(
+    1,
+    Math.ceil((lastDate - firstDate) / (1000 * 60 * 60 * 24))
+  );
+
+  return Number((totalUnitsSold / days).toFixed(2));
+};
+
+const resolveSnapshotSource = (actorRole) => {
+  const normalized = String(actorRole || '')
+    .trim()
+    .toLowerCase();
+
+  if (['owner', 'admin', 'manager'].includes(normalized)) {
+    return 'ADMIN';
+  }
+  if (normalized === 'staff') {
+    return 'STAFF';
+  }
+  return 'MANUAL';
+};
+
+const resolveWarehouseForAdjustment = async ({
+  organizationId,
+  productId,
+  warehouseId,
+  session = null
+}) => {
+  if (warehouseId) {
+    return {
+      warehouseId,
+      usedFallback: false
+    };
+  }
+
+  if (isWarehouseStrictMode()) {
+    throw new AppError('warehouseId is required for stock adjustment', 400);
+  }
+
+  const inventoryQuery = Inventory.findOne({
+    organization: organizationId,
+    product: productId
+  }).sort({ quantityOnHand: -1, updatedAt: -1, createdAt: -1 });
+  if (session) {
+    inventoryQuery.session(session);
+  }
+  const inventoryRow = await inventoryQuery;
+  if (inventoryRow?.warehouse) {
+    logger.warn('inventory_adjustment_warehouse_fallback_used', {
+      organizationId: String(organizationId),
+      productId: String(productId),
+      warehouseId: String(inventoryRow.warehouse),
+      fallbackSource: 'inventory_record'
+    });
+    return {
+      warehouseId: inventoryRow.warehouse,
+      usedFallback: true
+    };
+  }
+
+  const warehouseQuery = Warehouse.findOne({
+    organization: organizationId,
+    isActive: true,
+    isArchived: false
+  })
+    .sort({ createdAt: 1, _id: 1 })
+    .select('_id');
+  if (session) {
+    warehouseQuery.session(session);
+  }
+  const warehouse = await warehouseQuery;
+
+  if (!warehouse?._id) {
+    throw new AppError(
+      'warehouseId is required because no organization warehouse could be resolved',
+      400
+    );
+  }
+
+  logger.warn('inventory_adjustment_warehouse_fallback_used', {
+    organizationId: String(organizationId),
+    productId: String(productId),
+    warehouseId: String(warehouse._id),
+    fallbackSource: 'organization_first_active_warehouse'
+  });
+
+  return {
+    warehouseId: warehouse._id,
+    usedFallback: true
+  };
+};
+
+export const adjustInventoryFromManualInput = async ({
+  organizationId,
+  productId,
+  amount,
+  reason,
+  warehouseId = null,
+  actorUserId = null,
+  actorRole = null
+}) => {
+  const parsedAmount = Number(amount);
+  if (!Number.isInteger(parsedAmount) || parsedAmount === 0) {
+    throw new AppError(
+      'Stock adjustment amount must be a non-zero integer',
+      400
+    );
+  }
+
+  const normalizedReason = String(reason || '')
+    .trim()
+    .toLowerCase();
+  if (!STOCK_REASONS.includes(normalizedReason)) {
+    throw new AppError(
+      `Reason must be one of: ${STOCK_REASONS.join(', ')}`,
+      400
+    );
+  }
+
+  const result = await runWithMongoTransactionFallback({
+    operationName: 'manual_inventory_adjustment',
+    operationMeta: {
+      organizationId: String(organizationId),
+      productId: String(productId),
+      amount: parsedAmount,
+      reason: normalizedReason,
+      hasWarehouseId: Boolean(warehouseId)
+    },
+    runWithSession: async (session) => {
+      const productQuery = Product.findOne({
+        _id: productId,
+        organization: organizationId
+      }).select('sku price stock stockHistory averageDailyUsage');
+      if (session) {
+        productQuery.session(session);
+      }
+      const product = await productQuery;
+      if (!product) {
+        throw new AppError('Product not found', 404);
+      }
+
+      const resolvedWarehouse = await resolveWarehouseForAdjustment({
+        organizationId,
+        productId,
+        warehouseId,
+        session
+      });
+
+      const now = new Date();
+      const adjustmentFilter = {
+        organization: organizationId,
+        product: productId,
+        warehouse: resolvedWarehouse.warehouseId
+      };
+
+      if (parsedAmount < 0) {
+        adjustmentFilter.quantityOnHand = { $gte: Math.abs(parsedAmount) };
+      }
+
+      const adjustmentOptions = {
+        upsert: parsedAmount > 0,
+        new: true,
+        runValidators: true,
+        setDefaultsOnInsert: true
+      };
+      if (session) {
+        adjustmentOptions.session = session;
+      }
+
+      const inventory = await Inventory.findOneAndUpdate(
+        adjustmentFilter,
+        {
+          $inc: {
+            quantityOnHand: parsedAmount
+          },
+          $set: {
+            lastMovementAt: now
+          },
+          $setOnInsert: {
+            quantityReserved: 0,
+            reorderPoint: 0,
+            reorderQuantity: 0
+          }
+        },
+        adjustmentOptions
+      );
+
+      if (!inventory) {
+        throw new AppError('Insufficient inventory for this adjustment', 409);
+      }
+
+      const previousProductStock = Number(product.stock || 0);
+      const stockSync = await syncProductStockFromInventory({
+        organizationId,
+        productId,
+        session
+      });
+      const newProductStock = Number(stockSync.stock || 0);
+
+      const historyUpdateOptions = {
+        new: true,
+        runValidators: true
+      };
+      if (session) {
+        historyUpdateOptions.session = session;
+      }
+
+      let updatedProduct = await Product.findOneAndUpdate(
+        {
+          _id: productId,
+          organization: organizationId
+        },
+        {
+          $push: {
+            stockHistory: {
+              $each: [
+                {
+                  previousStock: previousProductStock,
+                  newStock: newProductStock,
+                  changeAmount: parsedAmount,
+                  reason: normalizedReason,
+                  changedBy: actorUserId,
+                  changedAt: now
+                }
+              ],
+              $slice: -100
+            }
+          }
+        },
+        historyUpdateOptions
+      );
+
+      if (normalizedReason === 'sale' && updatedProduct) {
+        updatedProduct.averageDailyUsage = calculateAverageDailyUsage(
+          updatedProduct.stockHistory || []
+        );
+        await updatedProduct.save(session ? { session } : undefined);
+      }
+
+      const snapshotPayload = {
+        organization: organizationId,
+        product: productId,
+        warehouse: resolvedWarehouse.warehouseId,
+        sku: product.sku,
+        stock: newProductStock,
+        price: product.price,
+        recordedAt: now,
+        source: resolveSnapshotSource(actorRole)
+      };
+      if (session) {
+        await InventorySnapshot.create([snapshotPayload], { session });
+      } else {
+        await InventorySnapshot.create(snapshotPayload);
+      }
+
+      await logAudit({
+        action: 'ADJUST_PRODUCT_STOCK',
+        entity: 'PRODUCT',
+        entityId: productId,
+        organizationId,
+        source: 'system',
+        success: true,
+        meta: {
+          warehouseId: String(resolvedWarehouse.warehouseId),
+          amount: parsedAmount,
+          reason: normalizedReason,
+          usedWarehouseFallback: resolvedWarehouse.usedFallback,
+          actorUserId: actorUserId ? String(actorUserId) : null
+        },
+        session,
+        silent: true
+      });
+
+      logInventoryMutation({
+        operation: 'manual_stock_adjustment',
+        organizationId,
+        warehouseId: resolvedWarehouse.warehouseId,
+        productId,
+        quantityDelta: parsedAmount,
+        quantityOnHand: inventory.quantityOnHand,
+        quantityReserved: inventory.quantityReserved,
+        sourceType: 'MANUAL',
+        actorUserId,
+        metadata: {
+          reason: normalizedReason,
+          usedWarehouseFallback: resolvedWarehouse.usedFallback
+        }
+      });
+
+      return {
+        product: updatedProduct,
+        inventory,
+        warehouseId: resolvedWarehouse.warehouseId,
+        usedWarehouseFallback: resolvedWarehouse.usedFallback,
+        amount: parsedAmount,
+        reason: normalizedReason,
+        productStock: newProductStock
+      };
+    }
+  });
+
+  publishInventoryUpdated({
+    organizationId,
+    actorUserId,
+    warehouseId: result.warehouseId,
+    entityId: productId,
+    data: {
+      source: 'manual_stock_adjustment',
+      amount: result.amount,
+      reason: result.reason,
+      warehouseId: String(result.warehouseId),
+      usedWarehouseFallback: result.usedWarehouseFallback,
+      productStock: result.productStock
+    }
+  });
+
+  return result;
+};
+
+export default {
+  adjustInventoryFromManualInput
+};

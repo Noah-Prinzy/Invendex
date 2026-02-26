@@ -15,7 +15,9 @@ export const logAudit = async ({
   success = true,
   source = 'api',
   organizationId = null,
-  meta = {}
+  meta = {},
+  session = null,
+  silent = true
 }) => {
   try {
     const resolvedOrganizationId =
@@ -23,7 +25,7 @@ export const logAudit = async ({
     const resolvedEntity = entity || resource || 'UNKNOWN';
     const resolvedEntityId = entityId || resourceId || null;
 
-    await AuditLog.create({
+    const payload = {
       organization: resolvedOrganizationId,
       user: req?.user?._id || null,
       action,
@@ -47,9 +49,19 @@ export const logAudit = async ({
       source,
       success,
       meta
-    });
+    };
+
+    if (session) {
+      await AuditLog.create([payload], { session });
+    } else {
+      await AuditLog.create(payload);
+    }
   } catch (err) {
-    // ❗ Never crash the app because of audit logging
-    console.error('❌ Audit log failed:', err.message);
+    if (silent) {
+      // Never crash app for best-effort audit logging by default.
+      console.error('❌ Audit log failed:', err.message);
+      return;
+    }
+    throw err;
   }
 };

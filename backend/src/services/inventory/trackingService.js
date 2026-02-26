@@ -624,7 +624,8 @@ export const reserveInventorySerials = async ({
   lotNumber = null,
   referenceType = 'SYSTEM',
   referenceId = null,
-  reservedBy = null
+  reservedBy = null,
+  session = null
 }) => {
   const normalizedSerials = normalizeSerials(serialNumbers);
   const normalizedLotNumber = normalizeLotNumber(lotNumber);
@@ -663,11 +664,15 @@ export const reserveInventorySerials = async ({
     query.serialNumber = { $in: normalizedSerials };
   }
 
-  const rows = await InventorySerial.find(query).sort({
+  const serialQuery = InventorySerial.find(query).sort({
     expiryDate: 1,
     receivedAt: 1,
     createdAt: 1
   });
+  if (session) {
+    serialQuery.session(session);
+  }
+  const rows = await serialQuery;
 
   if (!rows.length) {
     throw new AppError('No serial records found for reservation', 404);
@@ -722,7 +727,7 @@ export const reserveInventorySerials = async ({
     serial.reservedBy = reservedBy;
     serial.reservedReferenceType = normalizedReferenceType;
     serial.reservedReferenceId = referenceId;
-    await serial.save();
+    await serial.save(session ? { session } : undefined);
   }
 
   return {

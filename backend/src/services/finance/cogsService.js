@@ -1,11 +1,12 @@
-import mongoose from 'mongoose';
 import CogsEntry from '../../models/CogsEntry.js';
 import Inventory from '../../models/Inventory.js';
 import Order from '../../models/Order.js';
-import Product from '../../models/Product.js';
 import { consumeCostLayers, getEffectiveMethod } from './valuationService.js';
 import { consumeOutboundTracking } from '../inventory/trackingService.js';
+import { syncProductStockFromInventory } from '../inventory/stockSyncService.js';
 import { AppError } from '../../errors/AppError.js';
+import { runWithMongoTransactionFallback } from '../../utils/runWithMongoTransactionFallback.js';
+import { logAudit } from '../../utils/auditLogger.js';
 import {
   publishCogsRecorded,
   publishInventoryUpdated,
@@ -146,17 +147,6 @@ export const recordCogsForCompletedSaleOrder = async ({
         actorUserId
       });
 
-      await Product.findOneAndUpdate(
-        {
-          _id: line.product,
-          organization: organizationId
-        },
-        {
-          $inc: { stock: -quantity }
-        },
-        session ? { session } : undefined
-      );
-
       const consumed = await consumeCostLayers({
         organizationId,
         productId: line.product,
@@ -177,6 +167,12 @@ export const recordCogsForCompletedSaleOrder = async ({
         sourceId: order._id,
         movedBy: actorUserId,
         reason: 'Sale order completed',
+        session
+      });
+
+      await syncProductStockFromInventory({
+        organizationId,
+        productId: line.product,
         session
       });
 
@@ -235,41 +231,37 @@ export const recordCogsForCompletedSaleOrder = async ({
     order.status = 'completed';
     await order.save(session ? { session } : undefined);
 
+    await logAudit({
+      action: 'COMPLETE_SALE_ORDER_WITH_COGS',
+      entity: 'ORDER',
+      entityId: order._id,
+      organizationId,
+      source: 'system',
+      success: true,
+      meta: {
+        warehouseId: orderWarehouse,
+        orderStatus: order.status,
+        lineCount: order.products.length,
+        cogsEntriesCount: perLineEntries.length,
+        actorUserId: actorUserId ? String(actorUserId) : null
+      },
+      session,
+      silent: true
+    });
+
     createdEntries = perLineEntries;
     return { createdEntries, orderWarehouse };
   };
 
-  const isTransactionUnsupported = (err) =>
-    String(err?.message || '').includes('Transaction numbers are only allowed');
-
-  const session = await mongoose.startSession();
-
   try {
-    let result;
-    try {
-      await session.withTransaction(async () => {
-        result = await runMutation(session);
-      });
-    } catch (err) {
-      if (!isTransactionUnsupported(err)) {
-        logger.error('cogs_transaction_failed', {
-          orderId: String(orderId),
-          organizationId: String(organizationId),
-          err
-        });
-        await captureException(err, {
-          scope: 'finance_cogs_transaction',
-          orderId: String(orderId),
-          organizationId: String(organizationId)
-        });
-        throw err;
-      }
-      logger.warn('cogs_fallback_non_transaction_mode', {
+    const result = await runWithMongoTransactionFallback({
+      operationName: 'record_cogs_for_completed_sale_order',
+      operationMeta: {
         orderId: String(orderId),
         organizationId: String(organizationId)
-      });
-      result = await runMutation(null);
-    }
+      },
+      runWithSession: runMutation
+    });
 
     const createdEntries = result?.createdEntries || [];
     const orderWarehouse = result?.orderWarehouse || null;
@@ -305,10 +297,18 @@ export const recordCogsForCompletedSaleOrder = async ({
     });
 
     return createdEntries;
-  } finally {
-    if (session) {
-      await session.endSession();
-    }
+  } catch (err) {
+    logger.error('cogs_transaction_failed', {
+      orderId: String(orderId),
+      organizationId: String(organizationId),
+      err
+    });
+    await captureException(err, {
+      scope: 'finance_cogs_transaction',
+      orderId: String(orderId),
+      organizationId: String(organizationId)
+    });
+    throw err;
   }
 };
 
