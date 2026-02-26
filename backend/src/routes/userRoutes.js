@@ -1,9 +1,10 @@
 import express from 'express';
 import { protect } from '../middlewares/authMiddleware.js';
 import requireOrganization from '../middlewares/requireOrganization.js';
-import requireRoles from '../middlewares/requireRoles.js';
+import requirePermission from '../middlewares/requirePermission.js';
 import validateRequest from '../middlewares/validateRequest.js';
 import { auditMiddleware } from '../middlewares/auditMiddleware.js';
+import { PERMISSIONS } from '../authorization/permissions.js';
 import {
   listOrganizationUsers,
   updateOrganizationUserStatus,
@@ -25,7 +26,11 @@ import {
 
 const router = express.Router();
 
-router.use(protect, requireOrganization, requireRoles('owner', 'admin'));
+router.use(
+  protect,
+  requireOrganization,
+  requirePermission(PERMISSIONS.USERS_MANAGE)
+);
 
 router.get(
   '/',

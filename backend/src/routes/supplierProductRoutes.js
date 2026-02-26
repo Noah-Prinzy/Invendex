@@ -8,9 +8,10 @@ import {
 } from '../controllers/supplierProductController.js';
 
 import { protect } from '../middlewares/authMiddleware.js';
-import requireRoles from '../middlewares/requireRoles.js';
+import requirePermission from '../middlewares/requirePermission.js';
 import requireOrganization from '../middlewares/requireOrganization.js';
 import validateRequest from '../middlewares/validateRequest.js';
+import { PERMISSIONS } from '../authorization/permissions.js';
 
 import {
   createSupplierProductValidator,
@@ -21,8 +22,11 @@ import {
 
 const router = express.Router();
 
-// 🔐 Admin only
-router.use(protect, requireOrganization, requireRoles('admin'));
+router.use(
+  protect,
+  requireOrganization,
+  requirePermission(PERMISSIONS.SUPPLIER_PRODUCTS_MANAGE)
+);
 
 /**
  * ➕ Link supplier to product

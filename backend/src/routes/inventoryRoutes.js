@@ -15,10 +15,11 @@ import {
 } from '../controllers/inventoryController.js';
 
 import { protect } from '../middlewares/authMiddleware.js';
-import requireRoles from '../middlewares/requireRoles.js';
+import requirePermission from '../middlewares/requirePermission.js';
 import { auditMiddleware } from '../middlewares/auditMiddleware.js';
 import requireOrganization from '../middlewares/requireOrganization.js';
 import validateRequest from '../middlewares/validateRequest.js';
+import { PERMISSIONS } from '../authorization/permissions.js';
 
 import {
   createManualReorderAlertValidator,
@@ -45,8 +46,7 @@ router.use(protect, requireOrganization);
  */
 router.get(
   '/product/:productId/trend',
-  protect,
-  requireRoles('admin', 'staff'),
+  requirePermission(PERMISSIONS.INVENTORY_VIEW),
   inventoryProductParamValidator,
   validateRequest,
   getProductInventoryTrend
@@ -57,15 +57,18 @@ router.get(
  */
 router.get(
   '/summary/daily',
-  protect,
-  requireRoles('admin'),
+  requirePermission(PERMISSIONS.INVENTORY_MANAGE),
   getDailyInventorySummary
 );
 
 /**
  * 🚨 Inventory drops (shrinkage detection)
  */
-router.get('/alerts/drops', protect, requireRoles('admin'), getInventoryDrops);
+router.get(
+  '/alerts/drops',
+  requirePermission(PERMISSIONS.INVENTORY_MANAGE),
+  getInventoryDrops
+);
 
 /* ======================================================
    REORDER ALERTS
@@ -76,8 +79,7 @@ router.get('/alerts/drops', protect, requireRoles('admin'), getInventoryDrops);
  */
 router.get(
   '/alerts/reorder/active',
-  protect,
-  requireRoles('admin'),
+  requirePermission(PERMISSIONS.REORDER_MANAGE),
   getActiveReorderAlerts
 );
 
@@ -86,8 +88,7 @@ router.get(
  */
 router.get(
   '/alerts/reorder/resolved',
-  protect,
-  requireRoles('admin'),
+  requirePermission(PERMISSIONS.REORDER_MANAGE),
   getResolvedReorderAlerts
 );
 
@@ -96,8 +97,7 @@ router.get(
  */
 router.get(
   '/alerts/reorder/kpis',
-  protect,
-  requireRoles('admin'),
+  requirePermission(PERMISSIONS.REORDER_MANAGE),
   getReorderAlertKPIs
 );
 
@@ -106,8 +106,7 @@ router.get(
  */
 router.get(
   '/alerts/reorder/by-sku',
-  protect,
-  requireRoles('admin'),
+  requirePermission(PERMISSIONS.REORDER_MANAGE),
   getActiveAlertsBySku
 );
 
@@ -116,8 +115,7 @@ router.get(
  */
 router.get(
   '/alerts/reorder/trend',
-  protect,
-  requireRoles('admin'),
+  requirePermission(PERMISSIONS.REORDER_MANAGE),
   getReorderAlertTrend
 );
 
@@ -127,8 +125,7 @@ router.get(
  */
 router.post(
   '/alerts/reorder/manual',
-  protect,
-  requireRoles('admin'),
+  requirePermission(PERMISSIONS.REORDER_MANAGE),
   manualReorderAlertLimiter,
   createManualReorderAlertValidator,
   validateRequest,
@@ -145,8 +142,7 @@ router.post(
  */
 router.patch(
   '/alerts/reorder/:alertId/resolve',
-  protect,
-  requireRoles('admin'),
+  requirePermission(PERMISSIONS.REORDER_MANAGE),
   resolveReorderAlertLimiter,
   resolveReorderAlertParamValidator,
   validateRequest,
@@ -166,8 +162,7 @@ router.patch(
  */
 router.get(
   '/reorder-intelligence',
-  protect,
-  requireRoles('admin'),
+  requirePermission(PERMISSIONS.REORDER_MANAGE),
   reorderIntelligenceQueryValidator,
   validateRequest,
   getReorderIntelligence
@@ -179,8 +174,7 @@ router.get(
  */
 router.post(
   '/alerts/reorder/run',
-  protect,
-  requireRoles('admin'),
+  requirePermission(PERMISSIONS.REORDER_MANAGE),
   runReorderEngineLimiter,
   auditMiddleware({
     action: 'RUN_AUTOMATIC_REORDER_ENGINE',

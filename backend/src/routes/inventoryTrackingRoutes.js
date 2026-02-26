@@ -1,9 +1,10 @@
 import express from 'express';
 import { protect } from '../middlewares/authMiddleware.js';
 import requireOrganization from '../middlewares/requireOrganization.js';
-import requireRoles from '../middlewares/requireRoles.js';
+import requirePermission from '../middlewares/requirePermission.js';
 import { auditMiddleware } from '../middlewares/auditMiddleware.js';
 import validateRequest from '../middlewares/validateRequest.js';
+import { PERMISSIONS } from '../authorization/permissions.js';
 import {
   recallBatchLimiter,
   releaseSerialsLimiter,
@@ -34,7 +35,7 @@ const router = express.Router();
 router.use(
   protect,
   requireOrganization,
-  requireRoles('admin', 'manager', 'staff')
+  requirePermission(PERMISSIONS.INVENTORY_VIEW)
 );
 
 router.get(
@@ -90,7 +91,7 @@ router.get(
 );
 router.post(
   '/recall',
-  requireRoles('admin', 'manager'),
+  requirePermission(PERMISSIONS.REORDER_MANAGE),
   recallBatchLimiter,
   recallBatchValidator,
   validateRequest,

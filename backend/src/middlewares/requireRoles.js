@@ -1,5 +1,6 @@
 import { AppError } from '../errors/AppError.js';
 import { logAudit } from '../utils/auditLogger.js';
+import { isRoleAllowed } from '../authorization/permissions.js';
 
 /**
  * 🛡️ Role-based Authorization Middleware
@@ -26,7 +27,7 @@ const requireRoles = (...allowedRoles) => {
     }
 
     // 🚫 Insufficient role
-    if (!allowedRoles.includes(req.user.role)) {
+    if (!isRoleAllowed(req.user.role, allowedRoles)) {
       // 🧾 Audit denied access
       try {
         await logAudit({

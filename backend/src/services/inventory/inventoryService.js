@@ -17,7 +17,8 @@ import { logInventoryMutation } from '../../observability/inventoryMutationLogge
  */
 export const applyPurchaseOrderToInventory = async ({
   purchaseOrder,
-  actorUserId = null
+  actorUserId = null,
+  session = null
 }) => {
   if (
     !purchaseOrder ||
@@ -43,21 +44,29 @@ export const applyPurchaseOrderToInventory = async ({
     } = item;
 
     // Idempotency per purchase order + product.
-    const existingSnapshot = await InventorySnapshot.findOne({
+    const existingSnapshotQuery = InventorySnapshot.findOne({
       organization: purchaseOrder.organization,
       product: productId,
       purchaseOrder: purchaseOrder._id,
       warehouse: purchaseOrder.warehouse
     });
+    if (session) {
+      existingSnapshotQuery.session(session);
+    }
+    const existingSnapshot = await existingSnapshotQuery;
 
     if (existingSnapshot) {
       continue;
     }
 
-    const product = await Product.findOne({
+    const productQuery = Product.findOne({
       _id: productId,
       organization: purchaseOrder.organization
     }).select('sku price');
+    if (session) {
+      productQuery.session(session);
+    }
+    const product = await productQuery;
     if (!product) {
       throw new AppError(
         `Product not found for inventory update (${productId})`,
@@ -73,6 +82,16 @@ export const applyPurchaseOrderToInventory = async ({
     }
 
     const now = new Date();
+    const inventoryOptions = {
+      upsert: true,
+      new: true,
+      runValidators: true,
+      setDefaultsOnInsert: true
+    };
+    if (session) {
+      inventoryOptions.session = session;
+    }
+
     const inventory = await Inventory.findOneAndUpdate(
       {
         organization: purchaseOrder.organization,
@@ -88,18 +107,13 @@ export const applyPurchaseOrderToInventory = async ({
           reorderQuantity: 0
         }
       },
-      {
-        upsert: true,
-        new: true,
-        runValidators: true,
-        setDefaultsOnInsert: true
-      }
+      inventoryOptions
     );
 
     const previousStock = inventory.quantityOnHand - quantity;
 
     // Record a snapshot for analytics and PO idempotency.
-    await InventorySnapshot.create({
+    const snapshotPayload = {
       organization: purchaseOrder.organization,
       product: productId,
       warehouse: purchaseOrder.warehouse,
@@ -112,7 +126,13 @@ export const applyPurchaseOrderToInventory = async ({
       change: quantity,
       previousStock,
       newStock: inventory.quantityOnHand
-    });
+    };
+
+    if (session) {
+      await InventorySnapshot.create([snapshotPayload], { session });
+    } else {
+      await InventorySnapshot.create(snapshotPayload);
+    }
 
     await addCostLayerFromReceipt({
       organizationId: purchaseOrder.organization,
@@ -122,7 +142,8 @@ export const applyPurchaseOrderToInventory = async ({
       sourceId: purchaseOrder._id,
       unitCost: item.unitCost,
       quantity,
-      receivedAt: now
+      receivedAt: now,
+      session
     });
 
     await recordInboundTrackingForReceipt({
@@ -136,7 +157,8 @@ export const applyPurchaseOrderToInventory = async ({
       serialNumbers,
       sourceType: 'PURCHASE_ORDER',
       sourceId: purchaseOrder._id,
-      movedBy: actorUserId
+      movedBy: actorUserId,
+      session
     });
 
     // Resolve linked reorder alert (if any).
@@ -149,7 +171,8 @@ export const applyPurchaseOrderToInventory = async ({
         {
           resolved: true,
           resolvedAt: new Date()
-        }
+        },
+        session ? { session } : undefined
       );
     }
 

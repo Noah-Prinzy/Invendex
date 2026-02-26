@@ -5,13 +5,17 @@ import {
 } from '../controllers/auditLogController.js';
 
 import { protect } from '../middlewares/authMiddleware.js';
-import requireRoles from '../middlewares/requireRoles.js';
+import requirePermission from '../middlewares/requirePermission.js';
 import requireOrganization from '../middlewares/requireOrganization.js';
+import { PERMISSIONS } from '../authorization/permissions.js';
 
 const router = express.Router();
 
-// 🔐 Admin only
-router.use(protect, requireOrganization, requireRoles('admin'));
+router.use(
+  protect,
+  requireOrganization,
+  requirePermission(PERMISSIONS.AUDIT_LOGS_VIEW)
+);
 
 /**
  * 📄 Get audit logs

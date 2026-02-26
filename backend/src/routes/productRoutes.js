@@ -15,10 +15,11 @@ import {
 } from '../controllers/productController.js';
 
 import { protect } from '../middlewares/authMiddleware.js';
-import requireRoles from '../middlewares/requireRoles.js';
+import requirePermission from '../middlewares/requirePermission.js';
 import { auditMiddleware } from '../middlewares/auditMiddleware.js';
 import requireOrganization from '../middlewares/requireOrganization.js';
 import validateRequest from '../middlewares/validateRequest.js';
+import { PERMISSIONS } from '../authorization/permissions.js';
 
 import {
   createProductValidator,
@@ -42,36 +43,31 @@ router.get('/', protect, getProducts);
 
 router.get(
   '/alerts/low-stock/summary',
-  protect,
-  requireRoles('admin', 'staff'),
+  requirePermission(PERMISSIONS.PRODUCTS_VIEW),
   getLowStockSummary
 );
 
 router.get(
   '/alerts/low-stock',
-  protect,
-  requireRoles('admin', 'staff'),
+  requirePermission(PERMISSIONS.PRODUCTS_VIEW),
   getLowStockProducts
 );
 
 router.get(
   '/inventory/health',
-  protect,
-  requireRoles('admin', 'staff'),
+  requirePermission(PERMISSIONS.PRODUCTS_VIEW),
   getInventoryHealthOverview
 );
 
 router.get(
   '/inventory/reorder-recommendations',
-  protect,
-  requireRoles('admin', 'staff'),
+  requirePermission(PERMISSIONS.PRODUCTS_VIEW),
   getReorderRecommendations
 );
 
 router.get(
   '/:id/stock-history',
-  protect,
-  requireRoles('admin', 'staff'),
+  requirePermission(PERMISSIONS.PRODUCTS_VIEW),
   getProductStockHistory
 );
 
@@ -80,8 +76,7 @@ router.get(
  */
 router.patch(
   '/:id/stock',
-  protect,
-  requireRoles('admin', 'staff'),
+  requirePermission(PERMISSIONS.INVENTORY_ADJUST),
   adjustStockLimiter,
   adjustStockValidator,
   validateRequest,
@@ -97,8 +92,7 @@ router.patch(
  */
 router.post(
   '/',
-  protect,
-  requireRoles('admin'),
+  requirePermission(PERMISSIONS.PRODUCTS_MANAGE),
   createProductLimiter,
   createProductValidator,
   validateRequest,
@@ -114,8 +108,7 @@ router.post(
  */
 router.put(
   '/:id',
-  protect,
-  requireRoles('admin'),
+  requirePermission(PERMISSIONS.PRODUCTS_MANAGE),
   updateProductLimiter,
   updateProductValidator,
   validateRequest,
@@ -131,8 +124,7 @@ router.put(
  */
 router.delete(
   '/:id',
-  protect,
-  requireRoles('admin'),
+  requirePermission(PERMISSIONS.PRODUCTS_DELETE),
   auditMiddleware({
     action: 'DELETE_PRODUCT',
     resource: 'PRODUCT'
@@ -145,8 +137,7 @@ router.delete(
  */
 router.patch(
   '/:id/restore',
-  protect,
-  requireRoles('admin'),
+  requirePermission(PERMISSIONS.PRODUCTS_MANAGE),
   auditMiddleware({
     action: 'RESTORE_PRODUCT',
     resource: 'PRODUCT'

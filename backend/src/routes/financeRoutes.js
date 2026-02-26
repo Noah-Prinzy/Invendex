@@ -10,8 +10,9 @@ import {
 } from '../controllers/financeController.js';
 import { protect } from '../middlewares/authMiddleware.js';
 import requireOrganization from '../middlewares/requireOrganization.js';
-import requireRoles from '../middlewares/requireRoles.js';
+import requirePermission from '../middlewares/requirePermission.js';
 import validateRequest from '../middlewares/validateRequest.js';
+import { PERMISSIONS } from '../authorization/permissions.js';
 import {
   cogsQueryValidator,
   deadStockQueryValidator,
@@ -22,7 +23,11 @@ import {
 
 const router = express.Router();
 
-router.use(protect, requireOrganization, requireRoles('admin', 'manager'));
+router.use(
+  protect,
+  requireOrganization,
+  requirePermission(PERMISSIONS.FINANCE_VIEW)
+);
 
 router.get(
   '/valuation',
@@ -33,6 +38,7 @@ router.get(
 router.get('/valuation-method', getValuationConfig);
 router.patch(
   '/valuation-method',
+  requirePermission(PERMISSIONS.FINANCE_MANAGE),
   patchValuationMethodValidator,
   validateRequest,
   patchValuationMethod

@@ -1,8 +1,9 @@
 import express from 'express';
 import { exportInventoryReport } from '../controllers/inventoryReportController.js';
 import { protect } from '../middlewares/authMiddleware.js';
-import requireRoles from '../middlewares/requireRoles.js';
+import requirePermission from '../middlewares/requirePermission.js';
 import requireOrganization from '../middlewares/requireOrganization.js';
+import { PERMISSIONS } from '../authorization/permissions.js';
 
 const router = express.Router();
 router.use(protect, requireOrganization);
@@ -24,6 +25,10 @@ router.use(protect, requireOrganization);
  *   - from=YYYY-MM-DD     (optional)
  *   - to=YYYY-MM-DD       (optional)
  */
-router.get('/export', requireRoles('admin', 'staff'), exportInventoryReport);
+router.get(
+  '/export',
+  requirePermission(PERMISSIONS.INVENTORY_VIEW),
+  exportInventoryReport
+);
 
 export default router;

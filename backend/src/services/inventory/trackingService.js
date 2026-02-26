@@ -146,9 +146,20 @@ const upsertBatch = async ({
   sourceType,
   sourceId,
   movedBy = null,
-  movementReason
+  movementReason,
+  session = null
 }) => {
   const now = new Date();
+  const options = {
+    upsert: true,
+    new: true,
+    runValidators: true,
+    setDefaultsOnInsert: true
+  };
+  if (session) {
+    options.session = session;
+  }
+
   const batch = await InventoryBatch.findOneAndUpdate(
     {
       organization: organizationId,
@@ -166,15 +177,9 @@ const upsertBatch = async ({
       },
       ...(expiryDate ? { $setOnInsert: { expiryDate } } : {})
     },
-    {
-      upsert: true,
-      new: true,
-      runValidators: true,
-      setDefaultsOnInsert: true
-    }
+    options
   );
-
-  await StockMovement.create({
+  const inboundMovement = {
     organization: organizationId,
     movementType: 'INBOUND',
     product: productId,
@@ -189,7 +194,13 @@ const upsertBatch = async ({
       lotNumber,
       expiryDate: expiryDate || null
     }
-  });
+  };
+
+  if (session) {
+    await StockMovement.create([inboundMovement], { session });
+  } else {
+    await StockMovement.create(inboundMovement);
+  }
 
   return batch;
 };
@@ -205,7 +216,8 @@ export const recordInboundTrackingForReceipt = async ({
   serialNumbers = [],
   sourceType = 'PURCHASE_ORDER',
   sourceId = null,
-  movedBy = null
+  movedBy = null,
+  session = null
 }) => {
   const normalizedTrackingType = normalizeTrackingType(trackingType);
   const normalizedLotNumber = normalizeLotNumber(lotNumber);
@@ -240,7 +252,8 @@ export const recordInboundTrackingForReceipt = async ({
       sourceType,
       sourceId,
       movedBy,
-      movementReason: 'Batch receipt'
+      movementReason: 'Batch receipt',
+      session
     });
   }
 
@@ -260,7 +273,7 @@ export const recordInboundTrackingForReceipt = async ({
           receivedAt: new Date(),
           expiryDate: expiryDate || null
         })),
-        { ordered: true }
+        { ordered: true, ...(session ? { session } : {}) }
       );
     } catch (err) {
       if (err?.code === 11000) {
@@ -272,7 +285,7 @@ export const recordInboundTrackingForReceipt = async ({
       throw err;
     }
 
-    await StockMovement.create({
+    const serialInboundMovement = {
       organization: organizationId,
       movementType: 'INBOUND',
       product: productId,
@@ -287,7 +300,13 @@ export const recordInboundTrackingForReceipt = async ({
         lotNumber: batch?.lotNumber || normalizedLotNumber,
         serialCount: normalizedSerials.length
       }
-    });
+    };
+
+    if (session) {
+      await StockMovement.create([serialInboundMovement], { session });
+    } else {
+      await StockMovement.create(serialInboundMovement);
+    }
   }
 
   return {

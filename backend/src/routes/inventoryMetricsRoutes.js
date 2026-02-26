@@ -5,8 +5,9 @@ import {
 } from '../controllers/inventoryMetricsController.js';
 
 import { protect } from '../middlewares/authMiddleware.js';
-import requireRoles from '../middlewares/requireRoles.js';
+import requirePermission from '../middlewares/requirePermission.js';
 import requireOrganization from '../middlewares/requireOrganization.js';
+import { PERMISSIONS } from '../authorization/permissions.js';
 
 const router = express.Router();
 router.use(protect, requireOrganization);
@@ -17,7 +18,7 @@ router.use(protect, requireOrganization);
  */
 router.get(
   '/latest',
-  requireRoles('admin', 'staff'),
+  requirePermission(PERMISSIONS.INVENTORY_VIEW),
   getLatestInventoryMetrics
 );
 
@@ -29,6 +30,10 @@ router.get(
  *
  * Access: Admin & Staff
  */
-router.get('/range', requireRoles('admin', 'staff'), getInventoryMetricsRange);
+router.get(
+  '/range',
+  requirePermission(PERMISSIONS.INVENTORY_VIEW),
+  getInventoryMetricsRange
+);
 
 export default router;

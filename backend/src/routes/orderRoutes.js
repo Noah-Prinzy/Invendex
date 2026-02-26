@@ -7,12 +7,13 @@ import {
 } from '../controllers/orderController.js';
 import { protect } from '../middlewares/authMiddleware.js';
 import requireOrganization from '../middlewares/requireOrganization.js';
-import requireRoles from '../middlewares/requireRoles.js';
+import requirePermission from '../middlewares/requirePermission.js';
 import { auditMiddleware } from '../middlewares/auditMiddleware.js';
 import {
   completeOrderLimiter,
   createOrderLimiter
 } from '../middlewares/rateLimiter.js';
+import { PERMISSIONS } from '../authorization/permissions.js';
 import validateRequest from '../middlewares/validateRequest.js';
 import {
   createOrderValidator,
@@ -25,7 +26,7 @@ const router = express.Router();
 router.use(
   protect,
   requireOrganization,
-  requireRoles('admin', 'manager', 'staff')
+  requirePermission(PERMISSIONS.INVENTORY_ADJUST)
 );
 
 router.post(
