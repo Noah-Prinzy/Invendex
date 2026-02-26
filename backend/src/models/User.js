@@ -26,9 +26,34 @@ const userSchema = new mongoose.Schema(
       default: null,
       index: true
     },
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true
+    },
     isVerified: {
       type: Boolean,
       default: false
+    },
+    passwordResetToken: {
+      type: String,
+      default: null,
+      select: false
+    },
+    passwordResetExpiresAt: {
+      type: Date,
+      default: null,
+      select: false
+    },
+    emailVerificationToken: {
+      type: String,
+      default: null,
+      select: false
+    },
+    emailVerificationExpiresAt: {
+      type: Date,
+      default: null,
+      select: false
     },
 
     refreshTokens: [
@@ -68,9 +93,7 @@ userSchema.methods.addRefreshToken = function (token) {
  * ➖ Remove refresh token (single session logout)
  */
 userSchema.methods.removeRefreshToken = function (token) {
-  this.refreshTokens = this.refreshTokens.filter(
-    rt => rt.token !== token
-  );
+  this.refreshTokens = this.refreshTokens.filter((rt) => rt.token !== token);
 };
 
 /**
@@ -79,5 +102,7 @@ userSchema.methods.removeRefreshToken = function (token) {
 userSchema.methods.clearRefreshTokens = function () {
   this.refreshTokens = [];
 };
+
+userSchema.index({ organization: 1, isActive: 1 });
 
 export default mongoose.model('User', userSchema);

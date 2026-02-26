@@ -32,6 +32,7 @@ describe('auth register', () => {
     const response = await request(app).post('/auth/register').send({
       email: 'new-admin@example.com',
       password: 'Password123!',
+      confirmPassword: 'Password123!',
       organizationName: 'Northstar Logistics'
     });
 
@@ -63,12 +64,14 @@ describe('auth register', () => {
     await request(app).post('/auth/register').send({
       email: 'duplicate@example.com',
       password: 'Password123!',
+      confirmPassword: 'Password123!',
       organizationName: 'Acme Supply'
     });
 
     const duplicateResponse = await request(app).post('/auth/register').send({
       email: 'duplicate@example.com',
       password: 'Password123!',
+      confirmPassword: 'Password123!',
       organizationName: 'Acme Supply'
     });
 
@@ -83,6 +86,7 @@ describe('auth register', () => {
     const registerResponse = await request(app).post('/auth/register').send({
       email: 'case-user@example.com',
       password: 'Password123!',
+      confirmPassword: 'Password123!',
       organizationName: 'Case Org'
     });
 
@@ -96,5 +100,26 @@ describe('auth register', () => {
     expect(loginResponse.status).toBe(200);
     expect(loginResponse.body?.success).toBe(true);
     expect(loginResponse.body?.data?.user?.email).toBe('case-user@example.com');
+  });
+
+  it('allows login when email contains hidden unicode characters', async () => {
+    const registerResponse = await request(app).post('/auth/register').send({
+      email: 'unicode-user@example.com',
+      password: 'Password123!',
+      confirmPassword: 'Password123!',
+      organizationName: 'Unicode Org'
+    });
+
+    expect(registerResponse.status).toBe(201);
+
+    // Zero-width space between "unicode" and "-user"
+    const loginResponse = await request(app).post('/auth/login').send({
+      email: 'unicode\u200B-user@example.com',
+      password: 'Password123!'
+    });
+
+    expect(loginResponse.status).toBe(200);
+    expect(loginResponse.body?.success).toBe(true);
+    expect(loginResponse.body?.data?.user?.email).toBe('unicode-user@example.com');
   });
 });

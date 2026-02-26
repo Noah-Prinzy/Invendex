@@ -1,5 +1,7 @@
 import { io } from 'socket.io-client';
 import REALTIME_EVENTS from './events.js';
+import { captureFrontendException } from '../observability/errorTracker.js';
+import { getClientTraceId } from '../observability/traceContext.js';
 
 const DEFAULT_TIMEOUT_MS = 10000;
 
@@ -27,14 +29,21 @@ export class LedgerlyRealtimeClient {
     }
 
     const token = this.getAccessToken?.();
+    const clientTraceId = getClientTraceId();
     this.socket = io(this.baseUrl, {
       transports: ['websocket'],
       reconnection: true,
       timeout: this.timeoutMs,
-      auth: token ? { token } : {}
+      auth: token ? { token, clientTraceId } : { clientTraceId }
     });
 
     this.socket.on('connect_error', error => {
+      captureFrontendException(error, {
+        scope: 'realtime_connect_error',
+        baseUrl: this.baseUrl,
+        clientTraceId
+      }).catch(() => {});
+
       if (process.env.NODE_ENV !== 'production') {
         console.error('[realtime] connect_error:', error?.message || error);
       }
@@ -100,6 +109,10 @@ export class LedgerlyRealtimeClient {
 
   onValuationUpdated(callback) {
     return this.on(REALTIME_EVENTS.FINANCE_VALUATION_UPDATED, callback);
+  }
+
+  onEmployeeSignedIn(callback) {
+    return this.on(REALTIME_EVENTS.AUTH_EMPLOYEE_SIGNED_IN, callback);
   }
 }
 

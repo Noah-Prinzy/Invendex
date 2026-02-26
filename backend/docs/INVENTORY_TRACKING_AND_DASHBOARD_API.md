@@ -1,5 +1,9 @@
 # Inventory Tracking and Dashboard API
 
+Related docs:
+
+- `docs/ORDER_WMS_API.md` (strict order and WMS payload validation rules)
+
 ## Serial and Batch Tracking
 
 All endpoints are organization-scoped and require JWT auth.
@@ -107,3 +111,201 @@ Base route: `/api/dashboard`
 - `GET /stock-aging-buckets`
 - `GET /supplier-ranking`
 - `GET /supplier-reliability` (alias of supplier ranking)
+
+## Frontend Integration Checklist (Tracking + Dashboard)
+
+Use this section to wire common frontend screens to backend contracts.
+
+### 1) Reserve Serials Action
+
+UI action:
+
+- Reserve serials for an order line
+
+Endpoint:
+
+- `POST /api/inventory-tracking/serials/reserve`
+
+Payload (explicit serial list):
+
+```json
+{
+  "productId": "65f0...prd",
+  "warehouseId": "65f0...wh",
+  "serialNumbers": ["SN-001", "SN-002"],
+  "referenceType": "ORDER",
+  "referenceId": "65f0...ord"
+}
+```
+
+Payload (auto-select by quantity):
+
+```json
+{
+  "productId": "65f0...prd",
+  "warehouseId": "65f0...wh",
+  "quantity": 2,
+  "referenceType": "ORDER",
+  "referenceId": "65f0...ord"
+}
+```
+
+Frontend checks:
+
+- require `productId` + `warehouseId`
+- require one of: `serialNumbers[]` or `quantity`
+- if serials entered: trim, unique, non-empty
+
+### 2) Release Serials Action
+
+UI action:
+
+- Unreserve serials from a cancelled/edited line
+
+Endpoint:
+
+- `POST /api/inventory-tracking/serials/release`
+
+Payload:
+
+```json
+{
+  "serialNumbers": ["SN-001", "SN-002"],
+  "referenceId": "65f0...ord"
+}
+```
+
+Frontend checks:
+
+- non-empty `serialNumbers[]`
+- unique serial values
+
+### 3) Verify Serial Scan (Mobile/Scanner)
+
+UI action:
+
+- Validate scanned serial before pick/pack/dispatch
+
+Endpoint:
+
+- `POST /api/inventory-tracking/serials/verify-scan`
+
+Payload:
+
+```json
+{
+  "serialNumber": "SN-001",
+  "productId": "65f0...prd",
+  "warehouseId": "65f0...wh",
+  "expectedStatuses": ["RESERVED"],
+  "expectedReferenceId": "65f0...ord"
+}
+```
+
+Frontend checks:
+
+- require non-empty `serialNumber`
+- pass `expectedStatuses` when flow requires strict status checks
+
+### 4) Recall Batch Action (Admin/Manager)
+
+UI action:
+
+- Place a lot on recall hold
+
+Endpoint:
+
+- `POST /api/inventory-tracking/recall`
+
+Payload:
+
+```json
+{
+  "productId": "65f0...prd",
+  "lotNumber": "LOT-2026-03",
+  "warehouseId": "65f0...wh",
+  "reason": "Supplier recall notice"
+}
+```
+
+Frontend checks:
+
+- require `productId` + `lotNumber`
+- show role-based access warning for non-admin/non-manager users
+
+### 5) Batch List Screen
+
+UI action:
+
+- Load/refresh batch inventory table
+
+Endpoint:
+
+- `GET /api/inventory-tracking/batches`
+
+Suggested query params:
+
+- `productId?`
+- `warehouseId?`
+- `includeRecalled?`
+- `limit?`
+
+### 6) Serial List Screen
+
+UI action:
+
+- Load serial inventory table with filters
+
+Endpoint:
+
+- `GET /api/inventory-tracking/serials`
+
+Suggested query params:
+
+- `productId?`
+- `warehouseId?`
+- `lotNumber?`
+- `status?`
+- `limit?`
+
+### 7) Serial History Drawer/Page
+
+UI action:
+
+- View timeline for one serial
+
+Endpoint:
+
+- `GET /api/inventory-tracking/serials/:serialNumber/history`
+
+Suggested query params:
+
+- `productId?` (recommended when serial format can overlap)
+
+### 8) Dashboard Cards and Tables
+
+UI actions:
+
+- Load KPI widgets and rankings
+
+Endpoints:
+
+- `GET /api/dashboard/top-selling-items`
+- `GET /api/dashboard/turnover-skus`
+- `GET /api/dashboard/fastest-moving-skus`
+- `GET /api/dashboard/slow-moving-skus`
+- `GET /api/dashboard/dead-stock`
+- `GET /api/dashboard/stock-aging-buckets`
+- `GET /api/dashboard/supplier-ranking`
+- `GET /api/dashboard/supplier-reliability`
+
+Frontend checks:
+
+- fetch using authenticated org-scoped session only
+- display empty states when arrays are empty
+
+### Error UX Checklist
+
+- on `400`, render backend `message` inline near the triggering form
+- on `401|403`, prompt re-auth or show role/access message
+- on mutation forms, disable submit while request is in flight

@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { createLedgerlyRealtimeClient } from '../../realtime/socketClient.js';
+import REALTIME_EVENTS from '../../realtime/events.js';
+import { invalidateQueriesForRealtimeEvent } from '../../realtime/queryInvalidation.js';
 
 export const useLedgerlyRealtime = ({
   baseUrl,
@@ -10,8 +13,10 @@ export const useLedgerlyRealtime = ({
   onPurchaseOrderUpdated = null,
   onPurchaseOrderReceived = null,
   onCogsRecorded = null,
-  onValuationUpdated = null
+  onValuationUpdated = null,
+  onEmployeeSignedIn = null
 }) => {
+  const queryClient = useQueryClient();
   const tokenRef = useRef(accessToken || null);
   tokenRef.current = accessToken || null;
 
@@ -36,25 +41,56 @@ export const useLedgerlyRealtime = ({
     }
 
     const unsubscribers = [];
+    const subscribeWithInvalidation = (subscribeFn, eventName, callback) => {
+      unsubscribers.push(
+        subscribeFn(payload => {
+          invalidateQueriesForRealtimeEvent({
+            queryClient,
+            eventName,
+            accessToken: tokenRef.current || ''
+          });
+          if (typeof callback === 'function') {
+            callback(payload);
+          }
+        })
+      );
+    };
 
-    if (typeof onInventoryUpdated === 'function') {
-      unsubscribers.push(client.onInventoryUpdated(onInventoryUpdated));
-    }
-    if (typeof onPurchaseOrderCreated === 'function') {
-      unsubscribers.push(client.onPurchaseOrderCreated(onPurchaseOrderCreated));
-    }
-    if (typeof onPurchaseOrderUpdated === 'function') {
-      unsubscribers.push(client.onPurchaseOrderUpdated(onPurchaseOrderUpdated));
-    }
-    if (typeof onPurchaseOrderReceived === 'function') {
-      unsubscribers.push(client.onPurchaseOrderReceived(onPurchaseOrderReceived));
-    }
-    if (typeof onCogsRecorded === 'function') {
-      unsubscribers.push(client.onCogsRecorded(onCogsRecorded));
-    }
-    if (typeof onValuationUpdated === 'function') {
-      unsubscribers.push(client.onValuationUpdated(onValuationUpdated));
-    }
+    subscribeWithInvalidation(
+      client.onInventoryUpdated.bind(client),
+      REALTIME_EVENTS.INVENTORY_UPDATED,
+      onInventoryUpdated
+    );
+    subscribeWithInvalidation(
+      client.onPurchaseOrderCreated.bind(client),
+      REALTIME_EVENTS.PURCHASE_ORDER_CREATED,
+      onPurchaseOrderCreated
+    );
+    subscribeWithInvalidation(
+      client.onPurchaseOrderUpdated.bind(client),
+      REALTIME_EVENTS.PURCHASE_ORDER_UPDATED,
+      onPurchaseOrderUpdated
+    );
+    subscribeWithInvalidation(
+      client.onPurchaseOrderReceived.bind(client),
+      REALTIME_EVENTS.PURCHASE_ORDER_RECEIVED,
+      onPurchaseOrderReceived
+    );
+    subscribeWithInvalidation(
+      client.onCogsRecorded.bind(client),
+      REALTIME_EVENTS.FINANCE_COGS_RECORDED,
+      onCogsRecorded
+    );
+    subscribeWithInvalidation(
+      client.onValuationUpdated.bind(client),
+      REALTIME_EVENTS.FINANCE_VALUATION_UPDATED,
+      onValuationUpdated
+    );
+    subscribeWithInvalidation(
+      client.onEmployeeSignedIn.bind(client),
+      REALTIME_EVENTS.AUTH_EMPLOYEE_SIGNED_IN,
+      onEmployeeSignedIn
+    );
 
     return () => {
       if (warehouseId) {
@@ -76,7 +112,9 @@ export const useLedgerlyRealtime = ({
     onPurchaseOrderUpdated,
     onPurchaseOrderReceived,
     onCogsRecorded,
-    onValuationUpdated
+    onValuationUpdated,
+    onEmployeeSignedIn,
+    queryClient
   ]);
 
   return client;

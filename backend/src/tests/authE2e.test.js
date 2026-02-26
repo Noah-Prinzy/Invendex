@@ -1,0 +1,277 @@
+import mongoose from 'mongoose';
+import request from 'supertest';
+import app from '../app.js';
+import User from '../models/User.js';
+import Organization from '../models/Organization.js';
+import EmployeeInvite from '../models/EmployeeInvite.js';
+import { getTestDbUri } from './testDbUri.js';
+
+const originalAuthBypassValue = process.env.AUTH_TEST_BYPASS;
+
+beforeAll(async () => {
+  process.env.AUTH_TEST_BYPASS = 'false';
+
+  if (!process.env.JWT_ACCESS_SECRET) {
+    process.env.JWT_ACCESS_SECRET = 'test_access_secret';
+  }
+
+  if (!process.env.JWT_REFRESH_SECRET) {
+    process.env.JWT_REFRESH_SECRET = 'test_refresh_secret';
+  }
+
+  if (mongoose.connection.readyState === 0) {
+    await mongoose.connect(getTestDbUri());
+  }
+});
+
+beforeEach(async () => {
+  await Promise.all([
+    EmployeeInvite.deleteMany({}),
+    User.deleteMany({}),
+    Organization.deleteMany({})
+  ]);
+});
+
+afterAll(async () => {
+  process.env.AUTH_TEST_BYPASS = originalAuthBypassValue;
+  await mongoose.connection.close();
+});
+
+describe('auth e2e', () => {
+  it('registers, logs in, fetches profile, and logs out', async () => {
+    const registerResponse = await request(app).post('/auth/register').send({
+      email: 'e2e-auth@example.com',
+      password: 'Password123!',
+      confirmPassword: 'Password123!',
+      organizationName: 'E2E Org'
+    });
+
+    expect(registerResponse.status).toBe(201);
+    expect(registerResponse.body?.success).toBe(true);
+
+    const loginResponse = await request(app).post('/auth/login').send({
+      email: 'e2e-auth@example.com',
+      password: 'Password123!'
+    });
+
+    expect(loginResponse.status).toBe(200);
+    expect(loginResponse.body?.success).toBe(true);
+    expect(typeof loginResponse.body?.data?.accessToken).toBe('string');
+    expect(loginResponse.body?.data?.user?.email).toBe('e2e-auth@example.com');
+
+    const accessToken = loginResponse.body.data.accessToken;
+    const loginCookies = loginResponse.headers['set-cookie'] || [];
+    expect(loginCookies.length).toBeGreaterThan(0);
+
+    const meResponse = await request(app)
+      .get('/auth/me')
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    expect(meResponse.status).toBe(200);
+    expect(meResponse.body?.success).toBe(true);
+    expect(meResponse.body?.data?.email).toBe('e2e-auth@example.com');
+
+    const observabilityPingResponse = await request(app)
+      .get('/api/observability/ping')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-client-trace-id', 'frontend-trace-e2e');
+
+    expect(observabilityPingResponse.status).toBe(200);
+    expect(observabilityPingResponse.body?.success).toBe(true);
+    expect(observabilityPingResponse.body?.data?.status).toBe('ok');
+    expect(observabilityPingResponse.body?.data?.trace?.requestId).toBeTruthy();
+    expect(observabilityPingResponse.body?.data?.trace?.clientTraceId).toBe(
+      'frontend-trace-e2e'
+    );
+
+    const logoutResponse = await request(app)
+      .post('/auth/logout')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Cookie', loginCookies);
+
+    expect(logoutResponse.status).toBe(200);
+    expect(logoutResponse.body?.success).toBe(true);
+    expect(logoutResponse.body?.message).toBe('Logged out successfully');
+  });
+
+  it('supports forgot-password and reset-password flow', async () => {
+    const email = 'recover-auth@example.com';
+    const initialPassword = 'Password123!';
+    const nextPassword = 'Password123!New';
+
+    const registerResponse = await request(app).post('/auth/register').send({
+      email,
+      password: initialPassword,
+      confirmPassword: initialPassword,
+      organizationName: 'Recovery Org'
+    });
+
+    expect(registerResponse.status).toBe(201);
+
+    const forgotResponse = await request(app)
+      .post('/auth/forgot-password')
+      .send({
+        email
+      });
+
+    expect(forgotResponse.status).toBe(200);
+    expect(forgotResponse.body?.success).toBe(true);
+    expect(typeof forgotResponse.body?.data?.debugToken).toBe('string');
+
+    const resetResponse = await request(app).post('/auth/reset-password').send({
+      email,
+      token: forgotResponse.body.data.debugToken,
+      password: nextPassword,
+      confirmPassword: nextPassword
+    });
+
+    expect(resetResponse.status).toBe(200);
+    expect(resetResponse.body?.success).toBe(true);
+
+    const oldLoginResponse = await request(app).post('/auth/login').send({
+      email,
+      password: initialPassword
+    });
+    expect(oldLoginResponse.status).toBe(401);
+
+    const newLoginResponse = await request(app).post('/auth/login').send({
+      email,
+      password: nextPassword
+    });
+    expect(newLoginResponse.status).toBe(200);
+    expect(newLoginResponse.body?.success).toBe(true);
+  });
+
+  it('enforces optional email verification when enabled', async () => {
+    process.env.AUTH_REQUIRE_EMAIL_VERIFICATION = 'true';
+
+    try {
+      const email = 'verify-auth@example.com';
+      const password = 'Password123!';
+
+      const registerResponse = await request(app).post('/auth/register').send({
+        email,
+        password,
+        confirmPassword: password,
+        organizationName: 'Verification Org'
+      });
+
+      expect(registerResponse.status).toBe(201);
+      expect(registerResponse.body?.data?.verificationRequired).toBe(true);
+
+      const loginBeforeVerify = await request(app).post('/auth/login').send({
+        email,
+        password
+      });
+      expect(loginBeforeVerify.status).toBe(403);
+
+      const verificationTokenResponse = await request(app)
+        .post('/auth/verify-email/request')
+        .send({ email });
+      expect(verificationTokenResponse.status).toBe(200);
+      expect(typeof verificationTokenResponse.body?.data?.debugToken).toBe(
+        'string'
+      );
+
+      const verifyResponse = await request(app)
+        .post('/auth/verify-email')
+        .send({
+          email,
+          token: verificationTokenResponse.body.data.debugToken
+        });
+      expect(verifyResponse.status).toBe(200);
+      expect(verifyResponse.body?.success).toBe(true);
+
+      const loginAfterVerify = await request(app).post('/auth/login').send({
+        email,
+        password
+      });
+      expect(loginAfterVerify.status).toBe(200);
+      expect(loginAfterVerify.body?.success).toBe(true);
+    } finally {
+      process.env.AUTH_REQUIRE_EMAIL_VERIFICATION = 'false';
+    }
+  });
+
+  it('supports employee portal login with company name and auto-provisions staff user', async () => {
+    const inviteResponse = await request(app).post('/auth/register').send({
+      email: 'org-admin@example.com',
+      password: 'Password123!',
+      confirmPassword: 'Password123!',
+      organizationName: 'Warehouse Heroes'
+    });
+    expect(inviteResponse.status).toBe(201);
+
+    const organizationId = inviteResponse.body?.data?.organization?._id;
+    const adminToken = inviteResponse.body?.data?.accessToken;
+    const createInviteResponse = await request(app)
+      .post('/api/users/invites')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        email: 'employee1@example.com'
+      });
+    expect(createInviteResponse.status).toBe(201);
+
+    const employeeLoginWithoutInvite = await request(app)
+      .post('/auth/employee/login')
+      .send({
+        companyName: 'Warehouse Heroes',
+        email: 'employee1@example.com',
+        password: 'EmployeePass123!'
+      });
+    expect(employeeLoginWithoutInvite.status).toBe(403);
+
+    const employeeLoginResponse = await request(app)
+      .post('/auth/employee/login')
+      .send({
+        companyName: 'Warehouse Heroes',
+        email: 'employee1@example.com',
+        password: 'EmployeePass123!',
+        inviteCode: createInviteResponse.body?.data?.inviteCode
+      });
+
+    expect(employeeLoginResponse.status).toBe(200);
+    expect(employeeLoginResponse.body?.success).toBe(true);
+    expect(employeeLoginResponse.body?.data?.user?.role).toBe('staff');
+
+    const employeeInDb = await User.findOne({
+      email: 'employee1@example.com'
+    }).lean();
+    expect(String(employeeInDb?.organization)).toBe(String(organizationId));
+    expect(employeeInDb?.role).toBe('staff');
+
+    const adminRegisterResponse = await request(app)
+      .post('/auth/register')
+      .send({
+        email: 'admin1@example.com',
+        password: 'Password123!',
+        confirmPassword: 'Password123!',
+        organizationName: 'Admin Org'
+      });
+
+    expect(adminRegisterResponse.status).toBe(201);
+
+    const adminUser = await User.findOne({
+      email: 'admin1@example.com'
+    }).select('+password');
+    adminUser.organization = organizationId;
+    await adminUser.save();
+
+    const adminLoginFromEmployeePortal = await request(app)
+      .post('/auth/employee/login')
+      .send({
+        companyName: 'Warehouse Heroes',
+        email: 'admin1@example.com',
+        password: 'Password123!'
+      });
+    expect(adminLoginFromEmployeePortal.status).toBe(403);
+
+    const staffLoginFromAdminPortal = await request(app)
+      .post('/auth/admin/login')
+      .send({
+        email: 'employee1@example.com',
+        password: 'EmployeePass123!'
+      });
+    expect(staffLoginFromAdminPortal.status).toBe(403);
+  });
+});

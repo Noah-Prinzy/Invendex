@@ -1,6 +1,5 @@
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import ReorderAlert from '../models/ReorderAlert.js';
-import Product from '../models/Product.js';
 import Supplier from '../models/Supplier.js';
 import { successResponse } from '../utils/response.js';
 import { AppError } from '../errors/AppError.js';
@@ -84,10 +83,7 @@ export const generatePurchaseOrdersFromAlerts = async (req, res, next) => {
         const product = alert.product;
         if (!product) continue;
 
-        const quantity = Math.max(
-          alert.reorderLevel - alert.stock,
-          1
-        );
+        const quantity = Math.max(alert.reorderLevel - alert.stock, 1);
 
         const unitCost = alert.supplierUnitCost || 0;
         const totalCost = quantity * unitCost;

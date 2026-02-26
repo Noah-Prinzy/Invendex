@@ -1,6 +1,4 @@
-import AppError from '../utils/AppError.js';
-
-export default (err, req, res, next) => {
+export default (err, req, res, _next) => {
   const statusCode = err.statusCode || 500;
   const status = err.status || 'error';
 
@@ -26,15 +24,15 @@ import rateLimit from 'express-rate-limit';
 export const rateLimiter = ({
   windowMs = 15 * 60 * 1000,
   max = 100,
-    message = 'Too many requests, please try again later'
+  message = 'Too many requests, please try again later'
 }) =>
-    rateLimit({
-        windowMs,
-        max,
-        standardHeaders: true,
-        legacyHeaders: false,
-        message: {
-            success: false,
-            message
-        }
-    });
+  rateLimit({
+    windowMs,
+    max,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      success: false,
+      message
+    }
+  });

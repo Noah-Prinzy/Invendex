@@ -14,10 +14,10 @@ const getCurrentLogLevel = () => {
   return LOG_LEVEL_ORDER[value] ? value : 'info';
 };
 
-const shouldEmit = level =>
+const shouldEmit = (level) =>
   LOG_LEVEL_ORDER[level] >= LOG_LEVEL_ORDER[getCurrentLogLevel()];
 
-const sanitizeMeta = meta => {
+const sanitizeMeta = (meta) => {
   if (!meta || typeof meta !== 'object') return {};
 
   const copy = {};
@@ -46,6 +46,7 @@ const emit = (level, message, meta = {}) => {
     message,
     timestamp: new Date().toISOString(),
     requestId: context?.requestId || null,
+    clientTraceId: context?.clientTraceId || null,
     ...sanitizeMeta(meta)
   };
 
@@ -69,7 +70,7 @@ export const logger = {
   info: (message, meta) => emit('info', message, meta),
   warn: (message, meta) => emit('warn', message, meta),
   error: (message, meta) => emit('error', message, meta),
-  child: baseMeta => ({
+  child: (baseMeta) => ({
     debug: (message, meta) =>
       emit('debug', message, { ...(baseMeta || {}), ...(meta || {}) }),
     info: (message, meta) =>

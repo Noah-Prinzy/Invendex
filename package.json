@@ -1,5 +1,28 @@
 {
   "name": "ledgerly-workspace",
   "private": true,
-  "version": "1.0.0"
+  "version": "1.0.0",
+  "scripts": {
+    "prepare": "husky",
+    "lint": "npm --prefix backend run lint && npm --prefix frontend run lint",
+    "lint:fix": "npm --prefix backend run lint:fix && npm --prefix frontend run lint:fix",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^15.4.3",
+    "prettier": "^3.5.3"
+  },
+  "lint-staged": {
+    "*.{md,json,yml,yaml}": [
+      "prettier --write"
+    ],
+    "backend/**/*.{js,mjs,cjs}": [
+      "prettier --write"
+    ],
+    "frontend/**/*.{js,jsx,mjs,cjs}": [
+      "prettier --write"
+    ]
+  }
 }

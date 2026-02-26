@@ -36,34 +36,6 @@ const router = express.Router();
 router.use(protect, requireOrganization);
 
 /**
- * 🔔 Evaluate reorder trigger (SYSTEM)
- * (left untouched intentionally)
- */
-const evaluateReorderTrigger = async product => {
-  if (!product.lowStockThreshold) return;
-
-  const now = new Date();
-
-  const isLow =
-    product.stock <= product.lowStockThreshold * 2;
-
-  const isCritical =
-    product.stock <= product.lowStockThreshold;
-
-  if (!isLow && !isCritical) return;
-
-  if (
-    product.lastReorderAlertAt &&
-    now - product.lastReorderAlertAt < 24 * 60 * 60 * 1000
-  ) {
-    return;
-  }
-
-  product.lastReorderAlertAt = now;
-  await product.save();
-};
-
-/**
  * 📄 Products (READ)
  */
 router.get('/', protect, getProducts);

@@ -1,37 +1,165 @@
+import { getRequestContext } from './requestContext.js';
 import { logger } from './logger.js';
 
-const canForwardErrors = () =>
-  Boolean(String(process.env.ERROR_TRACKING_WEBHOOK_URL || '').trim());
+const sanitize = (value) => String(value || '').trim();
+const asNumber = (value) => {
+  const parsed = Number.parseFloat(sanitize(value));
+  return Number.isFinite(parsed) ? parsed : null;
+};
 
-const postErrorWebhook = async payload => {
-  if (!canForwardErrors()) return;
+const resolveProvider = () => {
+  const explicit = sanitize(process.env.ERROR_TRACKING_PROVIDER).toLowerCase();
+  if (explicit) return explicit;
+  return sanitize(process.env.ERROR_TRACKING_WEBHOOK_URL) ? 'webhook' : 'none';
+};
+
+const providerIncludesWebhook = (provider) =>
+  provider === 'webhook' || provider === 'both';
+
+const providerIncludesSentry = (provider) =>
+  provider === 'sentry' || provider === 'both';
+
+const provider = resolveProvider();
+const sentryDsn = sanitize(process.env.ERROR_TRACKING_SENTRY_DSN);
+const errorTrackingTimeoutMs =
+  Number.parseInt(sanitize(process.env.ERROR_TRACKING_TIMEOUT_MS), 10) || 2000;
+
+let warnedMissingSentryPackage = false;
+let warnedMissingSentryDsn = false;
+let sentryModulePromise = null;
+let sentryEnabled = false;
+
+const sanitizeObject = (value) => {
+  if (!value || typeof value !== 'object') return {};
+
+  const copy = {};
+  for (const [key, currentValue] of Object.entries(value)) {
+    if (currentValue === undefined) continue;
+    copy[key] = currentValue;
+  }
+
+  return copy;
+};
+
+const getMergedContext = (context) => {
+  const requestContext = getRequestContext();
+  const safeContext = sanitizeObject(context);
+  return {
+    requestId: safeContext.requestId || requestContext?.requestId || null,
+    ...safeContext
+  };
+};
+
+const postErrorWebhook = async (payload) => {
+  const url = sanitize(process.env.ERROR_TRACKING_WEBHOOK_URL);
+  if (!url || !providerIncludesWebhook(provider)) return;
 
   try {
-    await fetch(process.env.ERROR_TRACKING_WEBHOOK_URL, {
+    await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(errorTrackingTimeoutMs)
     });
   } catch (err) {
     logger.warn('error_webhook_delivery_failed', {
-      reason: err.message
+      reason: err?.message || 'Unknown webhook delivery error'
     });
   }
 };
 
+const getSentryModule = async () => {
+  if (!providerIncludesSentry(provider)) return null;
+
+  if (!sentryDsn) {
+    if (!warnedMissingSentryDsn) {
+      warnedMissingSentryDsn = true;
+      logger.warn('error_tracker_sentry_missing_dsn');
+    }
+    return null;
+  }
+
+  if (!sentryModulePromise) {
+    sentryModulePromise = import('@sentry/node')
+      .then((module) => {
+        const tracesSampleRate =
+          asNumber(process.env.ERROR_TRACKING_SENTRY_TRACES_SAMPLE_RATE) || 0;
+        module.init({
+          dsn: sentryDsn,
+          environment: sanitize(process.env.NODE_ENV || 'development'),
+          tracesSampleRate: Math.max(0, Math.min(1, tracesSampleRate))
+        });
+        sentryEnabled = true;
+        logger.info('error_tracker_sentry_initialized');
+        return module;
+      })
+      .catch((error) => {
+        if (!warnedMissingSentryPackage) {
+          warnedMissingSentryPackage = true;
+          logger.warn('error_tracker_sentry_unavailable', {
+            reason:
+              error?.message ||
+              'Install @sentry/node or disable sentry provider'
+          });
+        }
+        return null;
+      });
+  }
+
+  return sentryModulePromise;
+};
+
+const captureWithSentry = async (error, context) => {
+  const sentry = await getSentryModule();
+  if (!sentry || !sentryEnabled) return;
+
+  sentry.withScope((scope) => {
+    const safeContext = sanitizeObject(context);
+    if (safeContext.requestId) {
+      scope.setTag('request_id', String(safeContext.requestId));
+    }
+    if (safeContext.scope) {
+      scope.setTag('scope', String(safeContext.scope));
+    }
+    scope.setContext('ledgerly_context', safeContext);
+    sentry.captureException(error);
+  });
+};
+
 export const captureException = async (error, context = {}) => {
+  const mergedContext = getMergedContext(context);
+
   const payload = {
     errorName: error?.name || 'Error',
     errorMessage: error?.message || 'Unknown error',
     stack: error?.stack || null,
-    context,
+    context: mergedContext,
     occurredAt: new Date().toISOString()
   };
 
   logger.error('exception_captured', payload);
-  await postErrorWebhook(payload);
+
+  await Promise.allSettled([
+    postErrorWebhook(payload),
+    captureWithSentry(error, mergedContext)
+  ]);
+};
+
+export const flushErrorTracker = async (timeoutMs = errorTrackingTimeoutMs) => {
+  if (!sentryEnabled) return;
+
+  try {
+    const sentry = await getSentryModule();
+    if (!sentry) return;
+    await sentry.flush(timeoutMs);
+  } catch (error) {
+    logger.warn('error_tracker_flush_failed', {
+      reason: error?.message || 'Unknown flush error'
+    });
+  }
 };
 
 export default {
-  captureException
+  captureException,
+  flushErrorTracker
 };

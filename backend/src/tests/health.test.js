@@ -16,4 +16,29 @@ describe('Health check', () => {
     expect(res.body.status).toBe('ok');
     expect(typeof res.body.uptimeSeconds).toBe('number');
   });
+
+  it('should return 404 when metrics endpoint is disabled', async () => {
+    const previousValue = process.env.METRICS_ENABLED;
+    process.env.METRICS_ENABLED = 'false';
+
+    const res = await request(app).get('/metrics');
+
+    expect(res.statusCode).toBe(404);
+    expect(res.body.success).toBe(false);
+
+    process.env.METRICS_ENABLED = previousValue;
+  });
+
+  it('should return prometheus payload when metrics endpoint is enabled', async () => {
+    const previousValue = process.env.METRICS_ENABLED;
+    process.env.METRICS_ENABLED = 'true';
+
+    const res = await request(app).get('/metrics');
+
+    expect(res.statusCode).toBe(200);
+    expect(String(res.headers['content-type'] || '')).toContain('text/plain');
+    expect(res.text).toContain('ledgerly_http_requests_total');
+
+    process.env.METRICS_ENABLED = previousValue;
+  });
 });

@@ -12,7 +12,10 @@ export const protect = async (req, res, next) => {
      * 🧪 TEST MODE BYPASS
      * Automatically authenticate requests during tests
      */
-    if (process.env.NODE_ENV === 'test') {
+    const allowTestBypass =
+      String(process.env.AUTH_TEST_BYPASS || 'true').toLowerCase() === 'true';
+
+    if (process.env.NODE_ENV === 'test' && allowTestBypass) {
       req.user = {
         _id: '000000000000000000000000',
         role: 'admin',
@@ -51,6 +54,22 @@ export const protect = async (req, res, next) => {
 
     if (!user) {
       return next(new AppError('User no longer exists', 401));
+    }
+    if (user.isActive === false) {
+      return next(
+        new AppError('Account is deactivated. Contact an administrator.', 403)
+      );
+    }
+
+    const requiresVerifiedEmail =
+      String(process.env.AUTH_REQUIRE_EMAIL_VERIFICATION || 'false')
+        .toLowerCase()
+        .trim() === 'true';
+
+    if (requiresVerifiedEmail && user.isVerified !== true) {
+      return next(
+        new AppError('Email verification required for this account.', 403)
+      );
     }
 
     // 🔐 Attach user to request

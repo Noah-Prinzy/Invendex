@@ -2,7 +2,14 @@ import express from 'express';
 import { protect } from '../middlewares/authMiddleware.js';
 import requireOrganization from '../middlewares/requireOrganization.js';
 import requireRoles from '../middlewares/requireRoles.js';
+import { auditMiddleware } from '../middlewares/auditMiddleware.js';
 import validateRequest from '../middlewares/validateRequest.js';
+import {
+  recallBatchLimiter,
+  releaseSerialsLimiter,
+  reserveSerialsLimiter,
+  verifySerialScanLimiter
+} from '../middlewares/rateLimiter.js';
 import {
   getInventoryBatches,
   getSerialHistory,
@@ -24,16 +31,55 @@ import {
 
 const router = express.Router();
 
-router.use(protect, requireOrganization, requireRoles('admin', 'manager', 'staff'));
+router.use(
+  protect,
+  requireOrganization,
+  requireRoles('admin', 'manager', 'staff')
+);
 
-router.get('/batches', listInventoryBatchesValidator, validateRequest, getInventoryBatches);
-router.get('/serials', listInventorySerialsValidator, validateRequest, getInventorySerials);
-router.post('/serials/reserve', reserveSerialsValidator, validateRequest, reserveSerials);
-router.post('/serials/release', releaseSerialsValidator, validateRequest, releaseSerials);
+router.get(
+  '/batches',
+  listInventoryBatchesValidator,
+  validateRequest,
+  getInventoryBatches
+);
+router.get(
+  '/serials',
+  listInventorySerialsValidator,
+  validateRequest,
+  getInventorySerials
+);
+router.post(
+  '/serials/reserve',
+  reserveSerialsLimiter,
+  reserveSerialsValidator,
+  validateRequest,
+  auditMiddleware({
+    action: 'RESERVE_INVENTORY_SERIALS',
+    resource: 'INVENTORY_SERIAL'
+  }),
+  reserveSerials
+);
+router.post(
+  '/serials/release',
+  releaseSerialsLimiter,
+  releaseSerialsValidator,
+  validateRequest,
+  auditMiddleware({
+    action: 'RELEASE_INVENTORY_SERIALS',
+    resource: 'INVENTORY_SERIAL'
+  }),
+  releaseSerials
+);
 router.post(
   '/serials/verify-scan',
+  verifySerialScanLimiter,
   verifySerialScanValidator,
   validateRequest,
+  auditMiddleware({
+    action: 'VERIFY_INVENTORY_SERIAL_SCAN',
+    resource: 'INVENTORY_SERIAL'
+  }),
   verifySerialScan
 );
 router.get(
@@ -45,8 +91,13 @@ router.get(
 router.post(
   '/recall',
   requireRoles('admin', 'manager'),
+  recallBatchLimiter,
   recallBatchValidator,
   validateRequest,
+  auditMiddleware({
+    action: 'RECALL_INVENTORY_BATCH',
+    resource: 'INVENTORY_BATCH'
+  }),
   recallBatchLot
 );
 

@@ -20,7 +20,49 @@ Use `.env.example` as baseline and review:
 - `HTTP_LOGGER`
 - `SLOW_QUERY_THRESHOLD_MS`
 - `HEALTHCHECK_DB_TIMEOUT_MS`
+- `METRICS_ENABLED`
+- `METRICS_PREFIX`
+- `METRICS_TOKEN` (optional bearer token guard for `/metrics`)
 - `ERROR_TRACKING_WEBHOOK_URL`
+
+## Prometheus metrics endpoint
+
+- Route: `GET /metrics`
+- Format: Prometheus text exposition
+- Default: disabled (`METRICS_ENABLED=false`)
+- Optional auth: set `METRICS_TOKEN` and call with `Authorization: Bearer <token>`
+
+Example:
+
+```powershell
+curl http://127.0.0.1:4000/metrics
+```
+
+With token:
+
+```powershell
+curl -H "Authorization: Bearer <metrics_token>" http://127.0.0.1:4000/metrics
+```
+
+## Local monitoring stack (Prometheus + Grafana)
+
+Files:
+
+- `ops/monitoring/docker-compose.monitoring.yml`
+- `ops/monitoring/prometheus/prometheus.yml`
+- `ops/monitoring/grafana/provisioning/datasources/prometheus.yml`
+
+Start stack:
+
+```powershell
+cd ops/monitoring
+docker compose -f docker-compose.monitoring.yml up -d
+```
+
+Access:
+
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3001` (default `admin/admin`)
 
 ## Backup snapshot workflow
 

@@ -1,4 +1,6 @@
 import API_ENDPOINTS from './endpoints.js';
+import { captureFrontendException } from '../observability/errorTracker.js';
+import { createRequestTrace } from '../observability/traceContext.js';
 
 class ApiError extends Error {
   constructor(message, statusCode = 500, payload = null) {
@@ -27,6 +29,15 @@ const getDefaultBaseUrl = () => {
 };
 
 const API_BASE_URL = getDefaultBaseUrl();
+const CSRF_HEADER_NAME = 'x-csrf-token';
+let csrfToken = '';
+
+const emitTraceLog = (message, meta = {}) => {
+  if (process.env.NODE_ENV === 'production') return;
+  if (String(process.env.REACT_APP_API_TRACE_LOG || 'false').toLowerCase() !== 'true') return;
+  // eslint-disable-next-line no-console
+  console.info(`[api_trace] ${message}`, meta);
+};
 
 const buildUrl = path => {
   const normalizedPath = String(path || '').startsWith('/')
@@ -52,24 +63,94 @@ const request = async ({
   accessToken = null,
   headers = {}
 }) => {
-  const response = await fetch(buildUrl(path), {
-    method,
-    credentials: 'include',
-    headers: {
-      'content-type': 'application/json',
-      ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
-      ...headers
-    },
-    body: body ? JSON.stringify(body) : undefined
+  const normalizedMethod = String(method || 'GET').toUpperCase();
+  const trace = createRequestTrace({
+    method: normalizedMethod,
+    path
   });
 
+  let response;
+  try {
+    response = await fetch(buildUrl(path), {
+      method: normalizedMethod,
+      credentials: 'include',
+      headers: {
+        'content-type': 'application/json',
+        'x-request-id': trace.requestId,
+        'x-client-trace-id': trace.clientTraceId,
+        ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
+        ...(normalizedMethod !== 'GET' && normalizedMethod !== 'HEAD' && csrfToken
+          ? { [CSRF_HEADER_NAME]: csrfToken }
+          : {}),
+        ...headers
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+  } catch (error) {
+    const wrappedError = new ApiError(
+      'Unable to reach the server. Check your network connection and try again.',
+      0,
+      {
+        requestId: trace.requestId,
+        clientTraceId: trace.clientTraceId,
+        method: normalizedMethod,
+        path
+      }
+    );
+
+    await captureFrontendException(error, {
+      scope: 'api_network_failure',
+      requestId: trace.requestId,
+      clientTraceId: trace.clientTraceId,
+      method: normalizedMethod,
+      path
+    });
+
+    throw wrappedError;
+  }
+
   const payload = await parseJsonSafe(response);
+  const serverRequestId =
+    String(response.headers?.get('x-request-id') || '').trim() || trace.requestId;
+
+  emitTraceLog('response_received', {
+    requestId: trace.requestId,
+    serverRequestId,
+    clientTraceId: trace.clientTraceId,
+    method: normalizedMethod,
+    path,
+    statusCode: response.status
+  });
+
   if (!response.ok) {
-    throw new ApiError(
+    const apiError = new ApiError(
       payload?.message || `Request failed (${response.status})`,
       response.status,
-      payload
+      {
+        ...(payload || {}),
+        trace: {
+          requestId: trace.requestId,
+          serverRequestId,
+          clientTraceId: trace.clientTraceId,
+          method: normalizedMethod,
+          path
+        }
+      }
     );
+
+    if (response.status >= 500) {
+      await captureFrontendException(apiError, {
+        scope: 'api_server_error',
+        requestId: trace.requestId,
+        serverRequestId,
+        clientTraceId: trace.clientTraceId,
+        method: normalizedMethod,
+        path,
+        statusCode: response.status
+      });
+    }
+
+    throw apiError;
   }
 
   return payload;
@@ -82,12 +163,83 @@ export const authLoginRequest = ({ email, password }) =>
     body: { email, password }
   });
 
-export const authRegisterRequest = ({ email, password, organizationName }) =>
+export const authAdminLoginRequest = ({ email, password }) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.AUTH_ADMIN_LOGIN,
+    body: { email, password }
+  });
+
+export const authEmployeeLoginRequest = ({
+  companyName,
+  email,
+  password,
+  inviteCode = ''
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.AUTH_EMPLOYEE_LOGIN,
+    body: { companyName, email, password, inviteCode }
+  });
+
+export const authRegisterRequest = ({
+  email,
+  password,
+  confirmPassword,
+  organizationName
+}) =>
   request({
     method: 'POST',
     path: API_ENDPOINTS.AUTH_REGISTER,
-    body: { email, password, organizationName }
+    body: { email, password, confirmPassword, organizationName }
   });
+
+export const authVerifyEmailRequest = ({ email }) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.AUTH_VERIFY_EMAIL_REQUEST,
+    body: { email }
+  });
+
+export const authVerifyEmailConfirmRequest = ({ email, token }) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.AUTH_VERIFY_EMAIL,
+    body: { email, token }
+  });
+
+export const authForgotPasswordRequest = ({ email }) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.AUTH_FORGOT_PASSWORD,
+    body: { email }
+  });
+
+export const authResetPasswordRequest = ({
+  email,
+  token,
+  password,
+  confirmPassword
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.AUTH_RESET_PASSWORD,
+    body: { email, token, password, confirmPassword }
+  });
+
+export const authCsrfTokenRequest = async () => {
+  const payload = await request({
+    method: 'GET',
+    path: API_ENDPOINTS.AUTH_CSRF_TOKEN
+  });
+
+  const token = String(payload?.data?.csrfToken || '').trim();
+  if (token) {
+    csrfToken = token;
+  }
+
+  return payload;
+};
 
 export const authRefreshRequest = () =>
   request({
@@ -116,6 +268,54 @@ export const getProductsRequest = accessToken =>
     method: 'GET',
     path: API_ENDPOINTS.PRODUCTS,
     accessToken
+  }).then(readData);
+
+export const getUsersRequest = accessToken =>
+  request({
+    method: 'GET',
+    path: API_ENDPOINTS.USERS,
+    accessToken
+  }).then(readData);
+
+export const getOnlineUsersRequest = accessToken =>
+  request({
+    method: 'GET',
+    path: API_ENDPOINTS.USERS_ONLINE,
+    accessToken
+  }).then(readData);
+
+export const getUserInvitesRequest = accessToken =>
+  request({
+    method: 'GET',
+    path: API_ENDPOINTS.USERS_INVITES,
+    accessToken
+  }).then(readData);
+
+export const createUserInviteRequest = ({
+  accessToken,
+  email = '',
+  expiresInHours = 72
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.USERS_INVITES,
+    accessToken,
+    body: { email, expiresInHours }
+  }).then(readData);
+
+export const revokeUserInviteRequest = ({ accessToken, inviteId }) =>
+  request({
+    method: 'PATCH',
+    path: `${API_ENDPOINTS.USERS_INVITES}/${inviteId}/revoke`,
+    accessToken
+  }).then(readData);
+
+export const updateUserStatusRequest = ({ accessToken, userId, isActive }) =>
+  request({
+    method: 'PATCH',
+    path: `${API_ENDPOINTS.USERS}/${userId}/status`,
+    accessToken,
+    body: { isActive }
   }).then(readData);
 
 export const getProductsLowStockSummaryRequest = accessToken =>
@@ -160,20 +360,41 @@ export const getReportSpendBySupplierRequest = accessToken =>
     accessToken
   }).then(readData);
 
+export const getObservabilityPingRequest = accessToken =>
+  request({
+    method: 'GET',
+    path: API_ENDPOINTS.OBSERVABILITY_PING,
+    accessToken
+  }).then(readData);
+
 export { ApiError, API_BASE_URL };
 
 export default {
   request,
   authLoginRequest,
+  authAdminLoginRequest,
+  authEmployeeLoginRequest,
   authRegisterRequest,
+  authVerifyEmailRequest,
+  authVerifyEmailConfirmRequest,
+  authForgotPasswordRequest,
+  authResetPasswordRequest,
+  authCsrfTokenRequest,
   authRefreshRequest,
   authMeRequest,
   authLogoutRequest,
+  getUsersRequest,
+  getOnlineUsersRequest,
+  getUserInvitesRequest,
+  createUserInviteRequest,
+  revokeUserInviteRequest,
+  updateUserStatusRequest,
   getProductsRequest,
   getProductsLowStockSummaryRequest,
   getSuppliersRequest,
   getSupplierRankingsRequest,
   getReportPurchaseOrderStatusSummaryRequest,
   getReportSpendSummaryRequest,
-  getReportSpendBySupplierRequest
+  getReportSpendBySupplierRequest,
+  getObservabilityPingRequest
 };

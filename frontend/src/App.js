@@ -10,12 +10,32 @@ import PurchaseOrders from './pages/PurchaseOrders.js';
 import Products from './pages/Products.js';
 import Suppliers from './pages/Suppliers.js';
 import Reports from './pages/Reports.js';
+import Users from './pages/Users.js';
 import Account from './pages/Account.js';
 import Settings from './pages/Settings.js';
 import './styles/global.css';
 import './styles/dashboard.css';
 
 const EVENT_LIMIT = 40;
+const ADMIN_ROLES = new Set(['owner', 'admin']);
+const sanitizeBaseUrl = value => String(value || '').trim().replace(/\/+$/, '');
+
+const getRealtimeBaseUrl = () => {
+  const envBase = sanitizeBaseUrl(
+    process.env.REACT_APP_SOCKET_BASE_URL || process.env.REACT_APP_API_BASE_URL
+  );
+  if (envBase) return envBase;
+
+  if (typeof window === 'undefined') {
+    return 'http://localhost:4000';
+  }
+
+  if (window.location.port === '3000') {
+    return 'http://localhost:4000';
+  }
+
+  return sanitizeBaseUrl(window.location.origin);
+};
 
 const buildInventoryEvent = (payload, eventName) => {
   const data = payload?.data || {};
@@ -62,10 +82,22 @@ const buildPurchaseOrderEvent = (payload, kind) => {
   };
 };
 
+const buildAuthEvent = payload => {
+  const data = payload?.data || {};
+  const email = data.email || 'employee';
+
+  return {
+    id: `auth:employee:${payload?.entityId || 'n/a'}:${payload?.occurredAt || Date.now()}`,
+    occurredAt: payload?.occurredAt || new Date().toISOString(),
+    title: 'Employee signed in',
+    subtitle: `${email} joined ${data.organizationName || 'organization'}`,
+    raw: payload
+  };
+};
+
 const prependEvent = (list, event) => [event, ...list].slice(0, EVENT_LIMIT);
 
 const App = () => {
-  const { tabs, activeTab, setActiveTab } = useTabs();
   const {
     user,
     accessToken,
@@ -74,20 +106,24 @@ const App = () => {
     isInitializing,
     error,
     notice,
-    login,
+    adminLogin,
+    employeeLogin,
     signup,
+    requestEmailVerification,
+    verifyEmail,
+    requestPasswordReset,
+    resetPassword,
     logout
   } = useAuth();
+  const { tabs, activeTab, setActiveTab } = useTabs(user?.role || null);
   const [warehouseId, setWarehouseId] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
   const [inventoryEvents, setInventoryEvents] = useState([]);
   const [financeEvents, setFinanceEvents] = useState([]);
+  const [authEvents, setAuthEvents] = useState([]);
   const [poEvents, setPoEvents] = useState([]);
 
-  const realtimeBaseUrl = useMemo(
-    () => (typeof window !== 'undefined' ? window.location.origin : ''),
-    []
-  );
+  const realtimeBaseUrl = useMemo(() => getRealtimeBaseUrl(), []);
 
   const handleInventoryUpdated = useCallback(payload => {
     setInventoryEvents(current =>
@@ -125,6 +161,17 @@ const App = () => {
     setUnreadCount(count => count + 1);
   }, []);
 
+  const handleEmployeeSignedIn = useCallback(
+    payload => {
+      if (!ADMIN_ROLES.has(String(user?.role || '').toLowerCase())) {
+        return;
+      }
+      setAuthEvents(current => prependEvent(current, buildAuthEvent(payload)));
+      setUnreadCount(count => count + 1);
+    },
+    [user?.role]
+  );
+
   useLedgerlyRealtime({
     baseUrl: realtimeBaseUrl,
     accessToken,
@@ -134,7 +181,8 @@ const App = () => {
     onPurchaseOrderUpdated: handlePoUpdated,
     onPurchaseOrderReceived: handlePoReceived,
     onCogsRecorded: handleCogsRecorded,
-    onValuationUpdated: handleValuationUpdated
+    onValuationUpdated: handleValuationUpdated,
+    onEmployeeSignedIn: handleEmployeeSignedIn
   });
 
   const clearUnread = useCallback(() => setUnreadCount(0), []);
@@ -143,6 +191,7 @@ const App = () => {
     if (isAuthenticated) return;
     setInventoryEvents([]);
     setFinanceEvents([]);
+    setAuthEvents([]);
     setPoEvents([]);
     setUnreadCount(0);
   }, [isAuthenticated]);
@@ -151,9 +200,11 @@ const App = () => {
     if (activeTab === 'dashboard') {
       return (
         <Dashboard
+          accessToken={accessToken}
           warehouseId={warehouseId || null}
           inventoryEvents={inventoryEvents}
           financeEvents={financeEvents}
+          authEvents={authEvents}
         />
       );
     }
@@ -169,16 +220,27 @@ const App = () => {
     if (activeTab === 'reports') {
       return <Reports accessToken={accessToken} userRole={user?.role || null} />;
     }
+    if (activeTab === 'users') {
+      return (
+        <Users
+          accessToken={accessToken}
+          userRole={user?.role || null}
+          currentUserId={user?._id || null}
+        />
+      );
+    }
     if (activeTab === 'account') return <Account user={user} />;
     if (activeTab === 'settings') return <Settings />;
     return (
       <Dashboard
+        accessToken={accessToken}
         warehouseId={warehouseId || null}
         inventoryEvents={inventoryEvents}
         financeEvents={financeEvents}
+        authEvents={authEvents}
       />
     );
-  }, [activeTab, accessToken, user, warehouseId, inventoryEvents, financeEvents, poEvents]);
+  }, [activeTab, accessToken, user, warehouseId, inventoryEvents, financeEvents, authEvents, poEvents]);
 
   if (isInitializing) {
     return (
@@ -207,8 +269,13 @@ const App = () => {
           </p>
         </section>
         <AuthForm
-          onSignIn={login}
+          onAdminSignIn={adminLogin}
+          onEmployeeSignIn={employeeLogin}
           onSignUp={signup}
+          onRequestEmailVerification={requestEmailVerification}
+          onVerifyEmail={verifyEmail}
+          onRequestPasswordReset={requestPasswordReset}
+          onResetPassword={resetPassword}
           isLoading={isLoading}
           error={error}
           notice={notice}

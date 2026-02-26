@@ -27,19 +27,39 @@ import reorderAlertRoutes from './routes/reorderAlertRoutes.js';
 import reorderAnalysisRoutes from './routes/reorderAnalysisRoutes.js';
 import forecastTrustRoutes from './routes/forecastTrustRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
+import userRoutes from './routes/userRoutes.js';
+import observabilityRoutes from './routes/observabilityRoutes.js';
 
 import { rateLimiter } from './middlewares/rateLimiter.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { requestContextMiddleware } from './observability/requestContext.js';
 import { requestLoggingMiddleware } from './observability/requestLogger.js';
 import {
+  getMetricsHandler,
+  metricsMiddleware
+} from './observability/metrics.js';
+import {
   getLivenessHealth,
   getReadinessHealth
 } from './observability/health.js';
+import {
+  createCorsOriginValidator,
+  getBodyParserConfig,
+  getTrustProxySetting
+} from './config/envConfig.js';
 
 dotenv.config();
 
 const app = express();
+const corsOriginValidator = createCorsOriginValidator();
+const trustProxySetting = getTrustProxySetting();
+const bodyParserConfig = getBodyParserConfig();
+
+if (trustProxySetting !== false) {
+  app.set('trust proxy', trustProxySetting);
+}
+
+app.disable('x-powered-by');
 
 app.use(
   helmet({
@@ -49,15 +69,24 @@ app.use(
 
 app.use(
   cors({
-    origin: true,
-    credentials: true
+    origin: corsOriginValidator,
+    credentials: true,
+    exposedHeaders: ['x-request-id', 'x-client-trace-id']
   })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: bodyParserConfig.jsonLimit }));
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: bodyParserConfig.formLimit,
+    parameterLimit: bodyParserConfig.formParameterLimit
+  })
+);
 app.use(cookieParser());
 app.use(requestContextMiddleware);
 app.use(requestLoggingMiddleware);
+app.use(metricsMiddleware);
 
 app.use(
   mongoSanitize({
@@ -99,6 +128,8 @@ app.use('/api/reorder-alerts', reorderAlertRoutes);
 app.use('/api/reorder-analysis', reorderAnalysisRoutes);
 app.use('/api/forecast-trust', forecastTrustRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/observability', observabilityRoutes);
 
 app.get('/health', async (req, res, next) => {
   try {
@@ -127,6 +158,8 @@ app.get('/health/ready', async (req, res, next) => {
     next(error);
   }
 });
+
+app.get('/metrics', getMetricsHandler);
 
 app.get('/api/health', (req, res) => {
   res.status(200).json({

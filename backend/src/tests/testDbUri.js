@@ -6,11 +6,6 @@ export const getTestDbUri = () => {
     return explicit;
   }
 
-  const dbUrl = String(process.env.DB_URL || '').trim();
-  if (dbUrl) {
-    return dbUrl;
-  }
-
   return DEFAULT_TEST_DB_URI;
 };
 

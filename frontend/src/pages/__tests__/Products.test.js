@@ -1,6 +1,7 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import Products from '../Products.js';
+import { renderWithProviders } from '../../test/renderWithProviders.js';
 import {
   getProductsLowStockSummaryRequest,
   getProductsRequest
@@ -30,7 +31,7 @@ describe('Products page', () => {
   it('shows loading and renders error state on failed fetch', async () => {
     getProductsRequest.mockRejectedValueOnce(new Error('Products failed'));
 
-    render(<Products accessToken="test-token" userRole="admin" />);
+    renderWithProviders(<Products accessToken="test-token" userRole="admin" />);
 
     expect(screen.getByRole('button', { name: /loading/i })).toBeDisabled();
     expect(await screen.findByText('Products failed')).toBeInTheDocument();
@@ -43,7 +44,7 @@ describe('Products page', () => {
       { sku: 'SKU-2' }
     ]);
 
-    render(<Products accessToken="test-token" userRole="admin" />);
+    renderWithProviders(<Products accessToken="test-token" userRole="admin" />);
 
     expect(await screen.findByText('Product 1')).toBeInTheDocument();
     expect(screen.getByText('Page 1 / 2')).toBeInTheDocument();

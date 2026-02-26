@@ -1,14 +1,8 @@
 import PurchaseOrder from '../models/PurchaseOrder.js';
-import Supplier from '../models/Supplier.js';
 import { successResponse } from '../utils/response.js';
 import mongoose from 'mongoose';
 
-const CLOSED_PO_STATUSES = [
-  'RECEIVED',
-  'CLOSED',
-  'received',
-  'closed'
-];
+const CLOSED_PO_STATUSES = ['RECEIVED', 'CLOSED', 'received', 'closed'];
 
 const ACTIVE_PO_STATUSES = [
   'SENT',
@@ -191,7 +185,7 @@ export const getPurchaseOrderTrend = async (req, res, next) => {
       }
     ]);
 
-    const formatted = trend.map(row => ({
+    const formatted = trend.map((row) => ({
       period:
         period === 'day'
           ? `${row._id.year}-${String(row._id.month).padStart(2, '0')}-${String(
@@ -250,10 +244,7 @@ export const getPurchaseOrderValueSummary = async (req, res, next) => {
       }
     ]);
 
-    const totalSpend = summary.reduce(
-      (sum, row) => sum + row.totalAmount,
-      0
-    );
+    const totalSpend = summary.reduce((sum, row) => sum + row.totalAmount, 0);
 
     return successResponse(
       res,
@@ -332,10 +323,7 @@ export const getSupplierPerformanceReport = async (req, res, next) => {
       {
         $addFields: {
           reliabilityScore: {
-            $multiply: [
-              { $divide: ['$receivedOrders', '$totalOrders'] },
-              100
-            ]
+            $multiply: [{ $divide: ['$receivedOrders', '$totalOrders'] }, 100]
           },
           onTimeRate: {
             $multiply: [
@@ -430,11 +418,7 @@ export const getSpendBySupplier = async (req, res, next) => {
       { $sort: { totalSpend: -1 } }
     ]);
 
-    return successResponse(
-      res,
-      report,
-      'Spend by supplier calculated'
-    );
+    return successResponse(res, report, 'Spend by supplier calculated');
   } catch (err) {
     next(err);
   }
@@ -476,11 +460,7 @@ export const getSpendByProduct = async (req, res, next) => {
       { $sort: { totalSpend: -1 } }
     ]);
 
-    return successResponse(
-      res,
-      report,
-      'Spend by product calculated'
-    );
+    return successResponse(res, report, 'Spend by product calculated');
   } catch (err) {
     next(err);
   }
@@ -515,11 +495,7 @@ export const getMonthlySpendTrend = async (req, res, next) => {
       { $sort: { '_id.year': 1, '_id.month': 1 } }
     ]);
 
-    return successResponse(
-      res,
-      trend,
-      'Monthly spend trend calculated'
-    );
+    return successResponse(res, trend, 'Monthly spend trend calculated');
   } catch (err) {
     next(err);
   }

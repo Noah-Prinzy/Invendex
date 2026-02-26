@@ -1,17 +1,16 @@
 import { logger } from './logger.js';
 
-const asMilliseconds = startedAt =>
+const asMilliseconds = (startedAt) =>
   Number(process.hrtime.bigint() - startedAt) / 1_000_000;
 
-const isLikelyHealthCheck = req => {
+const isLikelyHealthCheck = (req) => {
   const path = String(req?.originalUrl || req?.url || '');
   return path.startsWith('/health');
 };
 
 export const requestLoggingMiddleware = (req, res, next) => {
   const enabled =
-    String(process.env.REQUEST_LOG_ENABLED || 'true').toLowerCase() !==
-    'false';
+    String(process.env.REQUEST_LOG_ENABLED || 'true').toLowerCase() !== 'false';
 
   if (!enabled) {
     return next();
@@ -39,6 +38,8 @@ export const requestLoggingMiddleware = (req, res, next) => {
       durationMs,
       contentLength: Number(res.getHeader('content-length') || 0) || null,
       ip: req.ip || null,
+      requestId: req.requestId || null,
+      clientTraceId: req.clientTraceId || null,
       organizationId: req.organizationId || req.user?.organization || null,
       userId: req.user?._id || req.user?.id || null
     });

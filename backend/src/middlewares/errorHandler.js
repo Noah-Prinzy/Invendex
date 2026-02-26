@@ -1,7 +1,7 @@
 import { captureException } from '../observability/errorTracker.js';
 import { logger } from '../observability/logger.js';
 
-export const errorHandler = (err, req, res, next) => {
+export const errorHandler = (err, req, res, _next) => {
   let statusCode = err.statusCode || 500;
   let message = err.message || 'Internal server error';
 
@@ -14,7 +14,7 @@ export const errorHandler = (err, req, res, next) => {
   if (err.name === 'ValidationError') {
     statusCode = 400;
     message = Object.values(err.errors || {})
-      .map(entry => entry.message)
+      .map((entry) => entry.message)
       .join(', ');
   }
 
@@ -35,6 +35,8 @@ export const errorHandler = (err, req, res, next) => {
     path: req?.originalUrl || null,
     statusCode,
     error: message,
+    requestId: req?.requestId || null,
+    clientTraceId: req?.clientTraceId || null,
     organizationId: req?.organizationId || req?.user?.organization || null,
     userId: req?.user?._id || req?.user?.id || null
   };
@@ -47,7 +49,8 @@ export const errorHandler = (err, req, res, next) => {
 
     captureException(err, {
       ...logMeta,
-      requestId: req?.requestId || null
+      requestId: req?.requestId || null,
+      clientTraceId: req?.clientTraceId || null
     }).catch(() => {
       // no-op: error reporting cannot block response path
     });

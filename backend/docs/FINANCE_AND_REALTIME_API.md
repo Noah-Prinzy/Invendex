@@ -1,5 +1,10 @@
 # Finance and Realtime API
 
+Related docs:
+
+- `docs/ORDER_WMS_API.md` (order and WMS request/validation contracts)
+- `docs/INVENTORY_TRACKING_AND_DASHBOARD_API.md` (serial/batch and dashboard APIs)
+
 ## Base assumptions
 
 - All finance endpoints are organization-scoped.
@@ -19,6 +24,7 @@ Body:
 {
   "email": "owner@company.com",
   "password": "Password123!",
+  "confirmPassword": "Password123!",
   "organizationName": "Company Ops"
 }
 ```
@@ -61,6 +67,58 @@ Requires bearer access token.
 
 Returns current authenticated user profile.
 Requires bearer access token.
+
+### `POST /auth/verify-email/request`
+
+Body:
+
+```json
+{
+  "email": "owner@company.com"
+}
+```
+
+Generates a verification token for accounts where `isVerified=false`.
+
+### `POST /auth/verify-email`
+
+Body:
+
+```json
+{
+  "email": "owner@company.com",
+  "token": "verification_token"
+}
+```
+
+Marks user as verified.
+
+### `POST /auth/forgot-password`
+
+Body:
+
+```json
+{
+  "email": "owner@company.com"
+}
+```
+
+Generates password reset token.
+
+### `POST /auth/reset-password`
+
+Body:
+
+```json
+{
+  "email": "owner@company.com",
+  "token": "reset_token",
+  "password": "NewPassword123!",
+  "confirmPassword": "NewPassword123!"
+}
+```
+
+Resets password and invalidates existing refresh sessions.
 
 ## Finance REST Endpoints
 
@@ -160,6 +218,25 @@ Completes order.
 
 - Sale orders trigger COGS recording and inventory decrement.
 - Purchase orders only change status to `completed`.
+
+## User Management API
+
+### `GET /api/users`
+
+Lists organization users. Access: `owner|admin`.
+
+### `PATCH /api/users/:id/status`
+
+Body:
+
+```json
+{
+  "isActive": false
+}
+```
+
+Updates active status for a user in the same organization.
+Self-deactivation is blocked.
 
 ## Realtime Socket.IO
 

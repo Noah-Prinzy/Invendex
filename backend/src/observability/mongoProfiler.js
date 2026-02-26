@@ -3,7 +3,7 @@ import { logger } from './logger.js';
 
 let isPatched = false;
 
-const summarizeObject = value => {
+const summarizeObject = (value) => {
   if (!value || typeof value !== 'object') return value ?? null;
 
   const keys = Object.keys(value);
@@ -15,9 +15,9 @@ const summarizeObject = value => {
   };
 };
 
-const asMs = start => Number(process.hrtime.bigint() - start) / 1_000_000;
+const asMs = (start) => Number(process.hrtime.bigint() - start) / 1_000_000;
 
-const wrapQueryExec = thresholdMs => {
+const wrapQueryExec = (thresholdMs) => {
   const originalQueryExec = mongoose.Query.prototype.exec;
   mongoose.Query.prototype.exec = async function wrappedQueryExec(...args) {
     const startedAt = process.hrtime.bigint();
@@ -26,35 +26,39 @@ const wrapQueryExec = thresholdMs => {
       return await originalQueryExec.apply(this, args);
     } finally {
       const durationMs = asMs(startedAt);
-      if (durationMs < thresholdMs) return;
-
-      logger.warn('slow_mongo_query', {
-        model: this.model?.modelName || null,
-        operation: this.op || null,
-        durationMs: Number(durationMs.toFixed(2)),
-        filter: summarizeObject(this.getFilter?.() || null),
-        options: summarizeObject(this.getOptions?.() || null)
-      });
+      if (durationMs >= thresholdMs) {
+        logger.warn('slow_mongo_query', {
+          model: this.model?.modelName || null,
+          operation: this.op || null,
+          durationMs: Number(durationMs.toFixed(2)),
+          filter: summarizeObject(this.getFilter?.() || null),
+          options: summarizeObject(this.getOptions?.() || null)
+        });
+      }
     }
   };
 };
 
-const wrapAggregateExec = thresholdMs => {
+const wrapAggregateExec = (thresholdMs) => {
   const originalAggregateExec = mongoose.Aggregate.prototype.exec;
-  mongoose.Aggregate.prototype.exec = async function wrappedAggregateExec(...args) {
+  mongoose.Aggregate.prototype.exec = async function wrappedAggregateExec(
+    ...args
+  ) {
     const startedAt = process.hrtime.bigint();
 
     try {
       return await originalAggregateExec.apply(this, args);
     } finally {
       const durationMs = asMs(startedAt);
-      if (durationMs < thresholdMs) return;
-
-      logger.warn('slow_mongo_aggregate', {
-        model: this._model?.modelName || null,
-        durationMs: Number(durationMs.toFixed(2)),
-        pipelineLength: Array.isArray(this._pipeline) ? this._pipeline.length : 0
-      });
+      if (durationMs >= thresholdMs) {
+        logger.warn('slow_mongo_aggregate', {
+          model: this._model?.modelName || null,
+          durationMs: Number(durationMs.toFixed(2)),
+          pipelineLength: Array.isArray(this._pipeline)
+            ? this._pipeline.length
+            : 0
+        });
+      }
     }
   };
 };

@@ -1,8 +1,9 @@
 import React from 'react';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import App from '../App.js';
 import useAuth from '../hooks/auth/useAuth.js';
 import { useLedgerlyRealtime } from '../hooks/realtime/useLedgerlyRealtime.js';
+import { renderWithProviders } from '../test/renderWithProviders.js';
 
 jest.mock('../hooks/auth/useAuth.js', () => ({
   __esModule: true,
@@ -22,8 +23,14 @@ const buildAuthState = overrides => ({
   isInitializing: false,
   error: '',
   notice: '',
+  adminLogin: jest.fn(),
+  employeeLogin: jest.fn(),
   login: jest.fn(),
   signup: jest.fn(),
+  requestEmailVerification: jest.fn(),
+  verifyEmail: jest.fn(),
+  requestPasswordReset: jest.fn(),
+  resetPassword: jest.fn(),
   logout: jest.fn(),
   ...overrides
 });
@@ -47,7 +54,7 @@ describe('App integration', () => {
       })
     );
 
-    render(<App />);
+    renderWithProviders(<App />);
 
     expect(screen.getByText('Loading session...')).toBeInTheDocument();
     expect(
@@ -56,14 +63,16 @@ describe('App integration', () => {
   });
 
   it('renders login form and submits credentials', () => {
-    const login = jest.fn();
+    const adminLogin = jest.fn();
     useAuth.mockReturnValue(
       buildAuthState({
-        login
+        adminLogin
       })
     );
 
-    render(<App />);
+    renderWithProviders(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Admin' }));
 
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: 'ops@ledgerly.com' }
@@ -71,9 +80,9 @@ describe('App integration', () => {
     fireEvent.change(screen.getByLabelText('Password'), {
       target: { value: 'secret123' }
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in as admin' }));
 
-    expect(login).toHaveBeenCalledWith(
+    expect(adminLogin).toHaveBeenCalledWith(
       expect.objectContaining({
         email: 'ops@ledgerly.com',
         password: 'secret123'
@@ -89,9 +98,10 @@ describe('App integration', () => {
       })
     );
 
-    render(<App />);
+    renderWithProviders(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sign up' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Admin' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Admin sign up' }));
 
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: 'owner@ledgerly.com' }
@@ -102,14 +112,20 @@ describe('App integration', () => {
     fireEvent.change(screen.getByLabelText('Password'), {
       target: { value: 'StrongPass123' }
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+    fireEvent.change(screen.getByLabelText('Confirm Password'), {
+      target: { value: 'StrongPass123' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create admin account' }));
 
     await waitFor(() => {
-      expect(signup).toHaveBeenCalledWith({
+      expect(signup).toHaveBeenCalledWith(
+        expect.objectContaining({
         email: 'owner@ledgerly.com',
         password: 'StrongPass123',
+        confirmPassword: 'StrongPass123',
         organizationName: 'Ledgerly Ops'
-      });
+        })
+      );
     });
   });
 
@@ -119,7 +135,7 @@ describe('App integration', () => {
         user: {
           _id: 'user-1',
           email: 'manager@ledgerly.com',
-          role: 'manager',
+          role: 'admin',
           organization: 'org-1'
         },
         accessToken: 'token-1',
@@ -127,7 +143,7 @@ describe('App integration', () => {
       })
     );
 
-    render(<App />);
+    renderWithProviders(<App />);
 
     const inventoryPayload = {
       organizationId: 'org-1',

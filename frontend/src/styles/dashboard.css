@@ -53,6 +53,12 @@
   gap: 0.8rem;
 }
 
+.obs-actions {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
 .control-row {
   display: flex;
   flex-wrap: wrap;
@@ -298,6 +304,35 @@
   overflow: auto;
 }
 
+.obs-grid {
+  margin-top: 0.7rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.obs-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fffdfa;
+  padding: 0.52rem 0.6rem;
+}
+
+.obs-value {
+  margin-top: 0.18rem;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.obs-value.ok {
+  color: #0b6a55;
+}
+
+.obs-value.monospace {
+  font-family: "IBM Plex Mono", Consolas, "Courier New", monospace;
+  word-break: break-word;
+}
+
 @media (max-width: 860px) {
   .metric-grid {
     grid-template-columns: 1fr;
@@ -317,6 +352,10 @@
   }
 
   .event-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .obs-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -1,6 +1,7 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import Reports from '../Reports.js';
+import { renderWithProviders } from '../../test/renderWithProviders.js';
 import {
   getReportPurchaseOrderStatusSummaryRequest,
   getReportSpendBySupplierRequest,
@@ -19,7 +20,7 @@ describe('Reports page', () => {
   });
 
   it('shows permission gate for non-admin users', () => {
-    render(<Reports accessToken="token" userRole="staff" />);
+    renderWithProviders(<Reports accessToken="token" userRole="staff" />);
 
     expect(screen.getByText('Admin role needed')).toBeInTheDocument();
     expect(getReportSpendSummaryRequest).not.toHaveBeenCalled();
@@ -38,7 +39,7 @@ describe('Reports page', () => {
       { _id: 's2', supplierName: 'Bravo Parts', totalSpend: 300 }
     ]);
 
-    render(<Reports accessToken="token" userRole="admin" />);
+    renderWithProviders(<Reports accessToken="token" userRole="admin" />);
 
     expect(await screen.findByText('Acme Supply')).toBeInTheDocument();
     expect(screen.getByText('Bravo Parts')).toBeInTheDocument();

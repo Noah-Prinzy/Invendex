@@ -2,7 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ApiError,
   authLoginRequest,
+  authAdminLoginRequest,
+  authEmployeeLoginRequest,
   authRegisterRequest,
+  authVerifyEmailRequest,
+  authVerifyEmailConfirmRequest,
+  authForgotPasswordRequest,
+  authResetPasswordRequest,
+  authCsrfTokenRequest,
   authLogoutRequest,
   authMeRequest,
   authRefreshRequest
@@ -33,7 +40,12 @@ const normalizeUser = user => {
 };
 
 const getMessage = error => {
-  if (error instanceof ApiError) return error.message;
+  if (error instanceof ApiError) {
+    if (error.statusCode === 429) {
+      return 'Too many login attempts. Please wait 15 minutes and try again.';
+    }
+    return error.message;
+  }
   return 'Unable to complete authentication request.';
 };
 
@@ -61,6 +73,12 @@ export const useAuth = () => {
     let isMounted = true;
 
     const initializeAuth = async () => {
+      try {
+        await authCsrfTokenRequest();
+      } catch {
+        // no-op: fallback login still works when CSRF is disabled
+      }
+
       const storedToken = getSavedAccessToken();
 
       if (!storedToken) {
@@ -91,6 +109,11 @@ export const useAuth = () => {
           });
         } catch {
           if (!isMounted) return;
+          try {
+            await authLogoutRequest(null);
+          } catch {
+            // noop: local cleanup still runs below
+          }
           clearAuthState();
         }
       } finally {
@@ -105,13 +128,20 @@ export const useAuth = () => {
     };
   }, [applyAuthState, clearAuthState]);
 
-  const login = useCallback(
-    async ({ email, password }) => {
+  const performLogin = useCallback(
+    async ({ email, password, loginRequest, companyName = '', inviteCode = '' }) => {
       const normalizedEmail = String(email || '').trim();
       const normalizedPassword = String(password || '').trim();
+      const normalizedCompanyName = String(companyName || '').trim();
+      const normalizedInviteCode = String(inviteCode || '').trim();
 
-      if (!normalizedEmail || !normalizedPassword) {
+      if (!normalizedEmail || !normalizedPassword || !loginRequest) {
         setError('Email and password are required.');
+        return { success: false };
+      }
+
+      if (loginRequest === authEmployeeLoginRequest && !normalizedCompanyName) {
+        setError('Company name is required for employee sign in.');
         return { success: false };
       }
 
@@ -120,10 +150,18 @@ export const useAuth = () => {
       setIsLoading(true);
 
       try {
-        const loginResponse = await authLoginRequest({
-          email: normalizedEmail,
-          password: normalizedPassword
-        });
+        const loginResponse =
+          loginRequest === authEmployeeLoginRequest
+            ? await loginRequest({
+                companyName: normalizedCompanyName,
+                email: normalizedEmail,
+                password: normalizedPassword,
+                inviteCode: normalizedInviteCode
+              })
+            : await loginRequest({
+                email: normalizedEmail,
+                password: normalizedPassword
+              });
 
         const token = loginResponse?.data?.accessToken || '';
         const resolvedUser = loginResponse?.data?.user || null;
@@ -148,11 +186,45 @@ export const useAuth = () => {
     [applyAuthState]
   );
 
+  const adminLogin = useCallback(
+    async ({ email, password }) =>
+      performLogin({
+        email,
+        password,
+        loginRequest: authAdminLoginRequest
+      }),
+    [performLogin]
+  );
+
+  const employeeLogin = useCallback(
+    async ({ companyName, email, password, inviteCode }) =>
+      performLogin({
+        companyName,
+        email,
+        password,
+        inviteCode,
+        loginRequest: authEmployeeLoginRequest
+      }),
+    [performLogin]
+  );
+
+  // Backward-compatible generic login entry.
+  const login = useCallback(
+    async ({ email, password }) =>
+      performLogin({
+        email,
+        password,
+        loginRequest: authLoginRequest
+      }),
+    [performLogin]
+  );
+
   const logout = useCallback(async () => {
     setError('');
     setNotice('');
 
     try {
+      await authCsrfTokenRequest();
       if (accessToken) {
         await authLogoutRequest(accessToken);
       }
@@ -163,13 +235,26 @@ export const useAuth = () => {
     }
   }, [accessToken, clearAuthState]);
 
-  const signup = useCallback(async ({ email, password, organizationName }) => {
+  const signup = useCallback(
+    async ({ email, password, confirmPassword, organizationName }) => {
     const normalizedEmail = String(email || '').trim();
     const normalizedPassword = String(password || '').trim();
+    const normalizedConfirmPassword = String(confirmPassword || '').trim();
     const normalizedOrganizationName = String(organizationName || '').trim();
 
-    if (!normalizedEmail || !normalizedPassword || !normalizedOrganizationName) {
-      setError('Email, password, and organization are required.');
+    if (
+      !normalizedEmail ||
+      !normalizedPassword ||
+      !normalizedConfirmPassword ||
+      !normalizedOrganizationName
+    ) {
+      setError('Email, password, confirm password, and organization are required.');
+      setNotice('');
+      return { success: false };
+    }
+
+    if (normalizedPassword !== normalizedConfirmPassword) {
+      setError('Password and confirm password do not match.');
       setNotice('');
       return { success: false };
     }
@@ -182,6 +267,7 @@ export const useAuth = () => {
       await authRegisterRequest({
         email: normalizedEmail,
         password: normalizedPassword,
+        confirmPassword: normalizedConfirmPassword,
         organizationName: normalizedOrganizationName
       });
 
@@ -193,7 +279,136 @@ export const useAuth = () => {
     } finally {
       setIsLoading(false);
     }
+    },
+    []
+  );
+
+  const requestEmailVerification = useCallback(async ({ email }) => {
+    const normalizedEmail = String(email || '').trim();
+    if (!normalizedEmail) {
+      setError('Email is required.');
+      setNotice('');
+      return { success: false };
+    }
+
+    setError('');
+    setNotice('');
+    setIsLoading(true);
+
+    try {
+      const response = await authVerifyEmailRequest({ email: normalizedEmail });
+      const debugToken = response?.data?.debugToken || '';
+      const tokenSuffix = debugToken ? ` Token: ${debugToken}` : '';
+      setNotice(`Verification request accepted.${tokenSuffix}`);
+      return { success: true, debugToken };
+    } catch (verificationError) {
+      setError(getMessage(verificationError));
+      return { success: false };
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  const verifyEmail = useCallback(async ({ email, token }) => {
+    const normalizedEmail = String(email || '').trim();
+    const normalizedToken = String(token || '').trim();
+    if (!normalizedEmail || !normalizedToken) {
+      setError('Email and verification token are required.');
+      setNotice('');
+      return { success: false };
+    }
+
+    setError('');
+    setNotice('');
+    setIsLoading(true);
+
+    try {
+      await authVerifyEmailConfirmRequest({
+        email: normalizedEmail,
+        token: normalizedToken
+      });
+      setNotice('Email verified. You can now sign in.');
+      return { success: true };
+    } catch (verificationError) {
+      setError(getMessage(verificationError));
+      return { success: false };
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const requestPasswordReset = useCallback(async ({ email }) => {
+    const normalizedEmail = String(email || '').trim();
+    if (!normalizedEmail) {
+      setError('Email is required.');
+      setNotice('');
+      return { success: false };
+    }
+
+    setError('');
+    setNotice('');
+    setIsLoading(true);
+
+    try {
+      const response = await authForgotPasswordRequest({ email: normalizedEmail });
+      const debugToken = response?.data?.debugToken || '';
+      const tokenSuffix = debugToken ? ` Token: ${debugToken}` : '';
+      setNotice(`Password reset token generated.${tokenSuffix}`);
+      return { success: true, debugToken };
+    } catch (resetError) {
+      setError(getMessage(resetError));
+      return { success: false };
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const resetPassword = useCallback(
+    async ({ email, token, password, confirmPassword }) => {
+      const normalizedEmail = String(email || '').trim();
+      const normalizedToken = String(token || '').trim();
+      const normalizedPassword = String(password || '').trim();
+      const normalizedConfirmPassword = String(confirmPassword || '').trim();
+
+      if (
+        !normalizedEmail ||
+        !normalizedToken ||
+        !normalizedPassword ||
+        !normalizedConfirmPassword
+      ) {
+        setError('Email, token, password, and confirm password are required.');
+        setNotice('');
+        return { success: false };
+      }
+
+      if (normalizedPassword !== normalizedConfirmPassword) {
+        setError('Password and confirm password do not match.');
+        setNotice('');
+        return { success: false };
+      }
+
+      setError('');
+      setNotice('');
+      setIsLoading(true);
+
+      try {
+        await authResetPasswordRequest({
+          email: normalizedEmail,
+          token: normalizedToken,
+          password: normalizedPassword,
+          confirmPassword: normalizedConfirmPassword
+        });
+        setNotice('Password reset successful. Sign in with your new password.');
+        return { success: true };
+      } catch (resetError) {
+        setError(getMessage(resetError));
+        return { success: false };
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
+  );
 
   return {
     accessToken,
@@ -204,7 +419,13 @@ export const useAuth = () => {
     error,
     notice,
     login,
+    adminLogin,
+    employeeLogin,
     signup,
+    requestEmailVerification,
+    verifyEmail,
+    requestPasswordReset,
+    resetPassword,
     logout
   };
 };

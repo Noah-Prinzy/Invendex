@@ -8,7 +8,7 @@ import { logger } from '../observability/logger.js';
 
 const eventEmitCounters = new Map();
 
-const incrementEventCounter = event => {
+const incrementEventCounter = (event) => {
   const current = eventEmitCounters.get(event) || 0;
   const next = current + 1;
   eventEmitCounters.set(event, next);
@@ -196,6 +196,24 @@ export const publishValuationUpdated = ({
   });
 };
 
+export const publishEmployeeSignedIn = ({
+  organizationId,
+  actorUserId = null,
+  employee
+}) => {
+  emitToOrganization({
+    organizationId,
+    event: 'auth.employee_signed_in',
+    payload: buildBasePayload({
+      organizationId,
+      actorUserId,
+      entityId: employee?._id || null,
+      entityType: 'USER',
+      data: employee || {}
+    })
+  });
+};
+
 export default {
   publishInventoryUpdated,
   publishPurchaseOrderCreated,
@@ -203,5 +221,6 @@ export default {
   publishPurchaseOrderReceived,
   publishCogsRecorded,
   publishValuationUpdated,
+  publishEmployeeSignedIn,
   getRealtimeEmitStats
 };

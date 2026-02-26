@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 
 const requestContextStore = new AsyncLocalStorage();
 
-const resolveIncomingRequestId = req => {
+const resolveIncomingRequestId = (req) => {
   const rawHeader =
     req.headers['x-request-id'] || req.headers['x-correlation-id'] || null;
 
@@ -15,14 +15,29 @@ const resolveIncomingRequestId = req => {
   return value.slice(0, 120);
 };
 
+const resolveIncomingClientTraceId = (req) => {
+  const rawHeader = req.headers['x-client-trace-id'] || null;
+  const value = String(rawHeader || '').trim();
+  if (!value) return null;
+  return value.slice(0, 120);
+};
+
 export const requestContextMiddleware = (req, res, next) => {
   const requestId = resolveIncomingRequestId(req);
+  const clientTraceId = resolveIncomingClientTraceId(req);
   const startedAt = Date.now();
 
   req.requestId = requestId;
+  req.clientTraceId = clientTraceId;
   res.setHeader('x-request-id', requestId);
 
-  requestContextStore.run({ requestId, startedAt }, () => next());
+  if (clientTraceId) {
+    res.setHeader('x-client-trace-id', clientTraceId);
+  }
+
+  requestContextStore.run({ requestId, clientTraceId, startedAt }, () =>
+    next()
+  );
 };
 
 export const getRequestContext = () => requestContextStore.getStore() || null;

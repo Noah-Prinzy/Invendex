@@ -7,7 +7,7 @@ const isRedisAdapterEnabled = () =>
     .toLowerCase()
     .trim() === 'true';
 
-export const configureSocketRedisAdapter = async io => {
+export const configureSocketRedisAdapter = async (io) => {
   if (!io || !isRedisAdapterEnabled()) {
     return false;
   }
@@ -18,7 +18,7 @@ export const configureSocketRedisAdapter = async io => {
   try {
     ({ createAdapter } = await import('@socket.io/redis-adapter'));
     ({ createClient } = await import('redis'));
-  } catch (err) {
+  } catch {
     logger.warn('realtime_redis_adapter_packages_missing', {
       reason:
         'Install @socket.io/redis-adapter and redis when REALTIME_REDIS_ENABLED=true'

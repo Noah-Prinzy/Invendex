@@ -3,11 +3,13 @@ import { Server as SocketIOServer } from 'socket.io';
 import User from '../models/User.js';
 import { logger } from '../observability/logger.js';
 import { captureException } from '../observability/errorTracker.js';
+import { getSocketCorsOrigin } from '../config/envConfig.js';
 
 let ioInstance = null;
 let realtimeEnabled = false;
+const onlineUsersByOrganization = new Map();
 
-const extractToken = socket => {
+const extractToken = (socket) => {
   const authToken = socket.handshake?.auth?.token;
   if (authToken) {
     const raw = String(authToken).trim();
@@ -26,14 +28,74 @@ const extractToken = socket => {
   return '';
 };
 
-const getOrganizationRoom = organizationId => `org:${organizationId}`;
+const getOrganizationRoom = (organizationId) => `org:${organizationId}`;
 const getWarehouseRoom = (organizationId, warehouseId) =>
   `warehouse:${organizationId}:${warehouseId}`;
 
-export const initSocketServer = async (
-  httpServer,
-  { enabled = null } = {}
-) => {
+const getOrCreateOrganizationPresenceMap = (organizationId) => {
+  const key = String(organizationId);
+  if (!onlineUsersByOrganization.has(key)) {
+    onlineUsersByOrganization.set(key, new Map());
+  }
+  return onlineUsersByOrganization.get(key);
+};
+
+const addOnlineUserSession = ({ organizationId, socketId, user }) => {
+  const organizationMap = getOrCreateOrganizationPresenceMap(organizationId);
+  const userId = String(user.id);
+  const existing = organizationMap.get(userId) || {
+    userId,
+    email: user.email || null,
+    role: user.role || null,
+    socketIds: new Set(),
+    connectedAt: new Date().toISOString(),
+    lastSeenAt: new Date().toISOString()
+  };
+
+  existing.socketIds.add(String(socketId));
+  existing.lastSeenAt = new Date().toISOString();
+  organizationMap.set(userId, existing);
+};
+
+const removeOnlineUserSession = ({ organizationId, socketId, userId }) => {
+  const key = String(organizationId);
+  const organizationMap = onlineUsersByOrganization.get(key);
+  if (!organizationMap) return;
+
+  const existing = organizationMap.get(String(userId));
+  if (!existing) return;
+
+  existing.socketIds.delete(String(socketId));
+  existing.lastSeenAt = new Date().toISOString();
+
+  if (existing.socketIds.size === 0) {
+    organizationMap.delete(String(userId));
+  } else {
+    organizationMap.set(String(userId), existing);
+  }
+
+  if (organizationMap.size === 0) {
+    onlineUsersByOrganization.delete(key);
+  }
+};
+
+export const getOnlineUsersByOrganization = (organizationId) => {
+  const organizationMap = onlineUsersByOrganization.get(String(organizationId));
+  if (!organizationMap) return [];
+
+  return Array.from(organizationMap.values())
+    .map((user) => ({
+      userId: user.userId,
+      email: user.email,
+      role: user.role,
+      sessions: user.socketIds.size,
+      connectedAt: user.connectedAt,
+      lastSeenAt: user.lastSeenAt
+    }))
+    .sort((a, b) => String(a.email || '').localeCompare(String(b.email || '')));
+};
+
+export const initSocketServer = async (httpServer, { enabled = null } = {}) => {
   realtimeEnabled =
     typeof enabled === 'boolean'
       ? enabled
@@ -48,7 +110,7 @@ export const initSocketServer = async (
 
   ioInstance = new SocketIOServer(httpServer, {
     cors: {
-      origin: process.env.SOCKET_CORS_ORIGIN || '*',
+      origin: getSocketCorsOrigin(),
       credentials: true
     }
   });
@@ -96,10 +158,15 @@ export const initSocketServer = async (
     }
   });
 
-  ioInstance.on('connection', socket => {
+  ioInstance.on('connection', (socket) => {
     const { id: userId, organizationId } = socket.data.user;
     const organizationRoom = getOrganizationRoom(organizationId);
     socket.join(organizationRoom);
+    addOnlineUserSession({
+      organizationId,
+      socketId: socket.id,
+      user: socket.data.user
+    });
 
     logger.info('realtime_connected', {
       socketId: socket.id,
@@ -151,7 +218,12 @@ export const initSocketServer = async (
       }
     });
 
-    socket.on('disconnect', reason => {
+    socket.on('disconnect', (reason) => {
+      removeOnlineUserSession({
+        organizationId,
+        socketId: socket.id,
+        userId
+      });
       logger.info('realtime_disconnected', {
         socketId: socket.id,
         userId,
@@ -160,7 +232,7 @@ export const initSocketServer = async (
       });
     });
 
-    socket.on('error', error => {
+    socket.on('error', (error) => {
       logger.warn('realtime_socket_error', {
         socketId: socket.id,
         userId,
@@ -189,6 +261,7 @@ export default {
   initSocketServer,
   getIo,
   isRealtimeEnabled,
+  getOnlineUsersByOrganization,
   getOrganizationRoomName,
   getWarehouseRoomName
 };

@@ -3,11 +3,8 @@ import Product from '../models/Product.js';
 import ReorderAlert from '../models/ReorderAlert.js';
 
 import { successResponse } from '../utils/response.js';
-import { AppError } from '../errors/AppError.js';
 
-import {
-  generateProductForecast
-} from '../services/inventory/forecastService.js';
+import { generateProductForecast } from '../services/inventory/forecastService.js';
 
 /**
  * 🔮 Inventory Demand Forecast
@@ -38,13 +35,11 @@ export const forecastInventory = async (req, res, next) => {
       const totalConsumed =
         snapshots[0].stock - snapshots[snapshots.length - 1].stock;
 
-      const days = snapshots.length - 1;
       if (totalConsumed <= 0) continue;
 
       const historicalDemand = [];
       for (let i = 0; i < snapshots.length - 1; i++) {
-        const dailyUse =
-          snapshots[i].stock - snapshots[i + 1].stock;
+        const dailyUse = snapshots[i].stock - snapshots[i + 1].stock;
         if (dailyUse > 0) historicalDemand.push(dailyUse);
       }
 
@@ -60,15 +55,12 @@ export const forecastInventory = async (req, res, next) => {
       const adc = forecast.avgDailyDemand;
       const leadTime = product.supplier?.leadTimeDays || 7;
 
-      const daysUntilStockOut =
-        adc > 0 ? product.stock / adc : null;
+      const daysUntilStockOut = adc > 0 ? product.stock / adc : null;
 
       const recommendedReorderQty =
         adc > 0
           ? Math.max(
-              Math.ceil(
-                adc * (leadTime + bufferDays) - product.stock
-              ),
+              Math.ceil(adc * (leadTime + bufferDays) - product.stock),
               0
             )
           : 0;
@@ -89,11 +81,7 @@ export const forecastInventory = async (req, res, next) => {
       });
     }
 
-    return successResponse(
-      res,
-      forecasts,
-      'Inventory forecast generated'
-    );
+    return successResponse(res, forecasts, 'Inventory forecast generated');
   } catch (err) {
     next(err);
   }
@@ -102,11 +90,7 @@ export const forecastInventory = async (req, res, next) => {
 /**
  * 🤖 Generate Reorder Alerts from Forecasts
  */
-export const generateReorderAlertsFromForecast = async (
-  req,
-  res,
-  next
-) => {
+export const generateReorderAlertsFromForecast = async (req, res, next) => {
   try {
     const bufferDays = Number(req.query.bufferDays || 7);
     const organizationId = req.organizationId;
@@ -132,8 +116,7 @@ export const generateReorderAlertsFromForecast = async (
 
       const historicalDemand = [];
       for (let i = 0; i < snapshots.length - 1; i++) {
-        const dailyUse =
-          snapshots[i].stock - snapshots[i + 1].stock;
+        const dailyUse = snapshots[i].stock - snapshots[i + 1].stock;
         if (dailyUse > 0) historicalDemand.push(dailyUse);
       }
 

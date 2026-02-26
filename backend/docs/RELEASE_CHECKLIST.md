@@ -54,6 +54,7 @@ PowerShell:
 
 ```powershell
 cd backend
+npm run lint
 npm run test:finance-realtime
 ```
 
@@ -105,6 +106,7 @@ REALTIME_REDIS_URL=redis://<host>:6379
 
 - `GET /health/live` returns `200` and `status: ok`.
 - `GET /health/ready` returns `200` in healthy environments.
+- if `METRICS_ENABLED=true`, `GET /metrics` returns Prometheus payload.
 - `GET /api/finance/valuation` succeeds for an admin/manager user.
 - `GET /api/finance/realtime-stats` shows emit counters after PO receive and sale completion events.
 - Socket clients receive only same-organization events.
