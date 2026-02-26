@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 const AUTH_PORTALS = Object.freeze({
   ADMIN: 'admin',

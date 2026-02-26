@@ -1,5 +1,6 @@
 const js = require('@eslint/js');
 const globals = require('globals');
+const reactPlugin = require('eslint-plugin-react');
 
 module.exports = [
   {
@@ -8,6 +9,14 @@ module.exports = [
   js.configs.recommended,
   {
     files: ['src/**/*.{js,jsx}', 'tests/**/*.{js,jsx}'],
+    plugins: {
+      react: reactPlugin
+    },
+    settings: {
+      react: {
+        version: 'detect'
+      }
+    },
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -23,6 +32,7 @@ module.exports = [
       }
     },
     rules: {
+      'react/jsx-uses-vars': 'error',
       'no-unused-vars': [
         'warn',
         {

@@ -42,7 +42,6 @@ const emitTraceLog = (message, meta = {}) => {
     'true'
   )
     return;
-  // eslint-disable-next-line no-console
   console.info(`[api_trace] ${message}`, meta);
 };
 

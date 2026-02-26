@@ -1,5 +1,3 @@
-import React from 'react';
-
 const NotificationBell = ({ count = 0, onClick = null }) => (
   <button
     type="button"

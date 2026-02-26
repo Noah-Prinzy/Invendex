@@ -54,7 +54,6 @@ export const captureFrontendException = async (error, context = {}) => {
   const payload = buildPayload(error, context);
 
   if (process.env.NODE_ENV !== 'production') {
-    // eslint-disable-next-line no-console
     console.error('[frontend_exception]', payload);
   }
 
