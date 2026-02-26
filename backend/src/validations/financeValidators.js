@@ -5,14 +5,14 @@ import Product from '../models/Product.js';
 const VALUATION_METHODS = ['FIFO', 'LIFO', 'WEIGHTED_AVG'];
 const GROSS_MARGIN_GROUP_BY = ['day', 'product', 'category'];
 
-const ensureOrganizationContext = req => {
+const ensureOrganizationContext = (req) => {
   if (!req.organizationId) {
     throw new Error('Organization context is required');
   }
   return req.organizationId;
 };
 
-const optionalIsoDateValidator = fieldName =>
+const optionalIsoDateValidator = (fieldName) =>
   query(fieldName)
     .optional({ values: 'falsy' })
     .isISO8601()

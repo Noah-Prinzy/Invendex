@@ -12,7 +12,7 @@ const projectRoot = path.resolve(__dirname, '..');
 
 dotenv.config({ path: path.join(projectRoot, '.env'), override: true });
 
-const normalizeDbUrl = rawValue =>
+const normalizeDbUrl = (rawValue) =>
   String(rawValue || '')
     .trim()
     .replace(/^['"]|['"]$/g, '');
@@ -33,12 +33,14 @@ const resolveDbUrl = () => {
 };
 
 const parseBoolean = (value, defaultValue = false) => {
-  const raw = String(value || '').trim().toLowerCase();
+  const raw = String(value || '')
+    .trim()
+    .toLowerCase();
   if (!raw) return defaultValue;
   return raw === 'true' || raw === '1' || raw === 'yes';
 };
 
-const parseManifest = manifestPath => {
+const parseManifest = (manifestPath) => {
   if (!fs.existsSync(manifestPath)) {
     throw new Error(`Backup manifest not found: ${manifestPath}`);
   }
@@ -59,8 +61,8 @@ const resolveDefaultManifestPath = () => {
 
   const candidates = fs
     .readdirSync(backupRoot, { withFileTypes: true })
-    .filter(entry => entry.isDirectory())
-    .map(entry => entry.name)
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
     .sort((a, b) => b.localeCompare(a));
 
   if (!candidates.length) {
@@ -70,13 +72,15 @@ const resolveDefaultManifestPath = () => {
   const latestDir = candidates[0];
   const manifestPath = path.join(backupRoot, latestDir, 'manifest.json');
   if (!fs.existsSync(manifestPath)) {
-    throw new Error(`Manifest missing in latest snapshot directory: ${latestDir}`);
+    throw new Error(
+      `Manifest missing in latest snapshot directory: ${latestDir}`
+    );
   }
 
   return manifestPath;
 };
 
-const parseJsonLines = async filePath => {
+const parseJsonLines = async (filePath) => {
   const hash = crypto.createHash('sha256');
   const documents = [];
   let lineCount = 0;
@@ -97,7 +101,9 @@ const parseJsonLines = async filePath => {
     try {
       documents.push(JSON.parse(line));
     } catch (error) {
-      throw new Error(`Invalid JSONL at ${filePath}, line ${lineCount}: ${error.message}`);
+      throw new Error(
+        `Invalid JSONL at ${filePath}, line ${lineCount}: ${error.message}`
+      );
     }
   }
 
@@ -141,10 +147,7 @@ async function run() {
     throw new Error('DB_URL is required for backup:simulate-restore');
   }
 
-  if (
-    !dbUrl.startsWith('mongodb://') &&
-    !dbUrl.startsWith('mongodb+srv://')
-  ) {
+  if (!dbUrl.startsWith('mongodb://') && !dbUrl.startsWith('mongodb+srv://')) {
     throw new Error(
       'DB_URL has invalid scheme. Value must start with "mongodb://" or "mongodb+srv://"'
     );
@@ -161,7 +164,10 @@ async function run() {
   }
 
   const shouldWrite = parseBoolean(process.env.SIMULATE_RESTORE_WRITE, false);
-  const shouldCleanup = parseBoolean(process.env.SIMULATE_RESTORE_CLEANUP, true);
+  const shouldCleanup = parseBoolean(
+    process.env.SIMULATE_RESTORE_CLEANUP,
+    true
+  );
   const runId = new Date().toISOString().replace(/[:.]/g, '-');
   const createdCollections = [];
 
@@ -232,7 +238,7 @@ run()
     await mongoose.disconnect();
     process.exit(0);
   })
-  .catch(async error => {
+  .catch(async (error) => {
     console.error('Restore simulation failed:', error.message);
     try {
       await mongoose.disconnect();

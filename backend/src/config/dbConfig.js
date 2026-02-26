@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { logger } from '../observability/logger.js';
 import { enableMongoProfiling } from '../observability/mongoProfiler.js';
 
-const normalizeDbUrl = value =>
+const normalizeDbUrl = (value) =>
   String(value || '')
     .trim()
     .replace(/^['"]|['"]$/g, '');

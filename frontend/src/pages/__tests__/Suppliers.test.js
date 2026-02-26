@@ -1,4 +1,3 @@
-import React from 'react';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import Suppliers from '../Suppliers.js';
 import { renderWithProviders } from '../../test/renderWithProviders.js';

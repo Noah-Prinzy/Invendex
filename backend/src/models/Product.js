@@ -1,11 +1,6 @@
 import mongoose from 'mongoose';
 
-export const STOCK_REASONS = [
-  'sale',
-  'restock',
-  'adjustment',
-  'return'
-];
+export const STOCK_REASONS = ['sale', 'restock', 'adjustment', 'return'];
 
 const stockHistorySchema = new mongoose.Schema(
   {
@@ -67,7 +62,7 @@ const productSchema = new mongoose.Schema(
       type: Number,
       required: true,
       min: 0,
-      set: v => Math.round(v * 100) / 100
+      set: (v) => Math.round(v * 100) / 100
     },
 
     stock: {

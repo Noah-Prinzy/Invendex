@@ -11,7 +11,7 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const stdDev = values => {
+const stdDev = (values) => {
   if (!Array.isArray(values) || values.length === 0) return 0;
   const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
   const variance =
@@ -29,7 +29,7 @@ const percentile = (values, percentileRank) => {
   return sorted[rank];
 };
 
-const mapBySupplier = rows => {
+const mapBySupplier = (rows) => {
   const mapped = new Map();
   for (const row of rows) {
     mapped.set(String(row._id), row);
@@ -119,19 +119,22 @@ export const projectPromotionAwareDemand = ({
   promotions = []
 }) => {
   const normalizedBaseDemand = Math.max(0, toNumber(baseDailyDemand, 0));
-  const normalizedHorizon = Math.max(1, Math.min(365, Number(horizonDays) || 30));
+  const normalizedHorizon = Math.max(
+    1,
+    Math.min(365, Number(horizonDays) || 30)
+  );
   const startDate = new Date();
   startDate.setHours(0, 0, 0, 0);
 
   const normalizedPromotions = Array.isArray(promotions)
     ? promotions
-        .map(entry => ({
+        .map((entry) => ({
           startDate: new Date(entry.startDate),
           endDate: new Date(entry.endDate),
           liftPercent: toNumber(entry.liftPercent ?? entry.liftPct, 0)
         }))
         .filter(
-          entry =>
+          (entry) =>
             !Number.isNaN(entry.startDate.getTime()) &&
             !Number.isNaN(entry.endDate.getTime()) &&
             entry.endDate >= entry.startDate
@@ -193,8 +196,11 @@ export const getLeadTimeVariabilityInsight = async ({
     .lean();
 
   const leadTimes = purchaseOrders
-    .map(po => (new Date(po.receivedAt) - new Date(po.sentAt)) / (1000 * 60 * 60 * 24))
-    .filter(days => Number.isFinite(days) && days >= 0);
+    .map(
+      (po) =>
+        (new Date(po.receivedAt) - new Date(po.sentAt)) / (1000 * 60 * 60 * 24)
+    )
+    .filter((days) => Number.isFinite(days) && days >= 0);
 
   if (!leadTimes.length) {
     return {
@@ -207,7 +213,8 @@ export const getLeadTimeVariabilityInsight = async ({
     };
   }
 
-  const avgLeadTime = leadTimes.reduce((sum, days) => sum + days, 0) / leadTimes.length;
+  const avgLeadTime =
+    leadTimes.reduce((sum, days) => sum + days, 0) / leadTimes.length;
   const stdLeadTime = stdDev(leadTimes);
 
   return {
@@ -218,7 +225,9 @@ export const getLeadTimeVariabilityInsight = async ({
     minDays: Number(Math.min(...leadTimes).toFixed(2)),
     maxDays: Number(Math.max(...leadTimes).toFixed(2)),
     p95Days: Number(percentile(leadTimes, 95).toFixed(2)),
-    coefficientOfVariation: Number((stdLeadTime / Math.max(avgLeadTime, 0.01)).toFixed(2))
+    coefficientOfVariation: Number(
+      (stdLeadTime / Math.max(avgLeadTime, 0.01)).toFixed(2)
+    )
   };
 };
 
@@ -249,7 +258,10 @@ export const getSupplierReliabilityScores = async ({
           totalOrders: { $sum: 1 },
           avgLeadTimeDays: {
             $avg: {
-              $divide: [{ $subtract: ['$receivedAt', '$sentAt'] }, 1000 * 60 * 60 * 24]
+              $divide: [
+                { $subtract: ['$receivedAt', '$sentAt'] },
+                1000 * 60 * 60 * 24
+              ]
             }
           },
           onTimeDeliveries: {
@@ -294,7 +306,7 @@ export const getSupplierReliabilityScores = async ({
   const poMap = mapBySupplier(purchaseOrderStats);
   const alertMap = mapBySupplier(alertStats);
 
-  const ranking = suppliers.map(supplier => {
+  const ranking = suppliers.map((supplier) => {
     const supplierId = String(supplier._id);
     const poStat = poMap.get(supplierId) || {};
     const alertStat = alertMap.get(supplierId) || {};

@@ -8,11 +8,7 @@ const REORDER_SOURCES = Object.freeze([
   'forecast'
 ]);
 
-const ALERT_STATUSES = Object.freeze([
-  'ACTIVE',
-  'RESOLVED',
-  'CANCELLED'
-]);
+const ALERT_STATUSES = Object.freeze(['ACTIVE', 'RESOLVED', 'CANCELLED']);
 
 const reorderAlertSchema = new mongoose.Schema(
   {

@@ -1,6 +1,6 @@
 import Inventory from '../../models/Inventory.js';
 
-const normalizeDays = value => {
+const normalizeDays = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return 90;
   return Math.max(1, Math.min(3650, Math.floor(parsed)));
@@ -31,8 +31,10 @@ export const getDeadStockItems = async ({
     .lean();
 
   const now = new Date();
-  const items = rows.map(row => {
-    const movementDate = row.lastMovementAt ? new Date(row.lastMovementAt) : null;
+  const items = rows.map((row) => {
+    const movementDate = row.lastMovementAt
+      ? new Date(row.lastMovementAt)
+      : null;
     const ageDays = movementDate
       ? Math.floor((now - movementDate) / (1000 * 60 * 60 * 24))
       : thresholdDays + 1;
@@ -45,7 +47,9 @@ export const getDeadStockItems = async ({
       warehouseCode: row.warehouse?.code || null,
       quantityOnHand: row.quantityOnHand,
       unitPrice: row.product?.price || 0,
-      inventoryValue: Number((row.quantityOnHand * (row.product?.price || 0)).toFixed(2)),
+      inventoryValue: Number(
+        (row.quantityOnHand * (row.product?.price || 0)).toFixed(2)
+      ),
       ageDays,
       lastMovementAt: row.lastMovementAt
     };

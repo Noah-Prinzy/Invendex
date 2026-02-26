@@ -55,8 +55,7 @@ export const startForecastGenerationCron = () => {
             const historicalDemand = [];
 
             for (let i = 0; i < snapshots.length - 1; i++) {
-              const consumed =
-                snapshots[i].stock - snapshots[i + 1].stock;
+              const consumed = snapshots[i].stock - snapshots[i + 1].stock;
 
               if (consumed > 0) {
                 historicalDemand.push(consumed);

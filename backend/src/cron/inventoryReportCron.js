@@ -52,7 +52,7 @@ export const startInventoryReportCron = () => {
           continue;
         }
 
-        const records = products.map(product => ({
+        const records = products.map((product) => ({
           organization: organization._id,
           product: product._id,
           sku: product.sku,
@@ -66,9 +66,7 @@ export const startInventoryReportCron = () => {
         totalInserted += records.length;
       }
 
-      console.log(
-        `✅ Inventory snapshot saved (${totalInserted} records)`
-      );
+      console.log(`✅ Inventory snapshot saved (${totalInserted} records)`);
     } catch (err) {
       // ❗ NEVER throw — cron must not crash the app
       console.error('❌ Inventory snapshot cron failed:', err);

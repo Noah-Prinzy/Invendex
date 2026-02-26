@@ -5,19 +5,19 @@ import PurchaseOrder from '../models/PurchaseOrder.js';
 import Supplier from '../models/Supplier.js';
 import { getDeadStockItems } from './finance/deadStockService.js';
 
-const normalizeDays = value => {
+const normalizeDays = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return 30;
   return Math.max(1, Math.min(365, Math.floor(parsed)));
 };
 
-const normalizeLimit = value => {
+const normalizeLimit = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return 10;
   return Math.max(1, Math.min(100, Math.floor(parsed)));
 };
 
-const getSinceDate = days => {
+const getSinceDate = (days) => {
   const since = new Date();
   since.setDate(since.getDate() - normalizeDays(days));
   return since;
@@ -91,7 +91,7 @@ export const getTurnoverSkus = async ({
     })
   );
 
-  const turnover = rows.map(row => {
+  const turnover = rows.map((row) => {
     const currentStock = Math.max(Number(row.stock) || 0, 0);
     const denominator = Math.max(currentStock, 1);
     const turnoverRatio = row.quantitySold / denominator;
@@ -119,7 +119,7 @@ export const getSlowMovingSkus = async ({
   );
 
   const slowMoving = rows
-    .map(row => {
+    .map((row) => {
       const currentStock = Math.max(Number(row.stock) || 0, 0);
       const velocity = row.quantitySold / Math.max(normalizeDays(days), 1);
 
@@ -132,7 +132,7 @@ export const getSlowMovingSkus = async ({
             : Number.POSITIVE_INFINITY
       };
     })
-    .filter(row => row.stock > 0);
+    .filter((row) => row.stock > 0);
 
   slowMoving.sort((a, b) => a.velocityPerDay - b.velocityPerDay);
   return slowMoving.slice(0, normalizeLimit(limit));
@@ -174,8 +174,10 @@ export const getStockAgingBuckets = async ({ organizationId }) => {
     bucket90plus: { skuCount: 0, quantity: 0 }
   };
 
-  const items = rows.map(row => {
-    const movementDate = row.lastMovementAt ? new Date(row.lastMovementAt) : now;
+  const items = rows.map((row) => {
+    const movementDate = row.lastMovementAt
+      ? new Date(row.lastMovementAt)
+      : now;
     const ageDays = Math.floor((now - movementDate) / (1000 * 60 * 60 * 24));
 
     let bucket = 'bucket0to30';
@@ -229,7 +231,10 @@ export const getSupplierPerformanceRanking = async ({
           totalSpend: { $sum: '$totalCost' },
           avgLeadTimeDays: {
             $avg: {
-              $divide: [{ $subtract: ['$receivedAt', '$sentAt'] }, 1000 * 60 * 60 * 24]
+              $divide: [
+                { $subtract: ['$receivedAt', '$sentAt'] },
+                1000 * 60 * 60 * 24
+              ]
             }
           },
           onTimeOrders: {
@@ -251,8 +256,8 @@ export const getSupplierPerformanceRanking = async ({
     ])
   ]);
 
-  const poMap = new Map(poStats.map(row => [String(row._id), row]));
-  const ranking = suppliers.map(supplier => {
+  const poMap = new Map(poStats.map((row) => [String(row._id), row]));
+  const ranking = suppliers.map((supplier) => {
     const stats = poMap.get(String(supplier._id)) || {};
     const totalOrders = stats.totalOrders || 0;
     const totalSpend = stats.totalSpend || 0;
@@ -264,7 +269,10 @@ export const getSupplierPerformanceRanking = async ({
 
     const score = Math.max(
       0,
-      Math.min(100, onTimeRate * 0.7 + Math.max(0, 100 - avgLeadTimeDays * 5) * 0.3)
+      Math.min(
+        100,
+        onTimeRate * 0.7 + Math.max(0, 100 - avgLeadTimeDays * 5) * 0.3
+      )
     );
 
     return {

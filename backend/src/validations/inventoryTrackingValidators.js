@@ -2,7 +2,7 @@ import { body, param, query } from 'express-validator';
 import Product from '../models/Product.js';
 import Warehouse from '../models/Warehouse.js';
 
-const ensureOrganizationContext = req => {
+const ensureOrganizationContext = (req) => {
   if (!req.organizationId) {
     throw new Error('Organization context is required');
   }
@@ -89,7 +89,14 @@ export const listInventorySerialsValidator = [
     }),
   query('status')
     .optional({ values: 'falsy' })
-    .isIn(['AVAILABLE', 'RESERVED', 'SOLD', 'DAMAGED', 'RETURNED', 'RECALL_HOLD'])
+    .isIn([
+      'AVAILABLE',
+      'RESERVED',
+      'SOLD',
+      'DAMAGED',
+      'RETURNED',
+      'RECALL_HOLD'
+    ])
     .withMessage(
       'status must be AVAILABLE, RESERVED, SOLD, DAMAGED, RETURNED, or RECALL_HOLD'
     ),

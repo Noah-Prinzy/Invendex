@@ -7,9 +7,7 @@ export const resolveAlertsForPurchaseOrder = async ({
   purchaseOrder,
   resolvedBy
 }) => {
-  const productIds = purchaseOrder.items.map(
-    item => item.product
-  );
+  const productIds = purchaseOrder.items.map((item) => item.product);
 
   const alerts = await ReorderAlert.find({
     organization: purchaseOrder.organization,

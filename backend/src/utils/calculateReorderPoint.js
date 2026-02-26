@@ -16,20 +16,13 @@ export const calculateReorderPoint = ({
   forecastAvgDailyDemand
 }) => {
   const dailyUsage =
-    typeof forecastAvgDailyDemand === 'number' &&
-    forecastAvgDailyDemand > 0
+    typeof forecastAvgDailyDemand === 'number' && forecastAvgDailyDemand > 0
       ? forecastAvgDailyDemand
       : averageDailyUsage;
 
-  if (
-    !dailyUsage ||
-    !supplierLeadTimeDays ||
-    supplierLeadTimeDays < 0
-  ) {
+  if (!dailyUsage || !supplierLeadTimeDays || supplierLeadTimeDays < 0) {
     return 0;
   }
 
-  return Math.ceil(
-    dailyUsage * (supplierLeadTimeDays + safetyStockDays)
-  );
+  return Math.ceil(dailyUsage * (supplierLeadTimeDays + safetyStockDays));
 };

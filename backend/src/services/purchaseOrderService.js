@@ -15,15 +15,24 @@ export const generatePurchaseOrdersFromAlerts = async ({
   organizationId
 } = {}) => {
   if (!createdByUserId) {
-    throw new AppError('createdByUserId is required to generate purchase orders', 400);
+    throw new AppError(
+      'createdByUserId is required to generate purchase orders',
+      400
+    );
   }
 
   if (!warehouseId) {
-    throw new AppError('warehouse is required to generate purchase orders', 400);
+    throw new AppError(
+      'warehouse is required to generate purchase orders',
+      400
+    );
   }
 
   if (!organizationId) {
-    throw new AppError('organizationId is required to generate purchase orders', 400);
+    throw new AppError(
+      'organizationId is required to generate purchase orders',
+      400
+    );
   }
 
   const alerts = await ReorderAlert.find({
@@ -49,7 +58,7 @@ export const generatePurchaseOrdersFromAlerts = async ({
   for (const supplierId of Object.keys(groupedBySupplier)) {
     const supplierAlerts = groupedBySupplier[supplierId];
 
-    const items = supplierAlerts.map(alert => ({
+    const items = supplierAlerts.map((alert) => ({
       product: alert.product._id,
       sku: alert.sku,
       quantity: alert.reorderQuantity,
@@ -65,13 +74,13 @@ export const generatePurchaseOrdersFromAlerts = async ({
       items,
       status: 'DRAFT',
       source: 'REORDER_ENGINE',
-      reorderAlerts: supplierAlerts.map(a => a._id),
+      reorderAlerts: supplierAlerts.map((a) => a._id),
       createdBy: createdByUserId
     });
 
     await ReorderAlert.updateMany(
       {
-        _id: { $in: supplierAlerts.map(a => a._id) },
+        _id: { $in: supplierAlerts.map((a) => a._id) },
         organization: organizationId
       },
       {

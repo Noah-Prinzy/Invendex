@@ -24,10 +24,7 @@ async function persistForecastSafely(forecast) {
       generatedAt: forecast.generatedAt
     });
   } catch (err) {
-    console.error(
-      '[ForecastService] Failed to persist forecast:',
-      err.message
-    );
+    console.error('[ForecastService] Failed to persist forecast:', err.message);
   }
 }
 
@@ -68,7 +65,7 @@ export async function generateProductForecast({
 export async function generateBulkForecast(products = [], options = {}) {
   if (!Array.isArray(products)) return [];
 
-  const forecasts = products.map(product =>
+  const forecasts = products.map((product) =>
     generateForecast({
       productId: product.productId || product._id,
       historicalDemand: product.historicalDemand || [],
@@ -79,7 +76,8 @@ export async function generateBulkForecast(products = [], options = {}) {
   forecasts.forEach((forecast, idx) =>
     persistForecastSafely({
       ...forecast,
-      organizationId: products[idx]?.organizationId || products[idx]?.organization
+      organizationId:
+        products[idx]?.organizationId || products[idx]?.organization
     })
   );
 

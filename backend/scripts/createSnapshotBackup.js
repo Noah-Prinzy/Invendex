@@ -24,7 +24,7 @@ const projectRoot = path.resolve(__dirname, '..');
 
 dotenv.config({ path: path.join(projectRoot, '.env'), override: true });
 
-const normalizeDbUrl = rawValue =>
+const normalizeDbUrl = (rawValue) =>
   String(rawValue || '')
     .trim()
     .replace(/^['"]|['"]$/g, '');
@@ -44,8 +44,7 @@ const resolveDbUrl = () => {
   return buildDbUrlFromParts() || explicitDbUrl;
 };
 
-const getSnapshotTag = () =>
-  new Date().toISOString().replace(/[:.]/g, '-');
+const getSnapshotTag = () => new Date().toISOString().replace(/[:.]/g, '-');
 
 const modelTargets = [
   { key: 'organizations', model: Organization },
@@ -62,14 +61,14 @@ const modelTargets = [
   { key: 'stock_movements', model: StockMovement }
 ];
 
-const hasOrganizationField = model =>
+const hasOrganizationField = (model) =>
   Boolean(model?.schema?.paths?.organization);
 
-const ensureDirectory = targetPath => {
+const ensureDirectory = (targetPath) => {
   fs.mkdirSync(targetPath, { recursive: true });
 };
 
-const serializeQuery = query => {
+const serializeQuery = (query) => {
   try {
     return JSON.stringify(query);
   } catch {
@@ -105,7 +104,7 @@ const createSnapshotForModel = async ({
   }
 
   await new Promise((resolve, reject) => {
-    stream.end(error => {
+    stream.end((error) => {
       if (error) reject(error);
       else resolve();
     });
@@ -128,10 +127,7 @@ async function run() {
     throw new Error('DB_URL is required for backup:snapshot');
   }
 
-  if (
-    !dbUrl.startsWith('mongodb://') &&
-    !dbUrl.startsWith('mongodb+srv://')
-  ) {
+  if (!dbUrl.startsWith('mongodb://') && !dbUrl.startsWith('mongodb+srv://')) {
     throw new Error(
       'DB_URL has invalid scheme. Value must start with "mongodb://" or "mongodb+srv://"'
     );
@@ -141,7 +137,8 @@ async function run() {
     projectRoot,
     process.env.BACKUP_OUTPUT_DIR || 'backups/snapshots'
   );
-  const organizationId = String(process.env.BACKUP_ORGANIZATION_ID || '').trim() || null;
+  const organizationId =
+    String(process.env.BACKUP_ORGANIZATION_ID || '').trim() || null;
 
   const snapshotTag = process.env.BACKUP_SNAPSHOT_TAG || getSnapshotTag();
   const snapshotDir = path.join(backupRoot, snapshotTag);
@@ -191,7 +188,7 @@ run()
     await mongoose.disconnect();
     process.exit(0);
   })
-  .catch(async error => {
+  .catch(async (error) => {
     console.error('Snapshot backup failed:', error.message);
     try {
       await mongoose.disconnect();

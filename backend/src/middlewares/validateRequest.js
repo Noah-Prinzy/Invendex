@@ -11,7 +11,10 @@ const validateRequest = (req, res, next) => {
   if (!errors.isEmpty()) {
     return next(
       new AppError(
-        errors.array().map(e => e.msg).join(', '),
+        errors
+          .array()
+          .map((e) => e.msg)
+          .join(', '),
         400
       )
     );

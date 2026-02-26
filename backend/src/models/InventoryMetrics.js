@@ -70,12 +70,6 @@ const inventoryMetricsSchema = new mongoose.Schema(
  * 🔍 Indexes
  * One metrics record per day
  */
-inventoryMetricsSchema.index(
-  { organization: 1, date: 1 },
-  { unique: true }
-);
+inventoryMetricsSchema.index({ organization: 1, date: 1 }, { unique: true });
 
-export default mongoose.model(
-  'InventoryMetrics',
-  inventoryMetricsSchema
-);
+export default mongoose.model('InventoryMetrics', inventoryMetricsSchema);

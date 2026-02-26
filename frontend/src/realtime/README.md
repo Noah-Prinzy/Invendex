@@ -19,10 +19,10 @@ useLedgerlyRealtime({
   baseUrl: import.meta.env.VITE_API_URL,
   accessToken,
   warehouseId,
-  onInventoryUpdated: payload => {
+  onInventoryUpdated: (payload) => {
     // refresh inventory widget
   },
-  onPurchaseOrderUpdated: payload => {
+  onPurchaseOrderUpdated: (payload) => {
     // refresh purchase order list
   }
 });

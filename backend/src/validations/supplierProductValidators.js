@@ -5,7 +5,7 @@ import Product from '../models/Product.js';
 import Supplier from '../models/Supplier.js';
 import SupplierProduct from '../models/SupplierProduct.js';
 
-const ensureOrganizationContext = req => {
+const ensureOrganizationContext = (req) => {
   if (!req.organizationId) {
     throw new Error('Organization context is required');
   }

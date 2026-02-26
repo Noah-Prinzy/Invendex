@@ -1,5 +1,3 @@
-import React from 'react';
-
 const formatWhen = (iso) => {
   if (!iso) return 'n/a';
   const date = new Date(iso);

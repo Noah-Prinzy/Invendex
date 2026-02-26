@@ -9,7 +9,7 @@ on:
 
 jobs:
   backend:
-    name: Backend Lint + Test
+    name: Backend Format + Lint + Test
     runs-on: ubuntu-latest
     services:
       mongodb:
@@ -47,11 +47,14 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Format check
+        run: npm run format:check
+
       - name: Test
         run: npm test
 
   frontend:
-    name: Frontend Lint + Test + Build
+    name: Frontend Format + Lint + Test + Build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -74,6 +77,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
 
       - name: Test
         run: npm test

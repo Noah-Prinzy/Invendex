@@ -1,7 +1,4 @@
-export const calculateAverageDailyUsage = (
-  stockHistory,
-  windowDays = 30
-) => {
+export const calculateAverageDailyUsage = (stockHistory, windowDays = 30) => {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - windowDays);
 

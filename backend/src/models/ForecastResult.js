@@ -71,7 +71,4 @@ forecastResultSchema.index({
   generatedAt: -1
 });
 
-export default mongoose.model(
-  'ForecastResult',
-  forecastResultSchema
-);
+export default mongoose.model('ForecastResult', forecastResultSchema);

@@ -4,8 +4,7 @@ import ReorderAlert from '../models/ReorderAlert.js';
 /**
  * Clamp value between min and max
  */
-const clamp = (value, min = 0, max = 1) =>
-  Math.max(min, Math.min(max, value));
+const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value));
 
 /**
  * Update forecast trust score for a product
@@ -38,8 +37,7 @@ export const updateForecastTrustForProduct = async (
   let trust = product.forecastTrustScore ?? 0.5;
 
   for (const alert of alerts) {
-    const confidence =
-      alert.metadata?.confidenceScore ?? 0;
+    const confidence = alert.metadata?.confidenceScore ?? 0;
 
     let delta = 0;
 
@@ -78,17 +76,13 @@ export const updateForecastTrustForProduct = async (
 /**
  * Bulk update trust scores for all products
  */
-export const updateAllForecastTrustScores =
-  async (organizationId = null) => {
-    const products = await Product.find({
-      ...(organizationId ? { organization: organizationId } : {}),
-      isActive: true
-    }).select('_id');
+export const updateAllForecastTrustScores = async (organizationId = null) => {
+  const products = await Product.find({
+    ...(organizationId ? { organization: organizationId } : {}),
+    isActive: true
+  }).select('_id');
 
-    for (const product of products) {
-      await updateForecastTrustForProduct(
-        product._id,
-        organizationId
-      );
-    }
-  };
+  for (const product of products) {
+    await updateForecastTrustForProduct(product._id, organizationId);
+  }
+};

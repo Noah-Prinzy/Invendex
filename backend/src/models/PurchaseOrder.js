@@ -213,7 +213,11 @@ purchaseOrderSchema.pre('save', function (next) {
       if (trackingType === 'SERIAL') {
         const serials = Array.isArray(item.serialNumbers)
           ? item.serialNumbers
-              .map(value => String(value || '').trim().toUpperCase())
+              .map((value) =>
+                String(value || '')
+                  .trim()
+                  .toUpperCase()
+              )
               .filter(Boolean)
           : [];
 
@@ -229,7 +233,9 @@ purchaseOrderSchema.pre('save', function (next) {
 
         if (new Set(serials).size !== serials.length) {
           return next(
-            new Error(`serialNumbers must be unique for SERIAL item ${item.sku || ''}`)
+            new Error(
+              `serialNumbers must be unique for SERIAL item ${item.sku || ''}`
+            )
           );
         }
 
@@ -242,10 +248,7 @@ purchaseOrderSchema.pre('save', function (next) {
       0
     );
 
-    this.totalCost = this.items.reduce(
-      (sum, item) => sum + item.totalCost,
-      0
-    );
+    this.totalCost = this.items.reduce((sum, item) => sum + item.totalCost, 0);
   }
 
   // Backward compatibility

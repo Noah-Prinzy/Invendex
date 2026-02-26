@@ -65,12 +65,7 @@ router.get(
 /**
  * 🚨 Inventory drops (shrinkage detection)
  */
-router.get(
-  '/alerts/drops',
-  protect,
-  requireRoles('admin'),
-  getInventoryDrops
-);
+router.get('/alerts/drops', protect, requireRoles('admin'), getInventoryDrops);
 
 /* ======================================================
    REORDER ALERTS

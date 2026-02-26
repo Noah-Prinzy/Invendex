@@ -25,7 +25,8 @@ import {
  */
 export const createPurchaseOrder = async (req, res, next) => {
   try {
-    const { supplier, warehouse, items, expectedDeliveryDate, notes } = req.body;
+    const { supplier, warehouse, items, expectedDeliveryDate, notes } =
+      req.body;
     const organizationId = req.organizationId;
 
     if (!supplier || !warehouse || !items || !items.length) {

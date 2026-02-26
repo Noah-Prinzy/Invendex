@@ -6,7 +6,7 @@ import PurchaseOrder from '../models/PurchaseOrder.js';
 import Supplier from '../models/Supplier.js';
 import Warehouse from '../models/Warehouse.js';
 
-const ensureOrganizationContext = req => {
+const ensureOrganizationContext = (req) => {
   if (!req.organizationId) {
     throw new Error('Organization context is required');
   }
@@ -61,8 +61,8 @@ export const createPurchaseOrderValidator = [
       const productIds = [
         ...new Set(
           items
-            .map(item => item?.product)
-            .filter(id => mongoose.Types.ObjectId.isValid(id))
+            .map((item) => item?.product)
+            .filter((id) => mongoose.Types.ObjectId.isValid(id))
         )
       ];
 
@@ -124,50 +124,53 @@ export const createPurchaseOrderValidator = [
     .isArray()
     .withMessage('serialNumbers must be an array'),
 
-  body('items')
-    .custom(items => {
-      if (!Array.isArray(items)) {
-        return true;
-      }
-
-      for (const item of items) {
-        const trackingType = String(item?.trackingType || 'NONE')
-          .trim()
-          .toUpperCase();
-
-        if (trackingType === 'BATCH' && !item?.lotNumber) {
-          throw new Error('lotNumber is required for BATCH tracked items');
-        }
-
-        if (trackingType === 'SERIAL') {
-          if (!Array.isArray(item?.serialNumbers) || !item.serialNumbers.length) {
-            throw new Error(
-              'serialNumbers are required for SERIAL tracked items'
-            );
-          }
-
-          if (item.serialNumbers.length !== Number(item.quantity)) {
-            throw new Error(
-              'serialNumbers count must equal quantity for SERIAL tracked items'
-            );
-          }
-
-          const normalizedSerials = item.serialNumbers
-            .map(serial => String(serial || '').trim().toUpperCase())
-            .filter(Boolean);
-
-          if (normalizedSerials.length !== item.serialNumbers.length) {
-            throw new Error('serialNumbers cannot contain blank values');
-          }
-
-          if (new Set(normalizedSerials).size !== normalizedSerials.length) {
-            throw new Error('serialNumbers must be unique per line item');
-          }
-        }
-      }
-
+  body('items').custom((items) => {
+    if (!Array.isArray(items)) {
       return true;
-    }),
+    }
+
+    for (const item of items) {
+      const trackingType = String(item?.trackingType || 'NONE')
+        .trim()
+        .toUpperCase();
+
+      if (trackingType === 'BATCH' && !item?.lotNumber) {
+        throw new Error('lotNumber is required for BATCH tracked items');
+      }
+
+      if (trackingType === 'SERIAL') {
+        if (!Array.isArray(item?.serialNumbers) || !item.serialNumbers.length) {
+          throw new Error(
+            'serialNumbers are required for SERIAL tracked items'
+          );
+        }
+
+        if (item.serialNumbers.length !== Number(item.quantity)) {
+          throw new Error(
+            'serialNumbers count must equal quantity for SERIAL tracked items'
+          );
+        }
+
+        const normalizedSerials = item.serialNumbers
+          .map((serial) =>
+            String(serial || '')
+              .trim()
+              .toUpperCase()
+          )
+          .filter(Boolean);
+
+        if (normalizedSerials.length !== item.serialNumbers.length) {
+          throw new Error('serialNumbers cannot contain blank values');
+        }
+
+        if (new Set(normalizedSerials).size !== normalizedSerials.length) {
+          throw new Error('serialNumbers must be unique per line item');
+        }
+      }
+    }
+
+    return true;
+  }),
 
   body('expectedDeliveryDate')
     .optional({ values: 'falsy' })

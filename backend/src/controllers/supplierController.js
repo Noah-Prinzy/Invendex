@@ -15,12 +15,7 @@ export const createSupplier = async (req, res, next) => {
       organization: req.organizationId
     });
 
-    return successResponse(
-      res,
-      supplier,
-      'Supplier created successfully',
-      201
-    );
+    return successResponse(res, supplier, 'Supplier created successfully', 201);
   } catch (err) {
     next(err);
   }
@@ -35,11 +30,7 @@ export const getSuppliers = async (req, res, next) => {
       organization: req.organizationId
     }).sort({ createdAt: -1 });
 
-    return successResponse(
-      res,
-      suppliers,
-      'Suppliers fetched successfully'
-    );
+    return successResponse(res, suppliers, 'Suppliers fetched successfully');
   } catch (err) {
     next(err);
   }
@@ -59,11 +50,7 @@ export const getSupplierById = async (req, res, next) => {
       throw new AppError('Supplier not found', 404);
     }
 
-    return successResponse(
-      res,
-      supplier,
-      'Supplier fetched successfully'
-    );
+    return successResponse(res, supplier, 'Supplier fetched successfully');
   } catch (err) {
     next(err);
   }
@@ -87,11 +74,7 @@ export const updateSupplier = async (req, res, next) => {
       throw new AppError('Supplier not found', 404);
     }
 
-    return successResponse(
-      res,
-      supplier,
-      'Supplier updated successfully'
-    );
+    return successResponse(res, supplier, 'Supplier updated successfully');
   } catch (err) {
     next(err);
   }
@@ -111,11 +94,7 @@ export const deleteSupplier = async (req, res, next) => {
       throw new AppError('Supplier not found', 404);
     }
 
-    return successResponse(
-      res,
-      null,
-      'Supplier deleted successfully'
-    );
+    return successResponse(res, null, 'Supplier deleted successfully');
   } catch (err) {
     next(err);
   }
@@ -140,15 +119,15 @@ export const getSupplierPerformance = async (req, res, next) => {
     });
 
     const totalAlerts = alerts.length;
-    const activeAlerts = alerts.filter(a => !a.resolved).length;
-    const resolvedAlerts = alerts.filter(a => a.resolved).length;
+    const activeAlerts = alerts.filter((a) => !a.resolved).length;
+    const resolvedAlerts = alerts.filter((a) => a.resolved).length;
 
     /**
      * 2️⃣ Average resolution time (hours)
      */
     const resolutionTimes = alerts
-      .filter(a => a.resolved && a.resolvedAt)
-      .map(a => (a.resolvedAt - a.triggeredAt) / (1000 * 60 * 60));
+      .filter((a) => a.resolved && a.resolvedAt)
+      .map((a) => (a.resolvedAt - a.triggeredAt) / (1000 * 60 * 60));
 
     const avgResolutionHours =
       resolutionTimes.length > 0
@@ -215,7 +194,11 @@ export const getSupplierPerformance = async (req, res, next) => {
 export const getSupplierRankings = async (req, res, next) => {
   try {
     const suppliers = await Supplier.aggregate([
-      { $match: { organization: new mongoose.Types.ObjectId(req.organizationId) } },
+      {
+        $match: {
+          organization: new mongoose.Types.ObjectId(req.organizationId)
+        }
+      },
       {
         $lookup: {
           from: 'reorderalerts',
@@ -267,7 +250,7 @@ export const getSupplierRankings = async (req, res, next) => {
     ]);
 
     // Normalize + final score
-    const ranked = suppliers.map(s => {
+    const ranked = suppliers.map((s) => {
       const leadTimeScore = s.avgLeadTime
         ? Math.max(0, 100 - s.avgLeadTime * 5)
         : 50;

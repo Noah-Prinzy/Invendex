@@ -50,10 +50,7 @@ export const startForecastReorderCron = () => {
         console.log('✅ No reorder alerts needed');
       }
     } catch (err) {
-      console.error(
-        '❌ Forecast reorder cron failed:',
-        err
-      );
+      console.error('❌ Forecast reorder cron failed:', err);
     }
   });
 };

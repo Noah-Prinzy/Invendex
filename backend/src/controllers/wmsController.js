@@ -83,14 +83,8 @@ export const allocateBinStock = async (req, res, next) => {
 
 export const transferBinStock = async (req, res, next) => {
   try {
-    const {
-      warehouseId,
-      productId,
-      fromBinId,
-      toBinId,
-      quantity,
-      reason
-    } = req.body;
+    const { warehouseId, productId, fromBinId, toBinId, quantity, reason } =
+      req.body;
 
     const result = await transferStockBetweenBins({
       organizationId: req.organizationId,
@@ -196,7 +190,11 @@ export const getReplenishmentPlan = async (req, res, next) => {
       warehouseId: req.query.warehouseId
     });
 
-    return successResponse(res, plan, 'Replenishment recommendations retrieved');
+    return successResponse(
+      res,
+      plan,
+      'Replenishment recommendations retrieved'
+    );
   } catch (err) {
     next(err);
   }

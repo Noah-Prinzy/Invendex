@@ -34,8 +34,7 @@ function standardDeviation(data, mean) {
   if (!Array.isArray(data) || data.length === 0) return 0;
 
   const variance =
-    data.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) /
-    data.length;
+    data.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / data.length;
 
   return Math.sqrt(variance);
 }
@@ -50,29 +49,16 @@ export function generateForecast({
 }) {
   const config = { ...DEFAULT_OPTIONS, ...options };
 
-  const avgDailyDemand = movingAverage(
-    historicalDemand,
-    config.windowSize
-  );
+  const avgDailyDemand = movingAverage(historicalDemand, config.windowSize);
 
-  const demandStdDev = standardDeviation(
-    historicalDemand,
-    avgDailyDemand
-  );
+  const demandStdDev = standardDeviation(historicalDemand, avgDailyDemand);
 
-  const expectedDemand =
-    avgDailyDemand * config.horizonDays;
+  const expectedDemand = avgDailyDemand * config.horizonDays;
 
   const confidenceScore =
     avgDailyDemand === 0
       ? 0
-      : Math.max(
-          0,
-          Math.min(
-            1,
-            1 - demandStdDev / avgDailyDemand
-          )
-        );
+      : Math.max(0, Math.min(1, 1 - demandStdDev / avgDailyDemand));
 
   return {
     productId,

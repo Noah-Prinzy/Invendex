@@ -1,5 +1,3 @@
-import React from 'react';
-
 const Account = ({ user }) => (
   <section className="panel">
     <header className="panel-head">

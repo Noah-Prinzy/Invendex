@@ -42,7 +42,11 @@ export const getSupplierLeadTimeVariability = async (req, res, next) => {
       lookback: req.query.lookback || 50
     });
 
-    return successResponse(res, data, 'Lead-time variability insight generated');
+    return successResponse(
+      res,
+      data,
+      'Lead-time variability insight generated'
+    );
   } catch (err) {
     next(err);
   }

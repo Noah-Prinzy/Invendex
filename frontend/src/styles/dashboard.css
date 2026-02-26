@@ -18,7 +18,7 @@
 }
 
 .metric-value {
-  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
   font-size: 1.02rem;
   font-weight: 700;
 }
@@ -295,7 +295,7 @@
   border-radius: 10px;
   background: #212932;
   color: #d5dee7;
-  font-family: "IBM Plex Mono", Consolas, "Courier New", monospace;
+  font-family: 'IBM Plex Mono', Consolas, 'Courier New', monospace;
   font-size: 0.74rem;
   line-height: 1.42;
   white-space: pre-wrap;
@@ -329,7 +329,7 @@
 }
 
 .obs-value.monospace {
-  font-family: "IBM Plex Mono", Consolas, "Courier New", monospace;
+  font-family: 'IBM Plex Mono', Consolas, 'Courier New', monospace;
   word-break: break-word;
 }
 

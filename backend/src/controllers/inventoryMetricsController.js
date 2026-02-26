@@ -18,11 +18,7 @@ export const getLatestInventoryMetrics = async (req, res, next) => {
       throw new AppError('No inventory metrics found', 404);
     }
 
-    return successResponse(
-      res,
-      metrics,
-      'Latest inventory metrics fetched'
-    );
+    return successResponse(res, metrics, 'Latest inventory metrics fetched');
   } catch (err) {
     next(err);
   }

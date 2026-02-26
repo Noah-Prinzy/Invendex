@@ -1,7 +1,5 @@
 import express from 'express';
-import {
-  analyzeForecastVsStatic
-} from '../controllers/reorderAnalysisController.js';
+import { analyzeForecastVsStatic } from '../controllers/reorderAnalysisController.js';
 import { protect } from '../middlewares/authMiddleware.js';
 import requireOrganization from '../middlewares/requireOrganization.js';
 import requireRoles from '../middlewares/requireRoles.js';
@@ -20,9 +18,6 @@ router.use(protect, requireOrganization, requireRoles('admin', 'manager'));
  * Example:
  * GET /api/reorder-analysis/forecast-vs-static?minConfidence=0.6
  */
-router.get(
-  '/forecast-vs-static',
-  analyzeForecastVsStatic
-);
+router.get('/forecast-vs-static', analyzeForecastVsStatic);
 
 export default router;

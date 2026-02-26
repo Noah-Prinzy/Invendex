@@ -28,9 +28,7 @@ export const startForecastReorderEngineCron = () => {
 
   cron.schedule('40 0 * * *', async () => {
     try {
-      console.log(
-        '🔮 Running forecast-aware reorder engine cron...'
-      );
+      console.log('🔮 Running forecast-aware reorder engine cron...');
 
       const organizations = await Organization.find({
         isActive: true
@@ -50,19 +48,12 @@ export const startForecastReorderEngineCron = () => {
           `⚠️ ${totalGenerated} forecast-aware reorder alert(s) created`
         );
       } else {
-        console.log(
-          '✅ No forecast-aware reorder alerts needed'
-        );
+        console.log('✅ No forecast-aware reorder alerts needed');
       }
 
-      console.log(
-        '🔮 Forecast-aware reorder engine cron completed'
-      );
+      console.log('🔮 Forecast-aware reorder engine cron completed');
     } catch (err) {
-      console.error(
-        '❌ Forecast-aware reorder engine cron failed:',
-        err
-      );
+      console.error('❌ Forecast-aware reorder engine cron failed:', err);
     }
   });
 };

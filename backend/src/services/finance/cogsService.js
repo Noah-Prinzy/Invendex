@@ -3,10 +3,7 @@ import CogsEntry from '../../models/CogsEntry.js';
 import Inventory from '../../models/Inventory.js';
 import Order from '../../models/Order.js';
 import Product from '../../models/Product.js';
-import {
-  consumeCostLayers,
-  getEffectiveMethod
-} from './valuationService.js';
+import { consumeCostLayers, getEffectiveMethod } from './valuationService.js';
 import { consumeOutboundTracking } from '../inventory/trackingService.js';
 import { AppError } from '../../errors/AppError.js';
 import {
@@ -18,9 +15,10 @@ import { logger } from '../../observability/logger.js';
 import { captureException } from '../../observability/errorTracker.js';
 import { logInventoryMutation } from '../../observability/inventoryMutationLogger.js';
 
-const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+const roundMoney = (value) =>
+  Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
-const ensureCompletableOrder = order => {
+const ensureCompletableOrder = (order) => {
   if (!order) throw new AppError('Order not found', 404);
   if (order.type !== 'sale') {
     throw new AppError('COGS can only be recorded for sale orders', 400);
@@ -30,7 +28,7 @@ const ensureCompletableOrder = order => {
   }
 };
 
-const computeLineRevenue = line => {
+const computeLineRevenue = (line) => {
   const quantity = Number(line.quantity || 0);
   const unitSalePrice = Number(line.unitSalePrice || 0);
   const discountAmount = Number(line.discountAmount || 0);
@@ -43,7 +41,7 @@ export const recordCogsForCompletedSaleOrder = async ({
   organizationId,
   actorUserId = null
 }) => {
-  const runMutation = async session => {
+  const runMutation = async (session) => {
     let createdEntries = [];
     let orderWarehouse = null;
 
@@ -183,7 +181,9 @@ export const recordCogsForCompletedSaleOrder = async ({
       });
 
       line.lineRevenue = computeLineRevenue(line);
-      orderSubtotalRevenue += roundMoney(quantity * Number(line.unitSalePrice || 0));
+      orderSubtotalRevenue += roundMoney(
+        quantity * Number(line.unitSalePrice || 0)
+      );
       orderDiscount += Number(line.discountAmount || 0);
       orderTax += Number(line.taxAmount || 0);
 
@@ -229,7 +229,9 @@ export const recordCogsForCompletedSaleOrder = async ({
     order.subtotalRevenue = roundMoney(orderSubtotalRevenue);
     order.totalDiscount = roundMoney(orderDiscount);
     order.totalTax = roundMoney(orderTax);
-    order.netRevenue = roundMoney(orderSubtotalRevenue - orderDiscount + orderTax);
+    order.netRevenue = roundMoney(
+      orderSubtotalRevenue - orderDiscount + orderTax
+    );
     order.status = 'completed';
     await order.save(session ? { session } : undefined);
 
@@ -237,7 +239,7 @@ export const recordCogsForCompletedSaleOrder = async ({
     return { createdEntries, orderWarehouse };
   };
 
-  const isTransactionUnsupported = err =>
+  const isTransactionUnsupported = (err) =>
     String(err?.message || '').includes('Transaction numbers are only allowed');
 
   const session = await mongoose.startSession();

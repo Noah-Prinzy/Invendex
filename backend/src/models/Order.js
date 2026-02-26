@@ -119,9 +119,7 @@ orderSchema.pre('validate', function normalizeOrder(next) {
       }
 
       if (!line.warehouse) {
-        return next(
-          new Error('warehouse is required for each sale line item')
-        );
+        return next(new Error('warehouse is required for each sale line item'));
       }
 
       if (!Number.isFinite(Number(line.unitSalePrice))) {
@@ -137,7 +135,11 @@ orderSchema.pre('validate', function normalizeOrder(next) {
 
       if (Array.isArray(line.serialNumbers) && line.serialNumbers.length) {
         const normalized = line.serialNumbers
-          .map(value => String(value || '').trim().toUpperCase())
+          .map((value) =>
+            String(value || '')
+              .trim()
+              .toUpperCase()
+          )
           .filter(Boolean);
 
         if (normalized.length !== line.serialNumbers.length) {
@@ -145,19 +147,28 @@ orderSchema.pre('validate', function normalizeOrder(next) {
         }
         if (normalized.length !== quantity) {
           return next(
-            new Error('serialNumbers count must equal quantity for sale line item')
+            new Error(
+              'serialNumbers count must equal quantity for sale line item'
+            )
           );
         }
         if (new Set(normalized).size !== normalized.length) {
-          return next(new Error('serialNumbers must be unique per sale line item'));
+          return next(
+            new Error('serialNumbers must be unique per sale line item')
+          );
         }
 
         line.serialNumbers = normalized;
       }
 
-      line.lineRevenue = Math.round(
-        (quantity * unitSalePrice - discountAmount + taxAmount + Number.EPSILON) * 100
-      ) / 100;
+      line.lineRevenue =
+        Math.round(
+          (quantity * unitSalePrice -
+            discountAmount +
+            taxAmount +
+            Number.EPSILON) *
+            100
+        ) / 100;
 
       subtotalRevenue += quantity * unitSalePrice;
       totalDiscount += discountAmount;
@@ -165,12 +176,14 @@ orderSchema.pre('validate', function normalizeOrder(next) {
     }
   }
 
-  this.subtotalRevenue = Math.round((subtotalRevenue + Number.EPSILON) * 100) / 100;
+  this.subtotalRevenue =
+    Math.round((subtotalRevenue + Number.EPSILON) * 100) / 100;
   this.totalDiscount = Math.round((totalDiscount + Number.EPSILON) * 100) / 100;
   this.totalTax = Math.round((totalTax + Number.EPSILON) * 100) / 100;
-  this.netRevenue = Math.round(
-    (subtotalRevenue - totalDiscount + totalTax + Number.EPSILON) * 100
-  ) / 100;
+  this.netRevenue =
+    Math.round(
+      (subtotalRevenue - totalDiscount + totalTax + Number.EPSILON) * 100
+    ) / 100;
 
   return next();
 });

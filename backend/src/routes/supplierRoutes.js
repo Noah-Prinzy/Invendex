@@ -29,12 +29,7 @@ router.use(protect, requireOrganization, requireRoles('admin'));
 /**
  * ➕ Create supplier
  */
-router.post(
-  '/',
-  createSupplierValidator,
-  validateRequest,
-  createSupplier
-);
+router.post('/', createSupplierValidator, validateRequest, createSupplier);
 
 /**
  * 📄 Get all suppliers
@@ -53,30 +48,17 @@ router.get(
 /**
  * 🏆 Supplier rankings
  */
-router.get(
-  '/rankings',
-  getSupplierRankings
-);
+router.get('/rankings', getSupplierRankings);
 
 /**
  * 🔍 Get supplier by ID
  */
-router.get(
-  '/:id',
-  supplierIdParamValidator,
-  validateRequest,
-  getSupplierById
-);
+router.get('/:id', supplierIdParamValidator, validateRequest, getSupplierById);
 
 /**
  * ✏️ Update supplier
  */
-router.put(
-  '/:id',
-  updateSupplierValidator,
-  validateRequest,
-  updateSupplier
-);
+router.put('/:id', updateSupplierValidator, validateRequest, updateSupplier);
 
 /**
  * 🗑️ Delete supplier

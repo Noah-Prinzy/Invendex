@@ -24,10 +24,6 @@ router.use(protect, requireOrganization);
  *   - from=YYYY-MM-DD     (optional)
  *   - to=YYYY-MM-DD       (optional)
  */
-router.get(
-  '/export',
-  requireRoles('admin', 'staff'),
-  exportInventoryReport
-);
+router.get('/export', requireRoles('admin', 'staff'), exportInventoryReport);
 
 export default router;

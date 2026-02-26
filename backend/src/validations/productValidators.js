@@ -38,9 +38,7 @@ export const createProductValidator = [
  * ✏️ Update Product Validation
  */
 export const updateProductValidator = [
-  param('id')
-    .isMongoId()
-    .withMessage('Invalid product ID'),
+  param('id').isMongoId().withMessage('Invalid product ID'),
 
   body('name')
     .optional()
@@ -63,19 +61,13 @@ export const updateProductValidator = [
  * 📦 Adjust Stock Validation
  */
 export const adjustStockValidator = [
-  param('id')
-    .isMongoId()
-    .withMessage('Invalid product ID'),
+  param('id').isMongoId().withMessage('Invalid product ID'),
 
-  body('amount')
-    .isInt()
-    .withMessage('Amount must be an integer'),
+  body('amount').isInt().withMessage('Amount must be an integer'),
 
   body('reason')
     .trim()
     .toLowerCase()
     .isIn(STOCK_REASONS)
-    .withMessage(
-      `Reason must be one of: ${STOCK_REASONS.join(', ')}`
-    )
+    .withMessage(`Reason must be one of: ${STOCK_REASONS.join(', ')}`)
 ];

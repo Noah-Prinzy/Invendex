@@ -34,8 +34,8 @@ export const analyzeForecastVsStatic = async (req, res, next) => {
 
     const poAlertSet = new Set(
       purchaseOrders
-        .flatMap(po => po.reorderAlerts || [])
-        .map(alertId => alertId.toString())
+        .flatMap((po) => po.reorderAlerts || [])
+        .map((alertId) => alertId.toString())
     );
 
     const result = {
@@ -85,10 +85,7 @@ export const analyzeForecastVsStatic = async (req, res, next) => {
           .sort({ recordedAt: 1 })
           .lean();
 
-        if (
-          laterSnapshot &&
-          laterSnapshot.stock < alert.stock
-        ) {
+        if (laterSnapshot && laterSnapshot.stock < alert.stock) {
           isValid = true;
         }
       }
@@ -100,11 +97,10 @@ export const analyzeForecastVsStatic = async (req, res, next) => {
           const conf = alert.metadata.confidenceScore;
           const key = conf >= 0.8 ? '0.8+' : conf >= 0.6 ? '0.6+' : 'low';
 
-          bucket.byConfidence[key] =
-            bucket.byConfidence[key] || {
-              total: 0,
-              valid: 0
-            };
+          bucket.byConfidence[key] = bucket.byConfidence[key] || {
+            total: 0,
+            valid: 0
+          };
 
           bucket.byConfidence[key].total++;
           bucket.byConfidence[key].valid++;
@@ -116,11 +112,10 @@ export const analyzeForecastVsStatic = async (req, res, next) => {
           const conf = alert.metadata.confidenceScore;
           const key = conf >= 0.8 ? '0.8+' : conf >= 0.6 ? '0.6+' : 'low';
 
-          bucket.byConfidence[key] =
-            bucket.byConfidence[key] || {
-              total: 0,
-              valid: 0
-            };
+          bucket.byConfidence[key] = bucket.byConfidence[key] || {
+            total: 0,
+            valid: 0
+          };
 
           bucket.byConfidence[key].total++;
         }
@@ -128,7 +123,7 @@ export const analyzeForecastVsStatic = async (req, res, next) => {
     }
 
     // 📐 Precision calculations
-    const finalize = section => ({
+    const finalize = (section) => ({
       ...section,
       precision:
         section.total > 0
@@ -143,9 +138,7 @@ export const analyzeForecastVsStatic = async (req, res, next) => {
     ).map(([range, data]) => ({
       range,
       precision:
-        data.total > 0
-          ? Number((data.valid / data.total).toFixed(2))
-          : 0,
+        data.total > 0 ? Number((data.valid / data.total).toFixed(2)) : 0,
       total: data.total
     }));
 

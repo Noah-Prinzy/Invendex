@@ -26,198 +26,182 @@ afterAll(async () => {
 });
 
 describe('Reorder Engine', () => {
-  it(
-    'creates a reorder alert when stock is below calculated reorder level',
-    async () => {
-      const organizationId = new mongoose.Types.ObjectId();
-      const product = await Product.create({
+  it('creates a reorder alert when stock is below calculated reorder level', async () => {
+    const organizationId = new mongoose.Types.ObjectId();
+    const product = await Product.create({
+      organization: organizationId,
+      name: 'Test Product',
+      sku: 'TEST-SKU-001',
+      price: 100,
+      stock: 5,
+      lowStockThreshold: 5,
+      supplierLeadTimeDays: 7
+    });
+
+    await InventorySnapshot.create([
+      {
         organization: organizationId,
-        name: 'Test Product',
-        sku: 'TEST-SKU-001',
-        price: 100,
-        stock: 5,
-        lowStockThreshold: 5,
-        supplierLeadTimeDays: 7
-      });
-
-      await InventorySnapshot.create([
-        {
-          organization: organizationId,
-          product: product._id,
-          sku: product.sku,
-          stock: 20,
-          price: 100,
-          recordedAt: new Date('2024-01-01')
-        },
-        {
-          organization: organizationId,
-          product: product._id,
-          sku: product.sku,
-          stock: 5,
-          price: 100,
-          recordedAt: new Date('2024-01-02')
-        }
-      ]);
-
-      const result = await runReorderEngine({ organizationId });
-
-      const alerts = await ReorderAlert.find({ sku: product.sku });
-
-      expect(alerts).toHaveLength(1);
-      expect(alerts[0].status).toBe('ACTIVE');
-      expect(alerts[0].reorderQuantity).toBeGreaterThan(0);
-      expect(result.generated).toBe(1);
-    },
-    10000
-  );
-
-  it(
-    'does NOT create duplicate active reorder alerts on the same day',
-    async () => {
-      const organizationId = new mongoose.Types.ObjectId();
-      const product = await Product.create({
-        organization: organizationId,
-        name: 'Test Product',
-        sku: 'TEST-SKU-002',
-        price: 100,
-        stock: 5,
-        lowStockThreshold: 5,
-        supplierLeadTimeDays: 7
-      });
-
-      await InventorySnapshot.create([
-        {
-          organization: organizationId,
-          product: product._id,
-          sku: product.sku,
-          stock: 20,
-          price: 100,
-          recordedAt: new Date('2024-01-01')
-        },
-        {
-          organization: organizationId,
-          product: product._id,
-          sku: product.sku,
-          stock: 5,
-          price: 100,
-          recordedAt: new Date('2024-01-02')
-        }
-      ]);
-
-      const firstRun = await runReorderEngine({ organizationId });
-      expect(firstRun.generated).toBe(1);
-
-      const secondRun = await runReorderEngine({ organizationId });
-      expect(secondRun.generated).toBe(0);
-
-      const alerts = await ReorderAlert.find({ sku: product.sku });
-      expect(alerts).toHaveLength(1);
-      expect(alerts[0].status).toBe('ACTIVE');
-    },
-    10000
-  );
-
-  it(
-    'creates a NEW reorder alert after the previous one is resolved',
-    async () => {
-      const organizationId = new mongoose.Types.ObjectId();
-      const product = await Product.create({
-        organization: organizationId,
-        name: 'Test Product',
-        sku: 'TEST-SKU-003',
-        price: 100,
-        stock: 5,
-        lowStockThreshold: 5,
-        supplierLeadTimeDays: 7
-      });
-
-      await InventorySnapshot.create([
-        {
-          organization: organizationId,
-          product: product._id,
-          sku: product.sku,
-          stock: 20,
-          price: 100,
-          recordedAt: new Date('2024-01-01')
-        },
-        {
-          organization: organizationId,
-          product: product._id,
-          sku: product.sku,
-          stock: 5,
-          price: 100,
-          recordedAt: new Date('2024-01-02')
-        }
-      ]);
-
-      const firstRun = await runReorderEngine({ organizationId });
-      expect(firstRun.generated).toBe(1);
-
-      const alert = await ReorderAlert.findOne({ sku: product.sku });
-      alert.resolved = true;
-      await alert.save();
-
-      const secondRun = await runReorderEngine({ organizationId });
-      expect(secondRun.generated).toBe(1);
-
-      const alerts = await ReorderAlert.find({ sku: product.sku });
-      expect(alerts).toHaveLength(2);
-    },
-    10000
-  );
-
-  it(
-    'respects supplier minimum order quantity (MOQ)',
-    async () => {
-      const organizationId = new mongoose.Types.ObjectId();
-      const product = await Product.create({
-        organization: organizationId,
-        name: 'MOQ Product',
-        sku: 'TEST-SKU-MOQ',
-        price: 50,
-        stock: 2,
-        lowStockThreshold: 5,
-        supplierLeadTimeDays: 5
-      });
-
-      await SupplierProduct.create({
-        organization: organizationId,
-        supplier: new mongoose.Types.ObjectId(),
         product: product._id,
         sku: product.sku,
-        unitCost: 40,
-        leadTimeDays: 5,
-        minimumOrderQuantity: 20,
-        isPreferred: true
-      });
+        stock: 20,
+        price: 100,
+        recordedAt: new Date('2024-01-01')
+      },
+      {
+        organization: organizationId,
+        product: product._id,
+        sku: product.sku,
+        stock: 5,
+        price: 100,
+        recordedAt: new Date('2024-01-02')
+      }
+    ]);
 
-      await InventorySnapshot.create([
-        {
-          organization: organizationId,
-          product: product._id,
-          sku: product.sku,
-          stock: 10,
-          price: 50,
-          recordedAt: new Date('2024-01-01')
-        },
-        {
-          organization: organizationId,
-          product: product._id,
-          sku: product.sku,
-          stock: 2,
-          price: 50,
-          recordedAt: new Date('2024-01-02')
-        }
-      ]);
+    const result = await runReorderEngine({ organizationId });
 
-      const result = await runReorderEngine({ organizationId });
+    const alerts = await ReorderAlert.find({ sku: product.sku });
 
-      const alert = await ReorderAlert.findOne({ sku: product.sku });
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].status).toBe('ACTIVE');
+    expect(alerts[0].reorderQuantity).toBeGreaterThan(0);
+    expect(result.generated).toBe(1);
+  }, 10000);
 
-      expect(result.generated).toBe(1);
-      expect(alert).not.toBeNull();
-      expect(alert.reorderQuantity).toBe(20); // 👈 MOQ enforced
-    },
-    10000
-  );
+  it('does NOT create duplicate active reorder alerts on the same day', async () => {
+    const organizationId = new mongoose.Types.ObjectId();
+    const product = await Product.create({
+      organization: organizationId,
+      name: 'Test Product',
+      sku: 'TEST-SKU-002',
+      price: 100,
+      stock: 5,
+      lowStockThreshold: 5,
+      supplierLeadTimeDays: 7
+    });
+
+    await InventorySnapshot.create([
+      {
+        organization: organizationId,
+        product: product._id,
+        sku: product.sku,
+        stock: 20,
+        price: 100,
+        recordedAt: new Date('2024-01-01')
+      },
+      {
+        organization: organizationId,
+        product: product._id,
+        sku: product.sku,
+        stock: 5,
+        price: 100,
+        recordedAt: new Date('2024-01-02')
+      }
+    ]);
+
+    const firstRun = await runReorderEngine({ organizationId });
+    expect(firstRun.generated).toBe(1);
+
+    const secondRun = await runReorderEngine({ organizationId });
+    expect(secondRun.generated).toBe(0);
+
+    const alerts = await ReorderAlert.find({ sku: product.sku });
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].status).toBe('ACTIVE');
+  }, 10000);
+
+  it('creates a NEW reorder alert after the previous one is resolved', async () => {
+    const organizationId = new mongoose.Types.ObjectId();
+    const product = await Product.create({
+      organization: organizationId,
+      name: 'Test Product',
+      sku: 'TEST-SKU-003',
+      price: 100,
+      stock: 5,
+      lowStockThreshold: 5,
+      supplierLeadTimeDays: 7
+    });
+
+    await InventorySnapshot.create([
+      {
+        organization: organizationId,
+        product: product._id,
+        sku: product.sku,
+        stock: 20,
+        price: 100,
+        recordedAt: new Date('2024-01-01')
+      },
+      {
+        organization: organizationId,
+        product: product._id,
+        sku: product.sku,
+        stock: 5,
+        price: 100,
+        recordedAt: new Date('2024-01-02')
+      }
+    ]);
+
+    const firstRun = await runReorderEngine({ organizationId });
+    expect(firstRun.generated).toBe(1);
+
+    const alert = await ReorderAlert.findOne({ sku: product.sku });
+    alert.resolved = true;
+    await alert.save();
+
+    const secondRun = await runReorderEngine({ organizationId });
+    expect(secondRun.generated).toBe(1);
+
+    const alerts = await ReorderAlert.find({ sku: product.sku });
+    expect(alerts).toHaveLength(2);
+  }, 10000);
+
+  it('respects supplier minimum order quantity (MOQ)', async () => {
+    const organizationId = new mongoose.Types.ObjectId();
+    const product = await Product.create({
+      organization: organizationId,
+      name: 'MOQ Product',
+      sku: 'TEST-SKU-MOQ',
+      price: 50,
+      stock: 2,
+      lowStockThreshold: 5,
+      supplierLeadTimeDays: 5
+    });
+
+    await SupplierProduct.create({
+      organization: organizationId,
+      supplier: new mongoose.Types.ObjectId(),
+      product: product._id,
+      sku: product.sku,
+      unitCost: 40,
+      leadTimeDays: 5,
+      minimumOrderQuantity: 20,
+      isPreferred: true
+    });
+
+    await InventorySnapshot.create([
+      {
+        organization: organizationId,
+        product: product._id,
+        sku: product.sku,
+        stock: 10,
+        price: 50,
+        recordedAt: new Date('2024-01-01')
+      },
+      {
+        organization: organizationId,
+        product: product._id,
+        sku: product.sku,
+        stock: 2,
+        price: 50,
+        recordedAt: new Date('2024-01-02')
+      }
+    ]);
+
+    const result = await runReorderEngine({ organizationId });
+
+    const alert = await ReorderAlert.findOne({ sku: product.sku });
+
+    expect(result.generated).toBe(1);
+    expect(alert).not.toBeNull();
+    expect(alert.reorderQuantity).toBe(20); // 👈 MOQ enforced
+  }, 10000);
 });

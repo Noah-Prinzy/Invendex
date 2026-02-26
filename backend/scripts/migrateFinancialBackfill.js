@@ -17,7 +17,7 @@ const projectRoot = path.resolve(__dirname, '..');
 
 dotenv.config({ path: path.join(projectRoot, '.env'), override: true });
 
-const normalizeDbUrl = rawValue => {
+const normalizeDbUrl = (rawValue) => {
   if (!rawValue) return '';
   const trimmed = String(rawValue).trim();
   return trimmed.replace(/^['"]|['"]$/g, '');
@@ -38,13 +38,19 @@ const resolveDbUrl = () => {
 };
 
 const DB_URL = resolveDbUrl();
-const DRY_RUN = String(process.env.MIGRATION_DRY_RUN || '')
-  .toLowerCase()
-  .trim() === 'true';
+const DRY_RUN =
+  String(process.env.MIGRATION_DRY_RUN || '')
+    .toLowerCase()
+    .trim() === 'true';
 
-const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+const roundMoney = (value) =>
+  Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
-const getFallbackUnitCost = async (organizationId, productId, fallbackPrice) => {
+const getFallbackUnitCost = async (
+  organizationId,
+  productId,
+  fallbackPrice
+) => {
   const supplierProduct = await SupplierProduct.findOne({
     organization: organizationId,
     product: productId,
@@ -60,7 +66,7 @@ const getFallbackUnitCost = async (organizationId, productId, fallbackPrice) => 
   return Number(fallbackPrice || 0);
 };
 
-const ensureValuationConfigs = async organizations => {
+const ensureValuationConfigs = async (organizations) => {
   let created = 0;
   for (const organization of organizations) {
     const existing = await InventoryValuationConfig.findOne({
@@ -82,7 +88,7 @@ const ensureValuationConfigs = async organizations => {
   return created;
 };
 
-const backfillSaleOrderPricing = async organizations => {
+const backfillSaleOrderPricing = async (organizations) => {
   let ordersUpdated = 0;
   let linesUpdated = 0;
 
@@ -131,9 +137,14 @@ const backfillSaleOrderPricing = async organizations => {
         const unitSalePrice = Number(line.unitSalePrice || 0);
         const lineDiscount = Number(line.discountAmount || 0);
         const lineTax = Number(line.taxAmount || 0);
-        const lineRevenue = roundMoney(qty * unitSalePrice - lineDiscount + lineTax);
+        const lineRevenue = roundMoney(
+          qty * unitSalePrice - lineDiscount + lineTax
+        );
 
-        if (!Number.isFinite(Number(line.lineRevenue)) || Number(line.lineRevenue) !== lineRevenue) {
+        if (
+          !Number.isFinite(Number(line.lineRevenue)) ||
+          Number(line.lineRevenue) !== lineRevenue
+        ) {
           line.lineRevenue = lineRevenue;
           changed = true;
         }
@@ -168,7 +179,7 @@ const backfillSaleOrderPricing = async organizations => {
   return { ordersUpdated, linesUpdated };
 };
 
-const seedOpeningCostLayers = async organizations => {
+const seedOpeningCostLayers = async (organizations) => {
   let layersCreated = 0;
 
   for (const organization of organizations) {
@@ -267,7 +278,7 @@ run()
     console.log('Financial migration completed');
     process.exit(0);
   })
-  .catch(async err => {
+  .catch(async (err) => {
     console.error('Financial migration failed:', err.message);
     try {
       await mongoose.disconnect();

@@ -1,8 +1,6 @@
-import React from 'react';
-
 const TabBar = ({ tabs, activeTab, onChange }) => (
   <nav className="tabbar" aria-label="Primary">
-    {tabs.map(tab => (
+    {tabs.map((tab) => (
       <button
         type="button"
         key={tab.key}

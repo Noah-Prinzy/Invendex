@@ -18,7 +18,7 @@ let httpServer;
 let baseUrl;
 let clients = [];
 
-const connectClient = token =>
+const connectClient = (token) =>
   createClient(baseUrl, {
     transports: ['websocket'],
     reconnection: false,
@@ -31,12 +31,12 @@ const connectClientWithoutAuth = () =>
     reconnection: false
   });
 
-const registerClient = client => {
+const registerClient = (client) => {
   clients.push(client);
   return client;
 };
 
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const waitForEvent = (emitter, eventName, timeoutMs = 4000) =>
   new Promise((resolve, reject) => {
@@ -44,7 +44,7 @@ const waitForEvent = (emitter, eventName, timeoutMs = 4000) =>
       reject(new Error(`Timed out waiting for event "${eventName}"`));
     }, timeoutMs);
 
-    emitter.once(eventName, payload => {
+    emitter.once(eventName, (payload) => {
       clearTimeout(timeout);
       resolve(payload);
     });
@@ -52,7 +52,7 @@ const waitForEvent = (emitter, eventName, timeoutMs = 4000) =>
 
 const waitForNoEvent = (emitter, eventName, timeoutMs = 500) =>
   new Promise((resolve, reject) => {
-    const handler = payload => {
+    const handler = (payload) => {
       emitter.off(eventName, handler);
       reject(
         new Error(
@@ -77,7 +77,7 @@ const emitWithAck = (client, eventName, payload, timeoutMs = 2000) =>
       reject(new Error(`Timed out waiting for ack on "${eventName}"`));
     }, timeoutMs);
 
-    client.emit(eventName, payload, ack => {
+    client.emit(eventName, payload, (ack) => {
       clearTimeout(timeout);
       resolve(ack);
     });
@@ -96,7 +96,7 @@ beforeAll(async () => {
   httpServer = createServer(app);
   await initSocketServer(httpServer, { enabled: true });
 
-  await new Promise(resolve => {
+  await new Promise((resolve) => {
     httpServer.listen(0, '127.0.0.1', () => {
       const { port } = httpServer.address();
       baseUrl = `http://127.0.0.1:${port}`;
@@ -124,11 +124,11 @@ afterEach(() => {
 afterAll(async () => {
   const io = getIo();
   if (io) {
-    await new Promise(resolve => io.close(resolve));
+    await new Promise((resolve) => io.close(resolve));
   }
 
   if (httpServer) {
-    await new Promise(resolve => httpServer.close(resolve));
+    await new Promise((resolve) => httpServer.close(resolve));
   }
 
   await mongoose.connection.close();
@@ -331,7 +331,11 @@ describe('realtime socket server', () => {
       message: 'after unsubscribe'
     });
 
-    await expect(waitForNoEvent(clientA, 'warehouse.targeted')).resolves.toBeUndefined();
-    await expect(waitForNoEvent(clientB, 'warehouse.targeted')).resolves.toBeUndefined();
+    await expect(
+      waitForNoEvent(clientA, 'warehouse.targeted')
+    ).resolves.toBeUndefined();
+    await expect(
+      waitForNoEvent(clientB, 'warehouse.targeted')
+    ).resolves.toBeUndefined();
   });
 });

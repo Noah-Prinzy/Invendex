@@ -26,10 +26,7 @@ export const assertPurchaseOrderTransition = ({
   const allowedNextStates = PURCHASE_ORDER_TRANSITIONS[from];
 
   if (!allowedNextStates) {
-    throw new AppError(
-      `Unknown purchase order status "${from}"`,
-      400
-    );
+    throw new AppError(`Unknown purchase order status "${from}"`, 400);
   }
 
   if (!allowedNextStates.includes(to)) {

@@ -74,8 +74,6 @@ forecastSchema.index(
 /**
  * ⚡ Optimized query for "latest forecast per product"
  */
-forecastSchema.index(
-  { organization: 1, product: 1, generatedAt: -1 }
-);
+forecastSchema.index({ organization: 1, product: 1, generatedAt: -1 });
 
 export default mongoose.model('Forecast', forecastSchema);

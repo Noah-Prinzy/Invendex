@@ -1,6 +1,6 @@
 import { logger } from './logger.js';
 
-const coerceNullableString = value => {
+const coerceNullableString = (value) => {
   if (value === null || value === undefined) return null;
   return String(value);
 };

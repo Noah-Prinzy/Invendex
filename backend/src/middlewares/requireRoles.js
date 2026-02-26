@@ -45,9 +45,7 @@ const requireRoles = (...allowedRoles) => {
         console.error('Audit log failed:', err.message);
       }
 
-      return next(
-        new AppError('Access denied: insufficient permissions', 403)
-      );
+      return next(new AppError('Access denied: insufficient permissions', 403));
     }
 
     next();

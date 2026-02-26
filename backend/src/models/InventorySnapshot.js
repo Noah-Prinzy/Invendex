@@ -71,9 +71,7 @@ const inventorySnapshotSchema = new mongoose.Schema(
  * 🔍 Time-series performance index
  * Optimized for demand calculations
  */
-inventorySnapshotSchema.index(
-  { sku: 1, recordedAt: 1 }
-);
+inventorySnapshotSchema.index({ sku: 1, recordedAt: 1 });
 inventorySnapshotSchema.index({ organization: 1, sku: 1, recordedAt: 1 });
 inventorySnapshotSchema.index(
   { organization: 1, purchaseOrder: 1, product: 1 },
@@ -83,7 +81,4 @@ inventorySnapshotSchema.index(
   }
 );
 
-export default mongoose.model(
-  'InventorySnapshot',
-  inventorySnapshotSchema
-);
+export default mongoose.model('InventorySnapshot', inventorySnapshotSchema);

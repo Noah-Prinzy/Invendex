@@ -2,7 +2,7 @@ import { body, param } from 'express-validator';
 
 import Supplier from '../models/Supplier.js';
 
-const ensureOrganizationContext = req => {
+const ensureOrganizationContext = (req) => {
   if (!req.organizationId) {
     throw new Error('Organization context is required');
   }

@@ -58,9 +58,6 @@ const warehouseSchema = new mongoose.Schema(
 
 // Compound index for fast filtering
 warehouseSchema.index({ isActive: 1, isArchived: 1 });
-warehouseSchema.index(
-  { organization: 1, code: 1 },
-  { unique: true }
-);
+warehouseSchema.index({ organization: 1, code: 1 }, { unique: true });
 
 export default mongoose.model('Warehouse', warehouseSchema);

@@ -20,7 +20,7 @@ export const exportInventoryReport = async (req, res, next) => {
       .sort({ recordedAt: 1 })
       .select('sku stock price recordedAt source');
 
-    const rows = snapshots.map(s => ({
+    const rows = snapshots.map((s) => ({
       sku: s.sku,
       stock: s.stock,
       price: s.price,

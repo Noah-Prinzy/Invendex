@@ -96,7 +96,4 @@ supplierProductSchema.index({
   isActive: 1
 });
 
-export default mongoose.model(
-  'SupplierProduct',
-  supplierProductSchema
-);
+export default mongoose.model('SupplierProduct', supplierProductSchema);

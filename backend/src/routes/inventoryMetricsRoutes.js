@@ -29,10 +29,6 @@ router.get(
  *
  * Access: Admin & Staff
  */
-router.get(
-  '/range',
-  requireRoles('admin', 'staff'),
-  getInventoryMetricsRange
-);
+router.get('/range', requireRoles('admin', 'staff'), getInventoryMetricsRange);
 
 export default router;

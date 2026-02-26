@@ -3,7 +3,7 @@ import { body, param, query } from 'express-validator';
 import Product from '../models/Product.js';
 import ReorderAlert from '../models/ReorderAlert.js';
 
-const ensureOrganizationContext = req => {
+const ensureOrganizationContext = (req) => {
   if (!req.organizationId) {
     throw new Error('Organization context is required');
   }

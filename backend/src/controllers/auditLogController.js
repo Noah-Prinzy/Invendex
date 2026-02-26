@@ -84,11 +84,7 @@ export const getAuditLogById = async (req, res, next) => {
       throw new AppError('Audit log not found', 404);
     }
 
-    return successResponse(
-      res,
-      log,
-      'Audit log fetched successfully'
-    );
+    return successResponse(res, log, 'Audit log fetched successfully');
   } catch (err) {
     next(err);
   }

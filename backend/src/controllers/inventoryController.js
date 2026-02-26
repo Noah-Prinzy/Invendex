@@ -6,9 +6,7 @@ import mongoose from 'mongoose';
 import { successResponse } from '../utils/response.js';
 import { AppError } from '../errors/AppError.js';
 import { runReorderEngine } from '../services/reorderEngine.js';
-import {
-  getAverageDailyDemandPerSku
-} from '../services/inventoryMetricsService.js';
+import { getAverageDailyDemandPerSku } from '../services/inventoryMetricsService.js';
 
 /* ======================================================
    INVENTORY SNAPSHOTS
@@ -86,12 +84,12 @@ export const getReorderIntelligence = async (req, res, next) => {
       .populate('supplier', 'name leadTimeDays')
       .lean();
 
-    const intelligence = products.map(product => {
+    const intelligence = products.map((product) => {
       const avgDailyDemand = avgDemandPerSku[product.sku] || 0;
 
       const supplierLink =
         supplierLinks.find(
-          s => s.product.toString() === product._id.toString()
+          (s) => s.product.toString() === product._id.toString()
         ) || null;
 
       if (!supplierLink) {
@@ -103,9 +101,7 @@ export const getReorderIntelligence = async (req, res, next) => {
       }
 
       const leadTimeDays =
-        supplierLink.leadTimeDays ||
-        supplierLink.supplier?.leadTimeDays ||
-        7;
+        supplierLink.leadTimeDays || supplierLink.supplier?.leadTimeDays || 7;
 
       const reorderPoint = Math.ceil(avgDailyDemand * leadTimeDays * 1.2);
 
@@ -150,8 +146,7 @@ export const getResolvedReorderAlerts = async (req, res, next) => {
     const alerts = await ReorderAlert.find({
       organization: req.organizationId,
       resolved: true
-    })
-      .sort({ resolvedAt: -1 });
+    }).sort({ resolvedAt: -1 });
 
     return successResponse(res, alerts, 'Resolved reorder alerts fetched');
   } catch (err) {
@@ -195,10 +190,7 @@ export const getInventoryDrops = async (req, res, next) => {
                   $subtract: [
                     { $arrayElemAt: ['$snapshots.stock', '$$idx'] },
                     {
-                      $arrayElemAt: [
-                        '$snapshots.stock',
-                        { $add: ['$$idx', 1] }
-                      ]
+                      $arrayElemAt: ['$snapshots.stock', { $add: ['$$idx', 1] }]
                     }
                   ]
                 },

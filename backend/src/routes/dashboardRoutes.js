@@ -15,7 +15,11 @@ import requireRoles from '../middlewares/requireRoles.js';
 
 const router = express.Router();
 
-router.use(protect, requireOrganization, requireRoles('admin', 'manager', 'staff'));
+router.use(
+  protect,
+  requireOrganization,
+  requireRoles('admin', 'manager', 'staff')
+);
 
 router.get('/top-selling-items', getDashboardTopSellingItems);
 router.get('/turnover-skus', getDashboardTurnoverSkus);

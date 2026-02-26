@@ -22,25 +22,19 @@ const pickProductFields = (source = {}) =>
  * 📊 Recalculate average daily usage from stock history
  */
 const calculateAverageDailyUsage = (stockHistory = []) => {
-  const sales = stockHistory.filter(
-    h => h.reason === 'sale' && h.change < 0
-  );
+  const sales = stockHistory.filter((h) => h.reason === 'sale' && h.change < 0);
 
   if (sales.length < 2) return 0;
 
-  const totalUnitsSold = sales.reduce(
-    (sum, s) => sum + Math.abs(s.change),
-    0
-  );
+  const totalUnitsSold = sales.reduce((sum, s) => sum + Math.abs(s.change), 0);
 
   const firstDate = new Date(sales[0].createdAt);
   const lastDate = new Date(sales[sales.length - 1].createdAt);
 
-  const days =
-    Math.max(
-      1,
-      Math.ceil((lastDate - firstDate) / (1000 * 60 * 60 * 24))
-    );
+  const days = Math.max(
+    1,
+    Math.ceil((lastDate - firstDate) / (1000 * 60 * 60 * 24))
+  );
 
   return Number((totalUnitsSold / days).toFixed(2));
 };
@@ -240,22 +234,18 @@ export const getInventoryHealthOverview = async (req, res, next) => {
       isActive: true
     }).lean();
 
-    const overview = products.map(p => ({
+    const overview = products.map((p) => ({
       sku: p.sku,
       stock: p.stock,
       status:
         p.stock <= p.lowStockThreshold
           ? 'CRITICAL'
           : p.stock <= p.lowStockThreshold * 2
-          ? 'WARNING'
-          : 'HEALTHY'
+            ? 'WARNING'
+            : 'HEALTHY'
     }));
 
-    return successResponse(
-      res,
-      overview,
-      'Inventory health overview fetched'
-    );
+    return successResponse(res, overview, 'Inventory health overview fetched');
   } catch (err) {
     next(err);
   }
@@ -268,12 +258,11 @@ export const getReorderRecommendations = async (req, res, next) => {
       isActive: true
     }).lean();
 
-    const recommendations = products.map(p => ({
+    const recommendations = products.map((p) => ({
       sku: p.sku,
       currentStock: p.stock,
       reorderPoint:
-        p.averageDailyUsage *
-        (p.supplierLeadTimeDays + p.safetyStockDays)
+        p.averageDailyUsage * (p.supplierLeadTimeDays + p.safetyStockDays)
     }));
 
     return successResponse(
@@ -295,11 +284,7 @@ export const getProductStockHistory = async (req, res, next) => {
 
     if (!product) throw new AppError('Product not found', 404);
 
-    return successResponse(
-      res,
-      product.stockHistory,
-      'Stock history fetched'
-    );
+    return successResponse(res, product.stockHistory, 'Stock history fetched');
   } catch (err) {
     next(err);
   }

@@ -15,11 +15,11 @@ const withTimeout = (promise, timeoutMs) =>
     }, timeoutMs);
 
     promise
-      .then(result => {
+      .then((result) => {
         clearTimeout(timeout);
         resolve(result);
       })
-      .catch(error => {
+      .catch((error) => {
         clearTimeout(timeout);
         reject(error);
       });

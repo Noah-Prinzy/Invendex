@@ -44,7 +44,7 @@ export const compareReorderAlerts = async (req, res, next) => {
     }
 
     const forecastHighConfidence = forecastAlerts.filter(
-      a => a.forecastMeta?.confidenceScore >= 0.7
+      (a) => a.forecastMeta?.confidenceScore >= 0.7
     ).length;
 
     res.json({

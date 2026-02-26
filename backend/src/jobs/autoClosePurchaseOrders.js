@@ -6,9 +6,7 @@ export const autoClosePurchaseOrdersJob = () => {
   cron.schedule('0 2 * * *', async () => {
     console.log('Running auto-close purchase orders job...');
 
-    const fourteenDaysAgo = new Date(
-      Date.now() - 14 * 24 * 60 * 60 * 1000
-    );
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
 
     const staleOrders = await PurchaseOrder.find({
       status: 'SENT',

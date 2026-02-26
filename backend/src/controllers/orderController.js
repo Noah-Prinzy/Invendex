@@ -6,20 +6,23 @@ import { successResponse } from '../utils/response.js';
 import { recordCogsForCompletedSaleOrder } from '../services/finance/cogsService.js';
 
 const ensureProductsInOrganization = async (organizationId, lines) => {
-  const productIds = lines.map(line => line.product);
+  const productIds = lines.map((line) => line.product);
   const products = await Product.find({
     organization: organizationId,
     _id: { $in: productIds }
   }).select('_id');
 
   if (products.length !== productIds.length) {
-    throw new AppError('One or more products are not in your organization', 404);
+    throw new AppError(
+      'One or more products are not in your organization',
+      404
+    );
   }
 };
 
 const ensureWarehousesInOrganization = async (organizationId, warehouseIds) => {
   const uniqueIds = Array.from(
-    new Set(warehouseIds.filter(Boolean).map(id => String(id)))
+    new Set(warehouseIds.filter(Boolean).map((id) => String(id)))
   );
   if (!uniqueIds.length) return;
 
@@ -29,7 +32,10 @@ const ensureWarehousesInOrganization = async (organizationId, warehouseIds) => {
   }).select('_id');
 
   if (warehouses.length !== uniqueIds.length) {
-    throw new AppError('One or more warehouses are not in your organization', 404);
+    throw new AppError(
+      'One or more warehouses are not in your organization',
+      404
+    );
   }
 };
 
@@ -60,7 +66,9 @@ export const createOrder = async (req, res, next) => {
       }
     }
 
-    const lineWarehouses = products.map(line => line.warehouse || warehouse).filter(Boolean);
+    const lineWarehouses = products
+      .map((line) => line.warehouse || warehouse)
+      .filter(Boolean);
     await ensureWarehousesInOrganization(req.organizationId, lineWarehouses);
 
     const order = await Order.create({
@@ -78,7 +86,12 @@ export const createOrder = async (req, res, next) => {
         actorUserId: req.user?._id || null
       });
       const refreshed = await Order.findById(order._id);
-      return successResponse(res, refreshed, 'Order created and completed', 201);
+      return successResponse(
+        res,
+        refreshed,
+        'Order created and completed',
+        201
+      );
     }
 
     return successResponse(res, order, 'Order created', 201);

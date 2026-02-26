@@ -3,27 +3,35 @@ import InventorySerial from '../../models/InventorySerial.js';
 import StockMovement from '../../models/StockMovement.js';
 import { AppError } from '../../errors/AppError.js';
 
-const normalizeTrackingType = value => {
-  const normalized = String(value || 'NONE').trim().toUpperCase();
+const normalizeTrackingType = (value) => {
+  const normalized = String(value || 'NONE')
+    .trim()
+    .toUpperCase();
   if (['NONE', 'BATCH', 'SERIAL'].includes(normalized)) {
     return normalized;
   }
   return 'NONE';
 };
 
-const normalizeLotNumber = lotNumber => {
-  const value = String(lotNumber || '').trim().toUpperCase();
+const normalizeLotNumber = (lotNumber) => {
+  const value = String(lotNumber || '')
+    .trim()
+    .toUpperCase();
   return value || null;
 };
 
-const normalizeSerials = serialNumbers => {
+const normalizeSerials = (serialNumbers) => {
   if (!Array.isArray(serialNumbers)) return [];
   return serialNumbers
-    .map(value => String(value || '').trim().toUpperCase())
+    .map((value) =>
+      String(value || '')
+        .trim()
+        .toUpperCase()
+    )
     .filter(Boolean);
 };
 
-const sortSerialsForFefo = rows => {
+const sortSerialsForFefo = (rows) => {
   const farFuture = Number.MAX_SAFE_INTEGER;
   return [...rows].sort((a, b) => {
     const aExpiry = a.expiryDate ? new Date(a.expiryDate).getTime() : farFuture;
@@ -38,8 +46,10 @@ const sortSerialsForFefo = rows => {
   });
 };
 
-const buildMovementReferenceType = sourceType => {
-  const normalized = String(sourceType || '').trim().toUpperCase();
+const buildMovementReferenceType = (sourceType) => {
+  const normalized = String(sourceType || '')
+    .trim()
+    .toUpperCase();
   if (
     ['PURCHASE_ORDER', 'PICK_TICKET', 'ORDER', 'MANUAL', 'SYSTEM'].includes(
       normalized
@@ -50,7 +60,7 @@ const buildMovementReferenceType = sourceType => {
   return 'SYSTEM';
 };
 
-const sortBatchesForOutbound = rows => {
+const sortBatchesForOutbound = (rows) => {
   const farFuture = Number.MAX_SAFE_INTEGER;
   return [...rows].sort((a, b) => {
     const aExpiry = a.expiryDate ? new Date(a.expiryDate).getTime() : farFuture;
@@ -93,7 +103,12 @@ const createStockMovement = async ({
   return StockMovement.create(payload);
 };
 
-const assertTrackingPayload = ({ trackingType, lotNumber, quantity, serials }) => {
+const assertTrackingPayload = ({
+  trackingType,
+  lotNumber,
+  quantity,
+  serials
+}) => {
   if (!Number.isInteger(quantity) || quantity <= 0) {
     throw new AppError('Tracking quantity must be a positive integer', 400);
   }
@@ -104,7 +119,10 @@ const assertTrackingPayload = ({ trackingType, lotNumber, quantity, serials }) =
 
   if (trackingType === 'SERIAL') {
     if (!serials.length) {
-      throw new AppError('serialNumbers are required for SERIAL tracked items', 400);
+      throw new AppError(
+        'serialNumbers are required for SERIAL tracked items',
+        400
+      );
     }
     if (serials.length !== quantity) {
       throw new AppError(
@@ -229,7 +247,7 @@ export const recordInboundTrackingForReceipt = async ({
   if (normalizedTrackingType === 'SERIAL') {
     try {
       await InventorySerial.insertMany(
-        normalizedSerials.map(serialNumber => ({
+        normalizedSerials.map((serialNumber) => ({
           organization: organizationId,
           product: productId,
           warehouse: warehouseId,
@@ -355,7 +373,10 @@ const consumeBatchQuantity = async ({
   }
 
   if (remaining > 0) {
-    throw new AppError('Insufficient tracked batch inventory for outbound movement', 409);
+    throw new AppError(
+      'Insufficient tracked batch inventory for outbound movement',
+      409
+    );
   }
 
   return consumedBatches;
@@ -382,7 +403,10 @@ export const consumeOutboundTracking = async ({
   const normalizedLotNumber = normalizeLotNumber(lotNumber);
   const normalizedSerials = normalizeSerials(serialNumbers);
 
-  if (normalizedSerials.length && normalizedSerials.length !== normalizedQuantity) {
+  if (
+    normalizedSerials.length &&
+    normalizedSerials.length !== normalizedQuantity
+  ) {
     throw new AppError(
       'serialNumbers count must match quantity for tracked outbound movement',
       400
@@ -427,7 +451,10 @@ export const consumeOutboundTracking = async ({
     }
 
     if (selectedSerials.length < normalizedQuantity) {
-      throw new AppError('Insufficient tracked serial inventory for outbound movement', 409);
+      throw new AppError(
+        'Insufficient tracked serial inventory for outbound movement',
+        409
+      );
     }
 
     const now = new Date();
@@ -463,7 +490,10 @@ export const consumeOutboundTracking = async ({
       const batch = await batchQuery;
       if (!batch) continue;
 
-      batch.quantityOnHand = Math.max(Number(batch.quantityOnHand || 0) - qty, 0);
+      batch.quantityOnHand = Math.max(
+        Number(batch.quantityOnHand || 0) - qty,
+        0
+      );
       batch.lastMovementAt = now;
       await batch.save(session ? { session } : undefined);
 
@@ -487,7 +517,7 @@ export const consumeOutboundTracking = async ({
         trackingType: 'SERIAL',
         lotNumber: normalizedLotNumber,
         serialCount: selectedSerials.length,
-        serialNumbers: selectedSerials.map(serial => serial.serialNumber),
+        serialNumbers: selectedSerials.map((serial) => serial.serialNumber),
         consumedBatches
       },
       session
@@ -497,7 +527,7 @@ export const consumeOutboundTracking = async ({
       trackingType: 'SERIAL',
       quantityConsumed: normalizedQuantity,
       lotNumber: normalizedLotNumber,
-      serialNumbers: selectedSerials.map(serial => serial.serialNumber),
+      serialNumbers: selectedSerials.map((serial) => serial.serialNumber),
       consumedBatches
     };
   }
@@ -581,7 +611,10 @@ export const reserveInventorySerials = async ({
   const normalizedLotNumber = normalizeLotNumber(lotNumber);
   const requestedQuantity = quantity == null ? null : Number(quantity);
 
-  if (!normalizedSerials.length && (!Number.isInteger(requestedQuantity) || requestedQuantity <= 0)) {
+  if (
+    !normalizedSerials.length &&
+    (!Number.isInteger(requestedQuantity) || requestedQuantity <= 0)
+  ) {
     throw new AppError(
       'Either serialNumbers or a positive quantity is required to reserve serials',
       400
@@ -593,7 +626,10 @@ export const reserveInventorySerials = async ({
     requestedQuantity != null &&
     requestedQuantity !== normalizedSerials.length
   ) {
-    throw new AppError('quantity must match serialNumbers length when both are provided', 400);
+    throw new AppError(
+      'quantity must match serialNumbers length when both are provided',
+      400
+    );
   }
 
   const query = {
@@ -618,11 +654,11 @@ export const reserveInventorySerials = async ({
     throw new AppError('No serial records found for reservation', 404);
   }
 
-  let candidates = rows.filter(row => row.status === 'AVAILABLE');
+  let candidates = rows.filter((row) => row.status === 'AVAILABLE');
 
   if (normalizedSerials.length) {
     const alreadyReservedBySameRef = rows.filter(
-      row =>
+      (row) =>
         row.status === 'RESERVED' &&
         String(row.reservedReferenceType || '') ===
           String(buildMovementReferenceType(referenceType)) &&
@@ -648,7 +684,8 @@ export const reserveInventorySerials = async ({
   for (const serial of selected) {
     if (
       serial.status === 'RESERVED' &&
-      String(serial.reservedReferenceType || '') === String(normalizedReferenceType) &&
+      String(serial.reservedReferenceType || '') ===
+        String(normalizedReferenceType) &&
       String(serial.reservedReferenceId || '') === String(referenceId || '')
     ) {
       continue;
@@ -671,7 +708,7 @@ export const reserveInventorySerials = async ({
 
   return {
     reservedCount: selected.length,
-    serialNumbers: selected.map(row => row.serialNumber),
+    serialNumbers: selected.map((row) => row.serialNumber),
     referenceType: normalizedReferenceType,
     referenceId: referenceId || null
   };
@@ -715,7 +752,7 @@ export const releaseInventorySerials = async ({
 
   return {
     releasedCount: rows.length,
-    serialNumbers: rows.map(row => row.serialNumber)
+    serialNumbers: rows.map((row) => row.serialNumber)
   };
 };
 
@@ -727,7 +764,9 @@ export const verifyScannedSerial = async ({
   expectedStatuses = [],
   expectedReferenceId = null
 }) => {
-  const normalizedSerial = String(serialNumber || '').trim().toUpperCase();
+  const normalizedSerial = String(serialNumber || '')
+    .trim()
+    .toUpperCase();
   if (!normalizedSerial) {
     throw new AppError('serialNumber is required', 400);
   }
@@ -757,11 +796,18 @@ export const verifyScannedSerial = async ({
 
   const normalizedStatuses = Array.isArray(expectedStatuses)
     ? expectedStatuses
-        .map(value => String(value || '').trim().toUpperCase())
+        .map((value) =>
+          String(value || '')
+            .trim()
+            .toUpperCase()
+        )
         .filter(Boolean)
     : [];
 
-  if (normalizedStatuses.length && !normalizedStatuses.includes(serial.status)) {
+  if (
+    normalizedStatuses.length &&
+    !normalizedStatuses.includes(serial.status)
+  ) {
     return {
       isValid: false,
       reason: `Serial status ${serial.status} does not match expected statuses`,
@@ -868,7 +914,9 @@ export const getInventorySerialHistory = async ({
   serialNumber,
   productId = null
 }) => {
-  const normalizedSerial = String(serialNumber || '').trim().toUpperCase();
+  const normalizedSerial = String(serialNumber || '')
+    .trim()
+    .toUpperCase();
   if (!normalizedSerial) {
     throw new AppError('serialNumber is required', 400);
   }
@@ -1037,7 +1085,8 @@ export const recallInventoryBatch = async ({
     batch.recalledAt = now;
     batch.recallReason = reason || 'Batch recall';
     batch.recalledBy = recalledBy;
-    batch.quantityRecalled = Number(batch.quantityRecalled || 0) + availableToRecall;
+    batch.quantityRecalled =
+      Number(batch.quantityRecalled || 0) + availableToRecall;
     await batch.save();
 
     recalledBatchIds.push(batch._id);

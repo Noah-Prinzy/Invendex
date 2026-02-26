@@ -43,85 +43,84 @@ afterAll(async () => {
 });
 
 describe('serial history api', () => {
-  it(
-    'returns serial timeline with received and sold events',
-    async () => {
-      const organization = await Organization.create({
-        _id: TEST_ORG_ID,
-        name: 'Serial History Org',
-        code: `SER-HIST-${Date.now()}`
-      });
+  it('returns serial timeline with received and sold events', async () => {
+    const organization = await Organization.create({
+      _id: TEST_ORG_ID,
+      name: 'Serial History Org',
+      code: `SER-HIST-${Date.now()}`
+    });
 
-      const warehouse = await Warehouse.create({
-        organization: organization._id,
-        name: 'History Warehouse',
-        code: 'HIST-WH'
-      });
+    const warehouse = await Warehouse.create({
+      organization: organization._id,
+      name: 'History Warehouse',
+      code: 'HIST-WH'
+    });
 
-      const product = await Product.create({
-        organization: organization._id,
-        name: 'History Product',
-        sku: 'HIST-001',
-        price: 55,
-        stock: 0
-      });
+    const product = await Product.create({
+      organization: organization._id,
+      name: 'History Product',
+      sku: 'HIST-001',
+      price: 55,
+      stock: 0
+    });
 
-      const po = await PurchaseOrder.create({
-        organization: organization._id,
-        supplier: new mongoose.Types.ObjectId(),
-        warehouse: warehouse._id,
-        status: 'SENT',
-        createdBy: new mongoose.Types.ObjectId(),
-        items: [
-          {
-            product: product._id,
-            sku: product.sku,
-            quantity: 2,
-            unitCost: 25,
-            totalCost: 50,
-            trackingType: 'SERIAL',
-            lotNumber: 'LOT-HIST',
-            serialNumbers: ['HIST-SN-001', 'HIST-SN-002']
-          }
-        ]
-      });
-      await applyPurchaseOrderToInventory({ purchaseOrder: po });
+    const po = await PurchaseOrder.create({
+      organization: organization._id,
+      supplier: new mongoose.Types.ObjectId(),
+      warehouse: warehouse._id,
+      status: 'SENT',
+      createdBy: new mongoose.Types.ObjectId(),
+      items: [
+        {
+          product: product._id,
+          sku: product.sku,
+          quantity: 2,
+          unitCost: 25,
+          totalCost: 50,
+          trackingType: 'SERIAL',
+          lotNumber: 'LOT-HIST',
+          serialNumbers: ['HIST-SN-001', 'HIST-SN-002']
+        }
+      ]
+    });
+    await applyPurchaseOrderToInventory({ purchaseOrder: po });
 
-      const saleOrder = await Order.create({
-        organization: organization._id,
-        type: 'sale',
-        warehouse: warehouse._id,
-        status: 'pending',
-        products: [
-          {
-            product: product._id,
-            quantity: 1,
-            warehouse: warehouse._id,
-            unitSalePrice: 60,
-            lotNumber: 'LOT-HIST',
-            serialNumbers: ['HIST-SN-001']
-          }
-        ]
-      });
-      await recordCogsForCompletedSaleOrder({
-        orderId: saleOrder._id,
-        organizationId: organization._id
-      });
+    const saleOrder = await Order.create({
+      organization: organization._id,
+      type: 'sale',
+      warehouse: warehouse._id,
+      status: 'pending',
+      products: [
+        {
+          product: product._id,
+          quantity: 1,
+          warehouse: warehouse._id,
+          unitSalePrice: 60,
+          lotNumber: 'LOT-HIST',
+          serialNumbers: ['HIST-SN-001']
+        }
+      ]
+    });
+    await recordCogsForCompletedSaleOrder({
+      orderId: saleOrder._id,
+      organizationId: organization._id
+    });
 
-      const response = await request(app).get(
-        `/api/inventory-tracking/serials/HIST-SN-001/history?productId=${product._id}`
-      );
+    const response = await request(app).get(
+      `/api/inventory-tracking/serials/HIST-SN-001/history?productId=${product._id}`
+    );
 
-      expect(response.status).toBe(200);
-      expect(response.body?.success).toBe(true);
-      expect(response.body?.data?.serial?.serialNumber).toBe('HIST-SN-001');
-      expect(response.body?.data?.serial?.status).toBe('SOLD');
+    expect(response.status).toBe(200);
+    expect(response.body?.success).toBe(true);
+    expect(response.body?.data?.serial?.serialNumber).toBe('HIST-SN-001');
+    expect(response.body?.data?.serial?.status).toBe('SOLD');
 
-      const eventTypes = response.body?.data?.timeline?.map(event => event.eventType) || [];
-      expect(eventTypes).toContain('RECEIVED');
-      expect(eventTypes).toContain('SOLD');
-      expect(eventTypes.some(type => String(type).startsWith('MOVEMENT_'))).toBe(true);
-    },
-    20000
-  );
+    const eventTypes =
+      response.body?.data?.timeline?.map((event) => event.eventType) || [];
+    expect(eventTypes).toContain('RECEIVED');
+    expect(eventTypes).toContain('SOLD');
+    expect(
+      eventTypes.some((type) => String(type).startsWith('MOVEMENT_'))
+    ).toBe(true);
+  }, 20000);
 });

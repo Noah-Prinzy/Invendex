@@ -14,9 +14,7 @@ export const startForecastReorderAlertCron = () => {
   if (cronStarted) return;
   cronStarted = true;
 
-  console.log(
-    '⏱️ Forecast reorder alert cron scheduled (daily at 00:40)'
-  );
+  console.log('⏱️ Forecast reorder alert cron scheduled (daily at 00:40)');
 
   cron.schedule('40 0 * * *', async () => {
     try {
@@ -43,8 +41,7 @@ export const startForecastReorderAlertCron = () => {
 
             const leadTimeDays = product.supplierLeadTimeDays || 7;
 
-            const forecastedDemand =
-              forecast.avgDailyDemand * leadTimeDays;
+            const forecastedDemand = forecast.avgDailyDemand * leadTimeDays;
 
             if (forecastedDemand <= product.stock) continue;
 
@@ -63,7 +60,10 @@ export const startForecastReorderAlertCron = () => {
               sku: product.sku,
               stock: product.stock,
               reorderLevel: Math.ceil(forecastedDemand),
-              reorderQuantity: Math.max(Math.ceil(forecastedDemand - product.stock), 1),
+              reorderQuantity: Math.max(
+                Math.ceil(forecastedDemand - product.stock),
+                1
+              ),
               triggeredAt: new Date(),
               source: 'forecast',
 
@@ -95,14 +95,9 @@ export const startForecastReorderAlertCron = () => {
         }
       }
 
-      console.log(
-        '✅ Forecast reorder alert cron completed'
-      );
+      console.log('✅ Forecast reorder alert cron completed');
     } catch (err) {
-      console.error(
-        '❌ Forecast reorder alert cron failed:',
-        err
-      );
+      console.error('❌ Forecast reorder alert cron failed:', err);
     }
   });
 };

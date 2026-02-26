@@ -1,5 +1,3 @@
-import React from 'react';
-
 const Settings = () => (
   <section className="panel">
     <header className="panel-head">

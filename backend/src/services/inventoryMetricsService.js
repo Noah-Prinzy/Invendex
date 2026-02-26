@@ -34,8 +34,7 @@ export const generateDailyInventoryMetrics = async (
   }
 
   const skuCount = products.length;
-  const avgValuePerSku =
-    skuCount === 0 ? 0 : totalInventoryValue / skuCount;
+  const avgValuePerSku = skuCount === 0 ? 0 : totalInventoryValue / skuCount;
 
   return InventoryMetrics.findOneAndUpdate(
     { organization: organizationId, date: normalizedDate },
@@ -94,9 +93,7 @@ export const getAverageDailyDemandPerSku = async (
     throw new Error('At least 2 days are required to calculate demand');
   }
 
-  const endDate = endDateOverride
-    ? new Date(endDateOverride)
-    : new Date();
+  const endDate = endDateOverride ? new Date(endDateOverride) : new Date();
 
   endDate.setHours(0, 0, 0, 0);
 
@@ -127,10 +124,7 @@ export const getAverageDailyDemandPerSku = async (
   const avgDemandPerSku = {};
 
   for (const [sku, skuSnapshots] of Object.entries(snapshotsBySku)) {
-    avgDemandPerSku[sku] = calculateAverageDailyDemand(
-      skuSnapshots,
-      days
-    );
+    avgDemandPerSku[sku] = calculateAverageDailyDemand(skuSnapshots, days);
   }
 
   return avgDemandPerSku;

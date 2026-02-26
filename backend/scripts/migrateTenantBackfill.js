@@ -36,7 +36,7 @@ const projectRoot = path.resolve(__dirname, '..');
 // Always prefer backend/.env for this migration to avoid stale shell DB_URL values.
 dotenv.config({ path: path.join(projectRoot, '.env'), override: true });
 
-const normalizeDbUrl = rawValue => {
+const normalizeDbUrl = (rawValue) => {
   if (!rawValue) return '';
 
   // Accept values copied with wrapping quotes from shell/.env files.
@@ -64,8 +64,8 @@ const resolveDbUrl = () => {
 };
 
 const DB_URL = resolveDbUrl();
-const DRY_RUN = String(process.env.MIGRATION_DRY_RUN || '')
-  .toLowerCase() === 'true';
+const DRY_RUN =
+  String(process.env.MIGRATION_DRY_RUN || '').toLowerCase() === 'true';
 const DEFAULT_ORG_NAME =
   process.env.MIGRATION_DEFAULT_ORG_NAME || 'Legacy Organization';
 const DEFAULT_ORG_CODE = (
@@ -73,10 +73,7 @@ const DEFAULT_ORG_CODE = (
 ).toUpperCase();
 
 const missingOrganizationFilter = {
-  $or: [
-    { organization: { $exists: false } },
-    { organization: null }
-  ]
+  $or: [{ organization: { $exists: false } }, { organization: null }]
 };
 
 const migrationTargets = [
@@ -144,20 +141,12 @@ async function upsertDefaultOrganization() {
     }
   );
 
-  console.log(
-    `Using organization ${organization._id} (${organization.code})`
-  );
+  console.log(`Using organization ${organization._id} (${organization.code})`);
   return organization;
 }
 
-async function backfillOrganizationField({
-  model,
-  name,
-  organizationId
-}) {
-  const pendingCount = await model.countDocuments(
-    missingOrganizationFilter
-  );
+async function backfillOrganizationField({ model, name, organizationId }) {
+  const pendingCount = await model.countDocuments(missingOrganizationFilter);
 
   if (pendingCount === 0) {
     console.log(`${name}: no documents need backfill`);
@@ -171,12 +160,9 @@ async function backfillOrganizationField({
     return { pendingCount, modifiedCount: 0 };
   }
 
-  const updateResult = await model.updateMany(
-    missingOrganizationFilter,
-    {
-      $set: { organization: organizationId }
-    }
-  );
+  const updateResult = await model.updateMany(missingOrganizationFilter, {
+    $set: { organization: organizationId }
+  });
 
   console.log(
     `${name}: backfilled ${updateResult.modifiedCount}/${pendingCount}`
@@ -191,7 +177,7 @@ async function backfillOrganizationField({
 async function reconcileReorderAlertIndexes() {
   const indexes = await ReorderAlert.collection.indexes();
 
-  const staleIndexes = indexes.filter(indexDef => {
+  const staleIndexes = indexes.filter((indexDef) => {
     const key = indexDef.key || {};
     const hasLegacyKey =
       Number(key.product) === 1 &&
@@ -209,7 +195,7 @@ async function reconcileReorderAlertIndexes() {
     return;
   }
 
-  const staleNames = staleIndexes.map(indexDef => indexDef.name);
+  const staleNames = staleIndexes.map((indexDef) => indexDef.name);
 
   if (DRY_RUN) {
     console.log(
@@ -247,7 +233,7 @@ async function syncStrictTenantIndexes() {
   if (DRY_RUN) {
     console.log(
       `[dry-run] Would sync strict tenant indexes for: ${modelsToSync
-        .map(entry => entry.name)
+        .map((entry) => entry.name)
         .join(', ')}`
     );
     return;
@@ -274,9 +260,7 @@ async function run() {
   }
 
   await mongoose.connect(DB_URL);
-  console.log(
-    `Connected to database (${DRY_RUN ? 'dry-run' : 'write mode'})`
-  );
+  console.log(`Connected to database (${DRY_RUN ? 'dry-run' : 'write mode'})`);
 
   await reconcileReorderAlertIndexes();
 
@@ -315,7 +299,7 @@ run()
     console.log('Migration completed');
     process.exit(0);
   })
-  .catch(async err => {
+  .catch(async (err) => {
     if (err?.code === 'ENOTFOUND') {
       console.error(
         'Migration failed: Could not resolve MongoDB host. Verify DB_URL uses a real Atlas cluster hostname.'

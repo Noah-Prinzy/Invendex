@@ -15,7 +15,7 @@ import {
 import { AppError } from '../errors/AppError.js';
 import { logInventoryMutation } from '../observability/inventoryMutationLogger.js';
 
-const toObjectId = value => new mongoose.Types.ObjectId(value);
+const toObjectId = (value) => new mongoose.Types.ObjectId(value);
 
 const ensurePositiveInteger = (value, label) => {
   const parsed = Number(value);
@@ -116,12 +116,12 @@ const getFefoBatches = async ({ organizationId, warehouseId, productId }) => {
 
   const farFuture = Number.MAX_SAFE_INTEGER;
   const sorted = batches
-    .map(batch => ({
+    .map((batch) => ({
       batch,
       available:
         Number(batch.quantityOnHand || 0) - Number(batch.quantityReserved || 0)
     }))
-    .filter(entry => entry.available > 0)
+    .filter((entry) => entry.available > 0)
     .sort((a, b) => {
       const aExpiry = a.batch.expiryDate
         ? new Date(a.batch.expiryDate).getTime()
@@ -130,14 +130,21 @@ const getFefoBatches = async ({ organizationId, warehouseId, productId }) => {
         ? new Date(b.batch.expiryDate).getTime()
         : farFuture;
       if (aExpiry !== bExpiry) return aExpiry - bExpiry;
-      return new Date(a.batch.createdAt).getTime() - new Date(b.batch.createdAt).getTime();
+      return (
+        new Date(a.batch.createdAt).getTime() -
+        new Date(b.batch.createdAt).getTime()
+      );
     })
-    .map(entry => entry.batch);
+    .map((entry) => entry.batch);
 
   return sorted;
 };
 
-const getBinnedQuantity = async ({ organizationId, warehouseId, productId }) => {
+const getBinnedQuantity = async ({
+  organizationId,
+  warehouseId,
+  productId
+}) => {
   const rows = await BinInventory.aggregate([
     {
       $match: {
@@ -250,7 +257,11 @@ export const allocateStockToBin = async ({
 }) => {
   const qty = ensurePositiveInteger(quantity, 'quantity');
   await ensureWarehouseInOrganization(organizationId, warehouseId);
-  const bin = await ensureBinInWarehouse({ organizationId, warehouseId, binId });
+  const bin = await ensureBinInWarehouse({
+    organizationId,
+    warehouseId,
+    binId
+  });
 
   const product = await Product.findOne({
     _id: productId,
@@ -267,7 +278,10 @@ export const allocateStockToBin = async ({
   });
 
   if (!inventory || inventory.quantityOnHand <= 0) {
-    throw new AppError('No warehouse inventory available for this product', 400);
+    throw new AppError(
+      'No warehouse inventory available for this product',
+      400
+    );
   }
 
   const binnedQty = await getBinnedQuantity({
@@ -374,7 +388,8 @@ export const transferStockBetweenBins = async ({
     throw new AppError('No stock found in source bin', 404);
   }
 
-  const available = fromInventory.quantityOnHand - fromInventory.quantityReserved;
+  const available =
+    fromInventory.quantityOnHand - fromInventory.quantityReserved;
   if (available < qty) {
     throw new AppError(
       `Only ${Math.max(available, 0)} units are available in the source bin`,
@@ -475,7 +490,11 @@ export const createPickTicket = async ({
       : null;
     let serialNumbers = Array.isArray(item.serialNumbers)
       ? item.serialNumbers
-          .map(value => String(value || '').trim().toUpperCase())
+          .map((value) =>
+            String(value || '')
+              .trim()
+              .toUpperCase()
+          )
           .filter(Boolean)
       : [];
 
@@ -516,7 +535,7 @@ export const createPickTicket = async ({
           );
         }
 
-        serialNumbers = serialRows.map(row => row.serialNumber);
+        serialNumbers = serialRows.map((row) => row.serialNumber);
       }
     }
 
@@ -689,12 +708,21 @@ export const completePickTicket = async ({
         product: item.product
       });
 
-      if (!binInventory || binInventory.quantityReserved < allocation.quantity) {
-        throw new AppError('Reserved bin stock is inconsistent for pick completion', 409);
+      if (
+        !binInventory ||
+        binInventory.quantityReserved < allocation.quantity
+      ) {
+        throw new AppError(
+          'Reserved bin stock is inconsistent for pick completion',
+          409
+        );
       }
 
       if (binInventory.quantityOnHand < allocation.quantity) {
-        throw new AppError('Bin stock is insufficient to complete the pick', 409);
+        throw new AppError(
+          'Bin stock is insufficient to complete the pick',
+          409
+        );
       }
 
       binInventory.quantityOnHand -= allocation.quantity;
@@ -864,7 +892,10 @@ export const getReplenishmentRecommendations = async ({
     organization: organizationId,
     warehouse: warehouseId
   })
-    .populate('bin', 'code zone binType replenishmentMinUnits replenishmentTargetUnits')
+    .populate(
+      'bin',
+      'code zone binType replenishmentMinUnits replenishmentTargetUnits'
+    )
     .populate('product', 'name sku')
     .lean();
 
@@ -874,7 +905,8 @@ export const getReplenishmentRecommendations = async ({
     const bin = row.bin;
     if (!bin || bin.replenishmentMinUnits == null) continue;
 
-    const available = Number(row.quantityOnHand || 0) - Number(row.quantityReserved || 0);
+    const available =
+      Number(row.quantityOnHand || 0) - Number(row.quantityReserved || 0);
     const minUnits = Number(bin.replenishmentMinUnits || 0);
     if (available >= minUnits) continue;
 
@@ -896,13 +928,13 @@ export const getReplenishmentRecommendations = async ({
       .lean();
 
     const sortedSources = sourceRows
-      .map(sourceRow => ({
+      .map((sourceRow) => ({
         ...sourceRow,
         available:
           Number(sourceRow.quantityOnHand || 0) -
           Number(sourceRow.quantityReserved || 0)
       }))
-      .filter(sourceRow => sourceRow.available > 0)
+      .filter((sourceRow) => sourceRow.available > 0)
       .sort((a, b) => b.available - a.available);
 
     let remaining = needed;

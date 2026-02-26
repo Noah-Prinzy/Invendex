@@ -15,7 +15,10 @@ router.use(protect, requireOrganization, requireRoles('admin', 'manager'));
 
 router.get('/seasonality/:productId', getProductSeasonality);
 router.post('/promotion-forecast', getPromotionForecast);
-router.get('/lead-time-variability/:supplierId', getSupplierLeadTimeVariability);
+router.get(
+  '/lead-time-variability/:supplierId',
+  getSupplierLeadTimeVariability
+);
 router.get('/supplier-reliability', getSupplierReliability);
 
 export default router;
