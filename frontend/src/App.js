@@ -138,6 +138,16 @@ const App = () => {
   const [poEvents, setPoEvents] = useState([]);
 
   const realtimeBaseUrl = useMemo(() => getRealtimeBaseUrl(), []);
+  const companyName = useMemo(() => {
+    const fromProfile = String(user?.organizationName || '').trim();
+    if (fromProfile) return fromProfile;
+    const fromOrganizationObject =
+      typeof user?.organization === 'object'
+        ? String(user.organization?.name || '').trim()
+        : '';
+    if (fromOrganizationObject) return fromOrganizationObject;
+    return 'Organization';
+  }, [user]);
 
   const handleInventoryUpdated = useCallback((payload) => {
     setInventoryEvents((current) =>
@@ -310,7 +320,7 @@ const App = () => {
       );
     }
     if (activeTab === 'account') return <Account user={user} />;
-    if (activeTab === 'settings') return <Settings />;
+    if (activeTab === 'settings') return <Settings accessToken={accessToken} />;
     return (
       <Dashboard
         accessToken={accessToken}
@@ -379,20 +389,10 @@ const App = () => {
     <main className="app-layout">
       <header className="app-header">
         <div className="brand">
-          <div className="logo-wrap">
-            <img
-              src="/assets/logo.png"
-              alt="Ledgerly logo"
-              className="brand-logo"
-              onError={(event) => {
-                event.currentTarget.style.display = 'none';
-              }}
-            />
-            <div className="logo-fallback">L</div>
-          </div>
-          <div>
-            <h1>Ledgerly</h1>
-            <p>{user?.email || 'Signed in'}</p>
+          <div className="brand-company-frame">
+            <h1 className="brand-company-name" title={companyName}>
+              {companyName}
+            </h1>
           </div>
         </div>
         <div className="header-actions">

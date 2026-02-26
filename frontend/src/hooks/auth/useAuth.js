@@ -28,13 +28,30 @@ const saveAccessToken = (token) => {
 const getSavedAccessToken = () =>
   String(window.localStorage.getItem(ACCESS_TOKEN_KEY) || '').trim();
 
-const normalizeUser = (user) => {
+const normalizeUser = (user, organization = null) => {
   if (!user) return null;
+
+  const normalizedOrganizationId =
+    (typeof user.organization === 'object' && user.organization?._id) ||
+    (typeof organization === 'object' && organization?._id) ||
+    user.organization ||
+    null;
+
+  const normalizedOrganizationName =
+    String(
+      user.organizationName ||
+        (typeof user.organization === 'object'
+          ? user.organization?.name
+          : '') ||
+        (typeof organization === 'object' ? organization?.name : '')
+    ).trim() || null;
+
   return {
     _id: user._id,
     email: user.email,
     role: user.role,
-    organization: user.organization || null,
+    organization: normalizedOrganizationId,
+    organizationName: normalizedOrganizationName,
     name: user.name || (user.email ? user.email.split('@')[0] : 'Operator')
   };
 };
@@ -57,11 +74,14 @@ export const useAuth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
 
-  const applyAuthState = useCallback(({ token, resolvedUser }) => {
-    saveAccessToken(token);
-    setAccessToken(token || null);
-    setUser(normalizeUser(resolvedUser));
-  }, []);
+  const applyAuthState = useCallback(
+    ({ token, resolvedUser, organization }) => {
+      saveAccessToken(token);
+      setAccessToken(token || null);
+      setUser(normalizeUser(resolvedUser, organization));
+    },
+    []
+  );
 
   const clearAuthState = useCallback(() => {
     saveAccessToken('');
@@ -91,7 +111,8 @@ export const useAuth = () => {
         if (!isMounted) return;
         applyAuthState({
           token: storedToken,
-          resolvedUser: meResponse?.data || null
+          resolvedUser: meResponse?.data || null,
+          organization: meResponse?.data?.organization || null
         });
       } catch {
         try {
@@ -105,7 +126,8 @@ export const useAuth = () => {
           if (!isMounted) return;
           applyAuthState({
             token: refreshedToken,
-            resolvedUser: meResponse?.data || null
+            resolvedUser: meResponse?.data || null,
+            organization: meResponse?.data?.organization || null
           });
         } catch {
           if (!isMounted) return;
@@ -178,7 +200,8 @@ export const useAuth = () => {
 
         applyAuthState({
           token,
-          resolvedUser
+          resolvedUser,
+          organization: loginResponse?.data?.organization || null
         });
 
         return { success: true, accessToken: token };

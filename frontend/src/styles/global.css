@@ -321,49 +321,83 @@ select {
 .brand {
   display: flex;
   align-items: center;
-  gap: 0.82rem;
+  gap: 0.7rem;
   min-width: 0;
-}
-
-.logo-wrap {
-  width: 46px;
-  height: 46px;
   position: relative;
 }
 
-.brand-logo {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+.brand-company-frame {
   position: relative;
-  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  max-width: min(42vw, 460px);
+  padding: 0.56rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(132, 170, 228, 0.55);
+  background: linear-gradient(
+    130deg,
+    rgba(15, 41, 79, 0.84) 0%,
+    rgba(10, 30, 58, 0.84) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 12px 24px rgba(3, 14, 30, 0.35);
+  overflow: hidden;
+  transition:
+    transform 0.24s ease,
+    box-shadow 0.24s ease,
+    border-color 0.24s ease;
 }
 
-.logo-fallback {
-  width: 46px;
-  height: 46px;
-  border-radius: 14px;
-  display: grid;
-  place-items: center;
-  color: #ffffff;
-  background: linear-gradient(145deg, #0f7fc2 0%, #f2994a 100%);
-  font-family: var(--font-display);
-  font-weight: 700;
+.brand-company-frame::before {
+  content: '';
   position: absolute;
   inset: 0;
+  background: linear-gradient(
+    112deg,
+    transparent 12%,
+    rgba(255, 255, 255, 0.38) 46%,
+    transparent 78%
+  );
+  transform: translateX(-130%);
+  animation: company-sheen 6.8s ease-in-out infinite;
+}
+
+.brand-company-frame::after {
+  content: '';
+  position: absolute;
+  inset: auto 14px 0.24rem;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(30, 196, 255, 0.2) 0%,
+    rgba(30, 196, 255, 0.92) 52%,
+    rgba(255, 177, 116, 0.86) 100%
+  );
+}
+
+.brand-company-frame:hover {
+  transform: translateY(-2px);
+  border-color: rgba(170, 201, 247, 0.8);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    0 16px 28px rgba(3, 14, 30, 0.42);
+}
+
+.brand-company-name {
+  margin: 0;
+  position: relative;
   z-index: 1;
-}
-
-.brand h1 {
-  font-size: 1.12rem;
-  color: #f5f9ff;
-}
-
-.brand p {
-  color: rgba(216, 229, 250, 0.8);
-  font-size: 0.82rem;
+  color: #f6fbff;
+  font-size: clamp(0.97rem, 1.5vw, 1.18rem);
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.22);
 }
 
 .header-actions {
@@ -538,6 +572,17 @@ select {
   }
 }
 
+@keyframes company-sheen {
+  0%,
+  22% {
+    transform: translateX(-130%);
+  }
+  34%,
+  100% {
+    transform: translateX(130%);
+  }
+}
+
 @media (max-width: 980px) {
   .auth-layout {
     grid-template-columns: 1fr;
@@ -593,6 +638,10 @@ select {
 
   .warehouse-filter input {
     width: 100%;
+  }
+
+  .brand-company-frame {
+    max-width: 100%;
   }
 
   .tabbar {

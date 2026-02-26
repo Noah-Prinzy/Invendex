@@ -89,11 +89,29 @@ const clearRefreshCookie = (res) => {
   res.clearCookie('refreshToken', getClearRefreshCookieOptions());
 };
 
-const buildAuthUser = (user) => ({
+const buildOrganizationPayload = (organization) => {
+  if (!organization) return null;
+  return {
+    _id: organization._id,
+    name: organization.name || null,
+    code: organization.code || null
+  };
+};
+
+const resolveOrganizationPayloadById = async (organizationId) => {
+  if (!organizationId) return null;
+  const organization = await Organization.findById(organizationId)
+    .select('_id name code')
+    .lean();
+  return buildOrganizationPayload(organization);
+};
+
+const buildAuthUser = (user, organization = null) => ({
   _id: user._id,
   email: user.email,
   role: user.role,
-  organization: user.organization || null,
+  organization: user.organization || organization?._id || null,
+  organizationName: organization?.name || null,
   isVerified: Boolean(user.isVerified),
   isActive: user.isActive !== false
 });
@@ -160,6 +178,7 @@ const verifyLoginCredentials = async ({
 const finalizeLogin = async ({ req, res, user, action, meta = null }) => {
   const accessToken = generateAccessToken(user);
   const refreshToken = appendRefreshToken(user);
+  const organization = await resolveOrganizationPayloadById(user.organization);
 
   await user.save();
   setRefreshCookie(res, refreshToken);
@@ -175,7 +194,8 @@ const finalizeLogin = async ({ req, res, user, action, meta = null }) => {
 
   return {
     accessToken,
-    user: buildAuthUser(user)
+    user: buildAuthUser(user, organization),
+    organization
   };
 };
 
@@ -385,7 +405,22 @@ export const employeeLogin = async (req, res, next) => {
 
 export const getMe = async (req, res, next) => {
   try {
-    return successResponse(res, req.user, 'User profile fetched');
+    if (!req.user?.email) {
+      return successResponse(res, req.user, 'User profile fetched');
+    }
+
+    const organization = await resolveOrganizationPayloadById(
+      req.user?.organization
+    );
+    const userPayload = buildAuthUser(req.user, organization);
+    return successResponse(
+      res,
+      {
+        ...userPayload,
+        organization
+      },
+      'User profile fetched'
+    );
   } catch (err) {
     next(err);
   }
@@ -593,7 +628,14 @@ export const register = async (req, res, next) => {
     const responseData = {
       accessToken,
       verificationRequired,
-      user: buildAuthUser(user),
+      user: buildAuthUser(
+        user,
+        buildOrganizationPayload({
+          _id: organization._id,
+          name: organization.name,
+          code: organization.code
+        })
+      ),
       organization: {
         _id: organization._id,
         name: organization.name,
