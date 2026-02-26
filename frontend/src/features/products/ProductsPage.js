@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  adjustProductStockRequest,
   getProductsLowStockSummaryRequest,
   getProductsRequest
 } from '../../api/client.js';
@@ -8,6 +9,7 @@ import {
 const ROLES_WITH_LOW_STOCK_ACCESS = new Set(['admin', 'staff']);
 const PAGE_SIZE = 8;
 const PRODUCTS_QUERY_STALE_TIME_MS = 45 * 1000;
+const STOCK_ADJUST_REASONS = ['sale', 'restock', 'adjustment', 'return'];
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('en-US', {
@@ -16,12 +18,17 @@ const formatCurrency = (value) =>
     maximumFractionDigits: 2
   }).format(Number(value || 0));
 
-const Products = ({ accessToken, userRole = null }) => {
+const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [stockFilter, setStockFilter] = useState('all');
   const [sortKey, setSortKey] = useState('name');
   const [sortDirection, setSortDirection] = useState('asc');
   const [page, setPage] = useState(1);
+  const [adjustProductId, setAdjustProductId] = useState('');
+  const [adjustAmount, setAdjustAmount] = useState('');
+  const [adjustReason, setAdjustReason] = useState('adjustment');
+  const [adjustNotice, setAdjustNotice] = useState('');
+  const queryClient = useQueryClient();
 
   const canReadLowStockSummary = ROLES_WITH_LOW_STOCK_ACCESS.has(
     String(userRole || '')
@@ -52,6 +59,28 @@ const Products = ({ accessToken, userRole = null }) => {
     }
   });
 
+  const stockAdjustMutation = useMutation({
+    mutationFn: async ({ productId, amount, reason, selectedWarehouseId }) =>
+      adjustProductStockRequest({
+        accessToken,
+        productId,
+        amount,
+        reason,
+        warehouseId: selectedWarehouseId
+      }),
+    onSuccess: () => {
+      setAdjustNotice('Stock adjustment saved.');
+      setAdjustAmount('');
+      queryClient.invalidateQueries({ queryKey: ['products:index'] });
+      refetch();
+    },
+    onError: (mutationError) => {
+      setAdjustNotice(
+        String(mutationError?.message || 'Unable to adjust stock')
+      );
+    }
+  });
+
   const products = useMemo(
     () => (Array.isArray(data?.products) ? data.products : []),
     [data]
@@ -61,6 +90,36 @@ const Products = ({ accessToken, userRole = null }) => {
     [data]
   );
   const errorMessage = String(error?.message || '').trim();
+  const canAdjustStock = Boolean(accessToken);
+  const normalizedWarehouseId = String(warehouseId || '').trim();
+
+  const handleAdjustStockSubmit = async (event) => {
+    event.preventDefault();
+    setAdjustNotice('');
+
+    const amount = Number(adjustAmount);
+    if (!adjustProductId) {
+      setAdjustNotice('Select a product before submitting.');
+      return;
+    }
+    if (!Number.isInteger(amount) || amount === 0) {
+      setAdjustNotice('Amount must be a non-zero integer.');
+      return;
+    }
+    if (!normalizedWarehouseId) {
+      setAdjustNotice(
+        'Select a warehouse in the header before adjusting stock.'
+      );
+      return;
+    }
+
+    await stockAdjustMutation.mutateAsync({
+      productId: adjustProductId,
+      amount,
+      reason: adjustReason,
+      selectedWarehouseId: normalizedWarehouseId
+    });
+  };
 
   const stats = useMemo(() => {
     const total = products.length;
@@ -195,6 +254,71 @@ const Products = ({ accessToken, userRole = null }) => {
           current backend policy.
         </p>
       ) : null}
+
+      <article className="data-card">
+        <h3>Manual stock adjustment</h3>
+        <form className="control-row" onSubmit={handleAdjustStockSubmit}>
+          <label className="control-field">
+            <span>Product</span>
+            <select
+              value={adjustProductId}
+              onChange={(event) => setAdjustProductId(event.target.value)}
+              disabled={!canAdjustStock || isLoading || isFetching}
+            >
+              <option value="">Select product</option>
+              {products.map((product) => (
+                <option
+                  key={product.id || product._id}
+                  value={product.id || product._id}
+                >
+                  {product.name || product.sku || product.id || product._id}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="control-field">
+            <span>Reason</span>
+            <select
+              value={adjustReason}
+              onChange={(event) => setAdjustReason(event.target.value)}
+              disabled={!canAdjustStock || stockAdjustMutation.isPending}
+            >
+              {STOCK_ADJUST_REASONS.map((reason) => (
+                <option key={reason} value={reason}>
+                  {reason}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="control-field">
+            <span>Amount</span>
+            <input
+              type="number"
+              step="1"
+              value={adjustAmount}
+              onChange={(event) => setAdjustAmount(event.target.value)}
+              placeholder="e.g. -3 or 10"
+              disabled={!canAdjustStock || stockAdjustMutation.isPending}
+            />
+          </label>
+          <label className="control-field">
+            <span>Warehouse scope</span>
+            <input
+              type="text"
+              value={normalizedWarehouseId || 'Not selected'}
+              readOnly
+            />
+          </label>
+          <button
+            type="submit"
+            className="btn-ghost"
+            disabled={!canAdjustStock || stockAdjustMutation.isPending}
+          >
+            {stockAdjustMutation.isPending ? 'Saving...' : 'Adjust stock'}
+          </button>
+        </form>
+        {adjustNotice ? <p className="section-note">{adjustNotice}</p> : null}
+      </article>
 
       <article className="data-card">
         <h3>Catalog</h3>

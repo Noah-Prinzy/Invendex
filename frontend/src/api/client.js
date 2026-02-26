@@ -334,6 +334,24 @@ export const getProductsLowStockSummaryRequest = (accessToken) =>
     accessToken
   }).then(readData);
 
+export const adjustProductStockRequest = ({
+  accessToken,
+  productId,
+  amount,
+  reason,
+  warehouseId
+}) =>
+  request({
+    method: 'PATCH',
+    path: `${API_ENDPOINTS.PRODUCTS}/${productId}/stock`,
+    accessToken,
+    body: {
+      amount,
+      reason,
+      warehouseId
+    }
+  }).then(readData);
+
 export const getSuppliersRequest = (accessToken) =>
   request({
     method: 'GET',
@@ -400,6 +418,7 @@ export default {
   updateUserStatusRequest,
   getProductsRequest,
   getProductsLowStockSummaryRequest,
+  adjustProductStockRequest,
   getSuppliersRequest,
   getSupplierRankingsRequest,
   getReportPurchaseOrderStatusSummaryRequest,

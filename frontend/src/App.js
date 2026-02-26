@@ -230,7 +230,11 @@ const App = () => {
     }
     if (activeTab === 'products') {
       return (
-        <Products accessToken={accessToken} userRole={user?.role || null} />
+        <Products
+          accessToken={accessToken}
+          userRole={user?.role || null}
+          warehouseId={warehouseId || null}
+        />
       );
     }
     if (activeTab === 'suppliers') {
