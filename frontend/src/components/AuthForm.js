@@ -46,18 +46,18 @@ const AuthForm = ({
   const isAdminReset = adminMode === ADMIN_MODES.RESET_PASSWORD;
   const isAdminVerify = adminMode === ADMIN_MODES.VERIFY_EMAIL;
 
-  const handleChange = event => {
+  const handleChange = (event) => {
     const { name, value } = event.target;
-    setFormValues(current => ({
+    setFormValues((current) => ({
       ...current,
       [name]: value
     }));
   };
 
-  const setPortalMode = nextPortal => {
+  const setPortalMode = (nextPortal) => {
     setPortal(nextPortal);
     setAdminMode(ADMIN_MODES.SIGN_IN);
-    setFormValues(current => ({
+    setFormValues((current) => ({
       ...current,
       password: '',
       confirmPassword: '',
@@ -65,9 +65,9 @@ const AuthForm = ({
     }));
   };
 
-  const setAdminPortalMode = nextMode => {
+  const setAdminPortalMode = (nextMode) => {
     setAdminMode(nextMode);
-    setFormValues(current => ({
+    setFormValues((current) => ({
       ...current,
       password: '',
       confirmPassword: '',
@@ -81,7 +81,7 @@ const AuthForm = ({
     setFormValues(INITIAL_FORM_VALUES);
   };
 
-  const handleSubmit = async event => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     if (!portal) return;
 
@@ -136,10 +136,12 @@ const AuthForm = ({
             <p className="eyebrow">Ledgerly Control</p>
             <h1>Welcome to Ledgerly</h1>
             <p className="form-copy">
-              Sign in to continue. Access dashboard operations, live purchase updates, and finance
-              events.
+              Sign in to continue. Access dashboard operations, live purchase
+              updates, and finance events.
             </p>
-            <p className="form-copy">Choose how you want to continue: Admin or Employee.</p>
+            <p className="form-copy">
+              Choose how you want to continue: Admin or Employee.
+            </p>
           </div>
         </div>
 

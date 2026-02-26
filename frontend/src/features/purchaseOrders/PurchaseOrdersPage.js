@@ -1,16 +1,27 @@
 import React from 'react';
 
-const formatWhen = iso => {
+const formatWhen = (iso) => {
   if (!iso) return 'n/a';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return 'n/a';
-  return date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 };
 
 const PurchaseOrders = ({ poEvents = [] }) => {
-  const createdCount = poEvents.filter(event => event.kind === 'created').length;
-  const receivedCount = poEvents.filter(event => event.kind === 'received').length;
-  const updatedCount = poEvents.filter(event => event.kind === 'updated').length;
+  const createdCount = poEvents.filter(
+    (event) => event.kind === 'created'
+  ).length;
+  const receivedCount = poEvents.filter(
+    (event) => event.kind === 'received'
+  ).length;
+  const updatedCount = poEvents.filter(
+    (event) => event.kind === 'updated'
+  ).length;
   const latestPoEvent = poEvents[0] || null;
 
   return (
@@ -42,22 +53,28 @@ const PurchaseOrders = ({ poEvents = [] }) => {
           <h3>Latest PO timeline</h3>
           <ul className="event-list">
             {poEvents.length ? (
-              poEvents.slice(0, 10).map(event => (
+              poEvents.slice(0, 10).map((event) => (
                 <li key={event.id} className="event-item">
                   <div>
                     <p className="event-title">{event.title}</p>
                     <p className="event-sub">{event.subtitle}</p>
                   </div>
-                  <span className={`event-pill ${event.kind}`}>{event.kind}</span>
+                  <span className={`event-pill ${event.kind}`}>
+                    {event.kind}
+                  </span>
                 </li>
               ))
             ) : (
-              <li className="event-empty">No purchase order events received yet.</li>
+              <li className="event-empty">
+                No purchase order events received yet.
+              </li>
             )}
           </ul>
           {latestPoEvent ? (
             <>
-              <p className="event-sub">Most recent: {formatWhen(latestPoEvent.occurredAt)}</p>
+              <p className="event-sub">
+                Most recent: {formatWhen(latestPoEvent.occurredAt)}
+              </p>
               <pre>{JSON.stringify(latestPoEvent.raw, null, 2)}</pre>
             </>
           ) : null}

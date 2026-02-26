@@ -14,14 +14,14 @@ const STOCK_MOVEMENT_TYPES = [
   'ADJUSTMENT'
 ];
 
-const ensureOrganizationContext = req => {
+const ensureOrganizationContext = (req) => {
   if (!req.organizationId) {
     throw new Error('Organization context is required');
   }
   return req.organizationId;
 };
 
-const warehouseExistsValidator = fieldName =>
+const warehouseExistsValidator = (fieldName) =>
   body(fieldName)
     .exists({ checkFalsy: true })
     .withMessage(`${fieldName} is required`)
@@ -41,7 +41,7 @@ const warehouseExistsValidator = fieldName =>
       return true;
     });
 
-const optionalWarehouseQueryValidator = fieldName =>
+const optionalWarehouseQueryValidator = (fieldName) =>
   query(fieldName)
     .optional({ values: 'falsy' })
     .isMongoId()
@@ -59,7 +59,7 @@ const optionalWarehouseQueryValidator = fieldName =>
       return true;
     });
 
-const optionalProductQueryValidator = fieldName =>
+const optionalProductQueryValidator = (fieldName) =>
   query(fieldName)
     .optional({ values: 'falsy' })
     .isMongoId()
@@ -198,9 +198,18 @@ export const updateBinRulesValidator = [
     .toInt(),
   body().custom((_, { req }) => {
     const hasAnyRuleField =
-      Object.prototype.hasOwnProperty.call(req.body || {}, 'maxCapacityUnits') ||
-      Object.prototype.hasOwnProperty.call(req.body || {}, 'replenishmentMinUnits') ||
-      Object.prototype.hasOwnProperty.call(req.body || {}, 'replenishmentTargetUnits');
+      Object.prototype.hasOwnProperty.call(
+        req.body || {},
+        'maxCapacityUnits'
+      ) ||
+      Object.prototype.hasOwnProperty.call(
+        req.body || {},
+        'replenishmentMinUnits'
+      ) ||
+      Object.prototype.hasOwnProperty.call(
+        req.body || {},
+        'replenishmentTargetUnits'
+      );
 
     if (!hasAnyRuleField) {
       throw new Error(
@@ -340,7 +349,9 @@ export const transferBinStockValidator = [
       warehouse: warehouseId
     });
     if (bins !== 2) {
-      throw new Error('fromBinId and toBinId must exist in the selected warehouse');
+      throw new Error(
+        'fromBinId and toBinId must exist in the selected warehouse'
+      );
     }
 
     return true;
@@ -378,7 +389,11 @@ export const createPickTicketValidator = [
 
         if (Array.isArray(item?.serialNumbers) && item.serialNumbers.length) {
           const normalizedSerials = item.serialNumbers
-            .map(serial => String(serial || '').trim().toUpperCase())
+            .map((serial) =>
+              String(serial || '')
+                .trim()
+                .toUpperCase()
+            )
             .filter(Boolean);
 
           if (normalizedSerials.length !== item.serialNumbers.length) {

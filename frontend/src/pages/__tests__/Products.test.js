@@ -12,7 +12,7 @@ jest.mock('../../api/client.js', () => ({
   getProductsLowStockSummaryRequest: jest.fn()
 }));
 
-const buildProducts = count =>
+const buildProducts = (count) =>
   Array.from({ length: count }).map((_, index) => ({
     _id: `p-${index + 1}`,
     name: `Product ${index + 1}`,

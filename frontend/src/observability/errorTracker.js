@@ -1,6 +1,6 @@
 import { getClientTraceId } from './traceContext.js';
 
-const sanitize = value => String(value || '').trim();
+const sanitize = (value) => String(value || '').trim();
 
 const resolveProvider = () => {
   const explicit = sanitize(
@@ -14,8 +14,7 @@ const resolveProvider = () => {
 
 const provider = resolveProvider();
 
-const shouldSendWebhook = () =>
-  provider === 'webhook' || provider === 'both';
+const shouldSendWebhook = () => provider === 'webhook' || provider === 'both';
 
 const buildPayload = (error, context = {}) => ({
   source: 'ledgerly-frontend',
@@ -29,13 +28,12 @@ const buildPayload = (error, context = {}) => ({
       typeof window !== 'undefined' && window.location
         ? window.location.href
         : null,
-    userAgent:
-      typeof navigator !== 'undefined' ? navigator.userAgent : null
+    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null
   },
   occurredAt: new Date().toISOString()
 });
 
-const postWebhook = async payload => {
+const postWebhook = async (payload) => {
   const url = sanitize(process.env.REACT_APP_ERROR_TRACKING_WEBHOOK_URL);
   if (!url || !shouldSendWebhook()) return;
   if (typeof fetch !== 'function') return;
@@ -71,21 +69,22 @@ export const initGlobalErrorTracking = () => {
 
   if (typeof window === 'undefined') return;
 
-  window.addEventListener('error', event => {
-    captureFrontendException(event?.error || new Error(event?.message || 'Window error'), {
-      scope: 'window_error'
-    }).catch(() => {});
+  window.addEventListener('error', (event) => {
+    captureFrontendException(
+      event?.error || new Error(event?.message || 'Window error'),
+      {
+        scope: 'window_error'
+      }
+    ).catch(() => {});
   });
 
-  window.addEventListener('unhandledrejection', event => {
+  window.addEventListener('unhandledrejection', (event) => {
     const reason = event?.reason;
     const error =
       reason instanceof Error
         ? reason
         : new Error(
-            typeof reason === 'string'
-              ? reason
-              : 'Unhandled promise rejection'
+            typeof reason === 'string' ? reason : 'Unhandled promise rejection'
           );
     captureFrontendException(error, {
       scope: 'window_unhandledrejection'
@@ -97,4 +96,3 @@ export default {
   captureFrontendException,
   initGlobalErrorTracking
 };
-

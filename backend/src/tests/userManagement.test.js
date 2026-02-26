@@ -74,8 +74,12 @@ describe('user management api', () => {
     expect(listResponse.status).toBe(200);
     expect(listResponse.body?.success).toBe(true);
     expect(Array.isArray(listResponse.body?.data)).toBe(true);
-    expect(listResponse.body?.data.some(user => user.email === adminEmail)).toBe(true);
-    expect(listResponse.body?.data.some(user => user.email === staff.email)).toBe(true);
+    expect(
+      listResponse.body?.data.some((user) => user.email === adminEmail)
+    ).toBe(true);
+    expect(
+      listResponse.body?.data.some((user) => user.email === staff.email)
+    ).toBe(true);
 
     const deactivateResponse = await request(app)
       .patch(`/api/users/${staff._id}/status`)
@@ -129,7 +133,7 @@ describe('user management api', () => {
     expect(Array.isArray(listInvitesResponse.body?.data)).toBe(true);
     expect(
       listInvitesResponse.body?.data.some(
-        invite => invite.email === 'employee-invite@example.com'
+        (invite) => invite.email === 'employee-invite@example.com'
       )
     ).toBe(true);
 

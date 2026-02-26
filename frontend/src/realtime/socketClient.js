@@ -37,7 +37,7 @@ export class LedgerlyRealtimeClient {
       auth: token ? { token, clientTraceId } : { clientTraceId }
     });
 
-    this.socket.on('connect_error', error => {
+    this.socket.on('connect_error', (error) => {
       captureFrontendException(error, {
         scope: 'realtime_connect_error',
         baseUrl: this.baseUrl,
@@ -116,7 +116,7 @@ export class LedgerlyRealtimeClient {
   }
 }
 
-export const createLedgerlyRealtimeClient = options =>
+export const createLedgerlyRealtimeClient = (options) =>
   new LedgerlyRealtimeClient(options);
 
 export default LedgerlyRealtimeClient;

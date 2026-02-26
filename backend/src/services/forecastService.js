@@ -6,7 +6,7 @@ import ReorderAlert from '../models/ReorderAlert.js';
  * Safe baseline implementation
  */
 export const generateProductForecast = async ({
-  triggeredBy = 'system',
+  triggeredBy: _triggeredBy = 'system',
   organizationId = null
 } = {}) => {
   const products = await Product.find({

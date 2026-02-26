@@ -17,7 +17,7 @@ import {
 
 const ACCESS_TOKEN_KEY = 'ledgerly_access_token';
 
-const saveAccessToken = token => {
+const saveAccessToken = (token) => {
   if (!token) {
     window.localStorage.removeItem(ACCESS_TOKEN_KEY);
     return;
@@ -28,7 +28,7 @@ const saveAccessToken = token => {
 const getSavedAccessToken = () =>
   String(window.localStorage.getItem(ACCESS_TOKEN_KEY) || '').trim();
 
-const normalizeUser = user => {
+const normalizeUser = (user) => {
   if (!user) return null;
   return {
     _id: user._id,
@@ -39,7 +39,7 @@ const normalizeUser = user => {
   };
 };
 
-const getMessage = error => {
+const getMessage = (error) => {
   if (error instanceof ApiError) {
     if (error.statusCode === 429) {
       return 'Too many login attempts. Please wait 15 minutes and try again.';
@@ -129,7 +129,13 @@ export const useAuth = () => {
   }, [applyAuthState, clearAuthState]);
 
   const performLogin = useCallback(
-    async ({ email, password, loginRequest, companyName = '', inviteCode = '' }) => {
+    async ({
+      email,
+      password,
+      loginRequest,
+      companyName = '',
+      inviteCode = ''
+    }) => {
       const normalizedEmail = String(email || '').trim();
       const normalizedPassword = String(password || '').trim();
       const normalizedCompanyName = String(companyName || '').trim();
@@ -237,48 +243,50 @@ export const useAuth = () => {
 
   const signup = useCallback(
     async ({ email, password, confirmPassword, organizationName }) => {
-    const normalizedEmail = String(email || '').trim();
-    const normalizedPassword = String(password || '').trim();
-    const normalizedConfirmPassword = String(confirmPassword || '').trim();
-    const normalizedOrganizationName = String(organizationName || '').trim();
+      const normalizedEmail = String(email || '').trim();
+      const normalizedPassword = String(password || '').trim();
+      const normalizedConfirmPassword = String(confirmPassword || '').trim();
+      const normalizedOrganizationName = String(organizationName || '').trim();
 
-    if (
-      !normalizedEmail ||
-      !normalizedPassword ||
-      !normalizedConfirmPassword ||
-      !normalizedOrganizationName
-    ) {
-      setError('Email, password, confirm password, and organization are required.');
+      if (
+        !normalizedEmail ||
+        !normalizedPassword ||
+        !normalizedConfirmPassword ||
+        !normalizedOrganizationName
+      ) {
+        setError(
+          'Email, password, confirm password, and organization are required.'
+        );
+        setNotice('');
+        return { success: false };
+      }
+
+      if (normalizedPassword !== normalizedConfirmPassword) {
+        setError('Password and confirm password do not match.');
+        setNotice('');
+        return { success: false };
+      }
+
+      setError('');
       setNotice('');
-      return { success: false };
-    }
+      setIsLoading(true);
 
-    if (normalizedPassword !== normalizedConfirmPassword) {
-      setError('Password and confirm password do not match.');
-      setNotice('');
-      return { success: false };
-    }
+      try {
+        await authRegisterRequest({
+          email: normalizedEmail,
+          password: normalizedPassword,
+          confirmPassword: normalizedConfirmPassword,
+          organizationName: normalizedOrganizationName
+        });
 
-    setError('');
-    setNotice('');
-    setIsLoading(true);
-
-    try {
-      await authRegisterRequest({
-        email: normalizedEmail,
-        password: normalizedPassword,
-        confirmPassword: normalizedConfirmPassword,
-        organizationName: normalizedOrganizationName
-      });
-
-      setNotice('Account created successfully. Sign in to continue.');
-      return { success: true };
-    } catch (registerError) {
-      setError(getMessage(registerError));
-      return { success: false };
-    } finally {
-      setIsLoading(false);
-    }
+        setNotice('Account created successfully. Sign in to continue.');
+        return { success: true };
+      } catch (registerError) {
+        setError(getMessage(registerError));
+        return { success: false };
+      } finally {
+        setIsLoading(false);
+      }
     },
     []
   );
@@ -350,7 +358,9 @@ export const useAuth = () => {
     setIsLoading(true);
 
     try {
-      const response = await authForgotPasswordRequest({ email: normalizedEmail });
+      const response = await authForgotPasswordRequest({
+        email: normalizedEmail
+      });
       const debugToken = response?.data?.debugToken || '';
       const tokenSuffix = debugToken ? ` Token: ${debugToken}` : '';
       setNotice(`Password reset token generated.${tokenSuffix}`);

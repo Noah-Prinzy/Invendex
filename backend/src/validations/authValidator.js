@@ -1,6 +1,6 @@
 import { body } from 'express-validator';
 
-const withNormalizedString = value => String(value || '').trim();
+const withNormalizedString = (value) => String(value || '').trim();
 
 const requireEmail = body('email')
   .exists({ checkFalsy: true })
@@ -54,13 +54,22 @@ export const registerValidator = [
   })
 ];
 
-export const loginValidator = [requireEmail, body('password').exists({ checkFalsy: true }).withMessage('Password is required')];
+export const loginValidator = [
+  requireEmail,
+  body('password')
+    .exists({ checkFalsy: true })
+    .withMessage('Password is required')
+];
 
 export const employeeLoginValidator = [
   requireEmail,
-  body('password').exists({ checkFalsy: true }).withMessage('Password is required'),
+  body('password')
+    .exists({ checkFalsy: true })
+    .withMessage('Password is required'),
   body('companyName').custom((value, { req }) => {
-    const companyName = withNormalizedString(req.body?.companyName || req.body?.organizationName);
+    const companyName = withNormalizedString(
+      req.body?.companyName || req.body?.organizationName
+    );
     if (!companyName) {
       throw new Error('companyName is required');
     }

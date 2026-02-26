@@ -18,7 +18,10 @@ import './styles/dashboard.css';
 
 const EVENT_LIMIT = 40;
 const ADMIN_ROLES = new Set(['owner', 'admin']);
-const sanitizeBaseUrl = value => String(value || '').trim().replace(/\/+$/, '');
+const sanitizeBaseUrl = (value) =>
+  String(value || '')
+    .trim()
+    .replace(/\/+$/, '');
 
 const getRealtimeBaseUrl = () => {
   const envBase = sanitizeBaseUrl(
@@ -61,7 +64,10 @@ const buildFinanceEvent = (payload, eventName) => {
     id: `${eventName}:${payload?.entityId || 'n/a'}:${payload?.occurredAt || Date.now()}`,
     eventName,
     occurredAt: payload?.occurredAt || new Date().toISOString(),
-    title: eventName === 'finance.cogs_recorded' ? 'COGS recorded' : 'Valuation updated',
+    title:
+      eventName === 'finance.cogs_recorded'
+        ? 'COGS recorded'
+        : 'Valuation updated',
     subtitle: `Reference ${String(orderId)}`,
     raw: payload
   };
@@ -82,7 +88,7 @@ const buildPurchaseOrderEvent = (payload, kind) => {
   };
 };
 
-const buildAuthEvent = payload => {
+const buildAuthEvent = (payload) => {
   const data = payload?.data || {};
   const email = data.email || 'employee';
 
@@ -125,49 +131,60 @@ const App = () => {
 
   const realtimeBaseUrl = useMemo(() => getRealtimeBaseUrl(), []);
 
-  const handleInventoryUpdated = useCallback(payload => {
-    setInventoryEvents(current =>
+  const handleInventoryUpdated = useCallback((payload) => {
+    setInventoryEvents((current) =>
       prependEvent(current, buildInventoryEvent(payload, 'inventory.updated'))
     );
-    setUnreadCount(count => count + 1);
+    setUnreadCount((count) => count + 1);
   }, []);
 
-  const handleValuationUpdated = useCallback(payload => {
-    setFinanceEvents(current =>
-      prependEvent(current, buildFinanceEvent(payload, 'finance.valuation_updated'))
+  const handleValuationUpdated = useCallback((payload) => {
+    setFinanceEvents((current) =>
+      prependEvent(
+        current,
+        buildFinanceEvent(payload, 'finance.valuation_updated')
+      )
     );
-    setUnreadCount(count => count + 1);
+    setUnreadCount((count) => count + 1);
   }, []);
 
-  const handleCogsRecorded = useCallback(payload => {
-    setFinanceEvents(current =>
+  const handleCogsRecorded = useCallback((payload) => {
+    setFinanceEvents((current) =>
       prependEvent(current, buildFinanceEvent(payload, 'finance.cogs_recorded'))
     );
-    setUnreadCount(count => count + 1);
+    setUnreadCount((count) => count + 1);
   }, []);
 
-  const handlePoCreated = useCallback(payload => {
-    setPoEvents(current => prependEvent(current, buildPurchaseOrderEvent(payload, 'created')));
-    setUnreadCount(count => count + 1);
+  const handlePoCreated = useCallback((payload) => {
+    setPoEvents((current) =>
+      prependEvent(current, buildPurchaseOrderEvent(payload, 'created'))
+    );
+    setUnreadCount((count) => count + 1);
   }, []);
 
-  const handlePoUpdated = useCallback(payload => {
-    setPoEvents(current => prependEvent(current, buildPurchaseOrderEvent(payload, 'updated')));
-    setUnreadCount(count => count + 1);
+  const handlePoUpdated = useCallback((payload) => {
+    setPoEvents((current) =>
+      prependEvent(current, buildPurchaseOrderEvent(payload, 'updated'))
+    );
+    setUnreadCount((count) => count + 1);
   }, []);
 
-  const handlePoReceived = useCallback(payload => {
-    setPoEvents(current => prependEvent(current, buildPurchaseOrderEvent(payload, 'received')));
-    setUnreadCount(count => count + 1);
+  const handlePoReceived = useCallback((payload) => {
+    setPoEvents((current) =>
+      prependEvent(current, buildPurchaseOrderEvent(payload, 'received'))
+    );
+    setUnreadCount((count) => count + 1);
   }, []);
 
   const handleEmployeeSignedIn = useCallback(
-    payload => {
+    (payload) => {
       if (!ADMIN_ROLES.has(String(user?.role || '').toLowerCase())) {
         return;
       }
-      setAuthEvents(current => prependEvent(current, buildAuthEvent(payload)));
-      setUnreadCount(count => count + 1);
+      setAuthEvents((current) =>
+        prependEvent(current, buildAuthEvent(payload))
+      );
+      setUnreadCount((count) => count + 1);
     },
     [user?.role]
   );
@@ -212,13 +229,19 @@ const App = () => {
       return <PurchaseOrders poEvents={poEvents} />;
     }
     if (activeTab === 'products') {
-      return <Products accessToken={accessToken} userRole={user?.role || null} />;
+      return (
+        <Products accessToken={accessToken} userRole={user?.role || null} />
+      );
     }
     if (activeTab === 'suppliers') {
-      return <Suppliers accessToken={accessToken} userRole={user?.role || null} />;
+      return (
+        <Suppliers accessToken={accessToken} userRole={user?.role || null} />
+      );
     }
     if (activeTab === 'reports') {
-      return <Reports accessToken={accessToken} userRole={user?.role || null} />;
+      return (
+        <Reports accessToken={accessToken} userRole={user?.role || null} />
+      );
     }
     if (activeTab === 'users') {
       return (
@@ -240,7 +263,16 @@ const App = () => {
         authEvents={authEvents}
       />
     );
-  }, [activeTab, accessToken, user, warehouseId, inventoryEvents, financeEvents, authEvents, poEvents]);
+  }, [
+    activeTab,
+    accessToken,
+    user,
+    warehouseId,
+    inventoryEvents,
+    financeEvents,
+    authEvents,
+    poEvents
+  ]);
 
   if (isInitializing) {
     return (
@@ -251,7 +283,9 @@ const App = () => {
           <p>Validating your access token and organization context.</p>
         </section>
         <section className="auth-card">
-          <p className="form-copy">Please wait while we restore your session.</p>
+          <p className="form-copy">
+            Please wait while we restore your session.
+          </p>
         </section>
       </main>
     );
@@ -264,8 +298,9 @@ const App = () => {
           <p className="eyebrow">Ledgerly</p>
           <h2>Warehouse operations with real-time visibility.</h2>
           <p>
-            This frontend shell is now aligned with your backend realtime events and multi-tenant
-            architecture. Sign in to open the dashboard workspace.
+            This frontend shell is now aligned with your backend realtime events
+            and multi-tenant architecture. Sign in to open the dashboard
+            workspace.
           </p>
         </section>
         <AuthForm
@@ -293,7 +328,7 @@ const App = () => {
               src="/assets/logo.png"
               alt="Ledgerly logo"
               className="brand-logo"
-              onError={event => {
+              onError={(event) => {
                 event.currentTarget.style.display = 'none';
               }}
             />
@@ -311,7 +346,7 @@ const App = () => {
               id="warehouseId"
               type="text"
               value={warehouseId}
-              onChange={event => setWarehouseId(event.target.value)}
+              onChange={(event) => setWarehouseId(event.target.value)}
               placeholder="Optional warehouse id"
             />
           </label>

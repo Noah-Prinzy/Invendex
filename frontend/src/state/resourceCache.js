@@ -1,6 +1,6 @@
 const GLOBAL_CACHE = new Map();
 
-const normalizeKey = key => String(key || '').trim();
+const normalizeKey = (key) => String(key || '').trim();
 const isTestEnv = () => process.env.NODE_ENV === 'test';
 
 export const getCachedResource = (key, maxAgeMs = 0) => {
@@ -32,7 +32,7 @@ export const setCachedResource = (key, value) => {
   });
 };
 
-export const removeCachedResource = key => {
+export const removeCachedResource = (key) => {
   if (isTestEnv()) return;
 
   const normalizedKey = normalizeKey(key);

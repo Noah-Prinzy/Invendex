@@ -1,9 +1,7 @@
 import Product from '../models/Product.js';
 import ReorderAlert from '../models/ReorderAlert.js';
 import SupplierProduct from '../models/SupplierProduct.js';
-import {
-  getAverageDailyDemandPerSku
-} from './inventoryMetricsService.js';
+import { getAverageDailyDemandPerSku } from './inventoryMetricsService.js';
 
 const ENGINE_VERSION = 'v1.3';
 
@@ -12,7 +10,7 @@ const ENGINE_VERSION = 'v1.3';
  * Generates reorder alerts based on demand & stock
  */
 export const runReorderEngine = async ({
-  triggeredBy = 'system',
+  triggeredBy: _triggeredBy = 'system',
   lookbackDays = 30,
   source = 'cron',
   runDate = null, // ✅ deterministic engine date
@@ -25,13 +23,7 @@ export const runReorderEngine = async ({
   // ✅ ENUM-SAFE normalization
   const normalizedSource = String(source).toLowerCase();
 
-  const ALLOWED_SOURCES = [
-    'cron',
-    'system',
-    'forecast',
-    'static',
-    'manual'
-  ];
+  const ALLOWED_SOURCES = ['cron', 'system', 'forecast', 'static', 'manual'];
 
   if (!ALLOWED_SOURCES.includes(normalizedSource)) {
     throw new Error(`Invalid reorder source: ${source}`);
@@ -42,12 +34,11 @@ export const runReorderEngine = async ({
   engineDate.setHours(0, 0, 0, 0);
 
   // 🔢 Demand calculation
-  const avgDemandPerSku =
-    await getAverageDailyDemandPerSku(
-      lookbackDays,
-      engineDate,
-      organizationId
-    );
+  const avgDemandPerSku = await getAverageDailyDemandPerSku(
+    lookbackDays,
+    engineDate,
+    organizationId
+  );
 
   // 📦 Active products
   const products = await Product.find({
@@ -64,22 +55,18 @@ export const runReorderEngine = async ({
   const alertsCreated = [];
 
   for (const product of products) {
-    const avgDailyDemand =
-      avgDemandPerSku[product.sku] || 0;
+    const avgDailyDemand = avgDemandPerSku[product.sku] || 0;
 
     const supplierLink =
       supplierLinks
-        .filter(s => s.product.toString() === product._id.toString())
-        .sort((a, b) => Number(b.isPreferred) - Number(a.isPreferred))[0] || null;
-
+        .filter((s) => s.product.toString() === product._id.toString())
+        .sort((a, b) => Number(b.isPreferred) - Number(a.isPreferred))[0] ||
+      null;
 
     const leadTimeDays =
-      supplierLink?.leadTimeDays ||
-      product.supplierLeadTimeDays ||
-      7;
+      supplierLink?.leadTimeDays || product.supplierLeadTimeDays || 7;
 
-    const minimumOrderQuantity =
-      supplierLink?.minimumOrderQuantity || 1;
+    const minimumOrderQuantity = supplierLink?.minimumOrderQuantity || 1;
 
     // 🧮 Adjusted demand
     const adjustedDailyDemand = avgDailyDemand;
@@ -110,9 +97,7 @@ export const runReorderEngine = async ({
      * ✅ BUSINESS RULE:
      * Always respect supplier MOQ
      */
-    const calculatedReorderQty = Math.ceil(
-      adjustedDailyDemand * leadTimeDays
-    );
+    const calculatedReorderQty = Math.ceil(adjustedDailyDemand * leadTimeDays);
 
     const reorderQuantity = Math.max(
       calculatedReorderQty,

@@ -2,19 +2,28 @@ import REALTIME_EVENTS from './events.js';
 
 const EVENT_QUERY_PREFIXES = Object.freeze({
   [REALTIME_EVENTS.INVENTORY_UPDATED]: ['products:index', 'reports:index'],
-  [REALTIME_EVENTS.PURCHASE_ORDER_CREATED]: ['reports:index', 'suppliers:index'],
-  [REALTIME_EVENTS.PURCHASE_ORDER_UPDATED]: ['reports:index', 'suppliers:index'],
+  [REALTIME_EVENTS.PURCHASE_ORDER_CREATED]: [
+    'reports:index',
+    'suppliers:index'
+  ],
+  [REALTIME_EVENTS.PURCHASE_ORDER_UPDATED]: [
+    'reports:index',
+    'suppliers:index'
+  ],
   [REALTIME_EVENTS.PURCHASE_ORDER_RECEIVED]: [
     'products:index',
     'reports:index',
     'suppliers:index'
   ],
   [REALTIME_EVENTS.FINANCE_COGS_RECORDED]: ['reports:index', 'products:index'],
-  [REALTIME_EVENTS.FINANCE_VALUATION_UPDATED]: ['reports:index', 'products:index'],
+  [REALTIME_EVENTS.FINANCE_VALUATION_UPDATED]: [
+    'reports:index',
+    'products:index'
+  ],
   [REALTIME_EVENTS.AUTH_EMPLOYEE_SIGNED_IN]: ['users:management']
 });
 
-export const getRealtimeQueryPrefixes = eventName => {
+export const getRealtimeQueryPrefixes = (eventName) => {
   const normalizedEventName = String(eventName || '').trim();
   return Array.isArray(EVENT_QUERY_PREFIXES[normalizedEventName])
     ? EVENT_QUERY_PREFIXES[normalizedEventName]
@@ -26,16 +35,17 @@ export const invalidateQueriesForRealtimeEvent = ({
   eventName,
   accessToken = ''
 }) => {
-  if (!queryClient || typeof queryClient.invalidateQueries !== 'function') return;
+  if (!queryClient || typeof queryClient.invalidateQueries !== 'function')
+    return;
 
   const prefixes = getRealtimeQueryPrefixes(eventName);
   if (!prefixes.length) return;
 
   const normalizedToken = String(accessToken || '').trim();
 
-  prefixes.forEach(prefix => {
+  prefixes.forEach((prefix) => {
     queryClient.invalidateQueries({
-      predicate: query => {
+      predicate: (query) => {
         const queryKey = query?.queryKey;
         if (!Array.isArray(queryKey) || !queryKey.length) return false;
         if (String(queryKey[0] || '') !== String(prefix)) return false;

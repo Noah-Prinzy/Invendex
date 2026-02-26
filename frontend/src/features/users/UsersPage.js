@@ -12,7 +12,7 @@ import {
 const CAN_MANAGE_ROLES = new Set(['owner', 'admin']);
 const USERS_QUERY_STALE_TIME_MS = 30 * 1000;
 
-const normalizeUsersPayload = payload => ({
+const normalizeUsersPayload = (payload) => ({
   users: Array.isArray(payload?.users) ? payload.users : [],
   onlineUsers: Array.isArray(payload?.onlineUsers) ? payload.onlineUsers : [],
   invites: Array.isArray(payload?.invites) ? payload.invites : []
@@ -27,10 +27,16 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
   const [pendingUserIds, setPendingUserIds] = useState(() => new Set());
   const [pendingInviteIds, setPendingInviteIds] = useState(() => new Set());
 
-  const canManageUsers = CAN_MANAGE_ROLES.has(String(userRole || '').toLowerCase());
+  const canManageUsers = CAN_MANAGE_ROLES.has(
+    String(userRole || '').toLowerCase()
+  );
   const queryClient = useQueryClient();
   const usersQueryKey = useMemo(
-    () => ['users:management', String(accessToken || ''), String(canManageUsers)],
+    () => [
+      'users:management',
+      String(accessToken || ''),
+      String(canManageUsers)
+    ],
     [accessToken, canManageUsers]
   );
 
@@ -67,26 +73,26 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
 
   const filteredUsers = useMemo(() => {
     if (statusFilter === 'active') {
-      return users.filter(user => user.isActive !== false);
+      return users.filter((user) => user.isActive !== false);
     }
     if (statusFilter === 'inactive') {
-      return users.filter(user => user.isActive === false);
+      return users.filter((user) => user.isActive === false);
     }
     return users;
   }, [users, statusFilter]);
 
   const activeCount = useMemo(
-    () => users.filter(user => user.isActive !== false).length,
+    () => users.filter((user) => user.isActive !== false).length,
     [users]
   );
 
   const verifiedCount = useMemo(
-    () => users.filter(user => user.isVerified === true).length,
+    () => users.filter((user) => user.isVerified === true).length,
     [users]
   );
 
   const activeInviteCount = useMemo(
-    () => invites.filter(invite => invite.status === 'ACTIVE').length,
+    () => invites.filter((invite) => invite.status === 'ACTIVE').length,
     [invites]
   );
 
@@ -100,16 +106,16 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
     onMutate: async ({ userId, isActive }) => {
       const userIdKey = String(userId || '');
       setError('');
-      setPendingUserIds(current => new Set(current).add(userIdKey));
+      setPendingUserIds((current) => new Set(current).add(userIdKey));
 
       await queryClient.cancelQueries({ queryKey: usersQueryKey });
       const previousData = queryClient.getQueryData(usersQueryKey);
 
-      queryClient.setQueryData(usersQueryKey, current => {
+      queryClient.setQueryData(usersQueryKey, (current) => {
         const safeCurrent = normalizeUsersPayload(current);
         return {
           ...safeCurrent,
-          users: safeCurrent.users.map(user =>
+          users: safeCurrent.users.map((user) =>
             String(user._id || '') === userIdKey ? { ...user, isActive } : user
           )
         };
@@ -117,12 +123,12 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
 
       return { previousData, userIdKey };
     },
-    onSuccess: updatedUser => {
-      queryClient.setQueryData(usersQueryKey, current => {
+    onSuccess: (updatedUser) => {
+      queryClient.setQueryData(usersQueryKey, (current) => {
         const safeCurrent = normalizeUsersPayload(current);
         return {
           ...safeCurrent,
-          users: safeCurrent.users.map(user =>
+          users: safeCurrent.users.map((user) =>
             String(user._id || '') === String(updatedUser?._id || '')
               ? { ...user, ...updatedUser }
               : user
@@ -137,7 +143,7 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
       setError(mutationError?.message || 'Failed to update user status');
     },
     onSettled: (_data, _error, _variables, context) => {
-      setPendingUserIds(current => {
+      setPendingUserIds((current) => {
         const next = new Set(current);
         next.delete(String(context?.userIdKey || ''));
         return next;
@@ -160,7 +166,7 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
       await queryClient.cancelQueries({ queryKey: usersQueryKey });
       const previousData = queryClient.getQueryData(usersQueryKey);
 
-      queryClient.setQueryData(usersQueryKey, current => {
+      queryClient.setQueryData(usersQueryKey, (current) => {
         const safeCurrent = normalizeUsersPayload(current);
         const optimisticInvite = {
           _id: tempInviteId,
@@ -180,11 +186,11 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
       return { previousData, tempInviteId };
     },
     onSuccess: (createdInvite, _variables, context) => {
-      queryClient.setQueryData(usersQueryKey, current => {
+      queryClient.setQueryData(usersQueryKey, (current) => {
         const safeCurrent = normalizeUsersPayload(current);
         return {
           ...safeCurrent,
-          invites: safeCurrent.invites.map(invite =>
+          invites: safeCurrent.invites.map((invite) =>
             String(invite._id || '') === String(context?.tempInviteId || '')
               ? createdInvite
               : invite
@@ -204,24 +210,24 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
   });
 
   const revokeInviteMutation = useMutation({
-    mutationFn: inviteId =>
+    mutationFn: (inviteId) =>
       revokeUserInviteRequest({
         accessToken,
         inviteId
       }),
-    onMutate: async inviteId => {
+    onMutate: async (inviteId) => {
       const inviteIdKey = String(inviteId || '');
       setError('');
-      setPendingInviteIds(current => new Set(current).add(inviteIdKey));
+      setPendingInviteIds((current) => new Set(current).add(inviteIdKey));
 
       await queryClient.cancelQueries({ queryKey: usersQueryKey });
       const previousData = queryClient.getQueryData(usersQueryKey);
 
-      queryClient.setQueryData(usersQueryKey, current => {
+      queryClient.setQueryData(usersQueryKey, (current) => {
         const safeCurrent = normalizeUsersPayload(current);
         return {
           ...safeCurrent,
-          invites: safeCurrent.invites.map(invite =>
+          invites: safeCurrent.invites.map((invite) =>
             String(invite._id || '') === inviteIdKey
               ? { ...invite, status: 'REVOKED' }
               : invite
@@ -231,12 +237,12 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
 
       return { previousData, inviteIdKey };
     },
-    onSuccess: revokedInvite => {
-      queryClient.setQueryData(usersQueryKey, current => {
+    onSuccess: (revokedInvite) => {
+      queryClient.setQueryData(usersQueryKey, (current) => {
         const safeCurrent = normalizeUsersPayload(current);
         return {
           ...safeCurrent,
-          invites: safeCurrent.invites.map(invite =>
+          invites: safeCurrent.invites.map((invite) =>
             String(invite._id || '') === String(revokedInvite?._id || '')
               ? { ...invite, ...revokedInvite }
               : invite
@@ -251,7 +257,7 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
       setError(mutationError?.message || 'Failed to revoke invite');
     },
     onSettled: (_data, _error, _variables, context) => {
-      setPendingInviteIds(current => {
+      setPendingInviteIds((current) => {
         const next = new Set(current);
         next.delete(String(context?.inviteIdKey || ''));
         return next;
@@ -279,7 +285,7 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
     });
   };
 
-  const revokeInvite = async inviteId => {
+  const revokeInvite = async (inviteId) => {
     if (!accessToken) return;
     revokeInviteMutation.mutate(inviteId);
   };
@@ -345,7 +351,10 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
         <div className="control-row">
           <label className="control-field">
             <span>Status</span>
-            <select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}>
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+            >
               <option value="all">All</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
@@ -366,8 +375,9 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.map(user => {
-                  const isCurrentUser = String(currentUserId || '') === String(user._id || '');
+                {filteredUsers.map((user) => {
+                  const isCurrentUser =
+                    String(currentUserId || '') === String(user._id || '');
                   const isActive = user.isActive !== false;
                   return (
                     <tr key={user._id}>
@@ -379,7 +389,10 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
                         <button
                           type="button"
                           className="btn-ghost"
-                          disabled={isCurrentUser || pendingUserIds.has(String(user._id || ''))}
+                          disabled={
+                            isCurrentUser ||
+                            pendingUserIds.has(String(user._id || ''))
+                          }
                           onClick={() => updateUserStatus(user._id, !isActive)}
                         >
                           {isActive ? 'Deactivate' : 'Activate'}
@@ -410,13 +423,15 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
                 </tr>
               </thead>
               <tbody>
-                {onlineUsers.map(user => (
+                {onlineUsers.map((user) => (
                   <tr key={user.userId}>
                     <td>{user.email || '-'}</td>
                     <td>{user.role || '-'}</td>
                     <td>{Number(user.sessions || 0)}</td>
                     <td>
-                      {user.lastSeenAt ? new Date(user.lastSeenAt).toLocaleTimeString() : '-'}
+                      {user.lastSeenAt
+                        ? new Date(user.lastSeenAt).toLocaleTimeString()
+                        : '-'}
                     </td>
                   </tr>
                 ))}
@@ -436,7 +451,7 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
             <input
               type="email"
               value={inviteEmail}
-              onChange={event => setInviteEmail(event.target.value)}
+              onChange={(event) => setInviteEmail(event.target.value)}
               placeholder="employee@company.com"
             />
           </label>
@@ -447,7 +462,9 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
               min="1"
               max="720"
               value={inviteHours}
-              onChange={event => setInviteHours(Number(event.target.value || 72))}
+              onChange={(event) =>
+                setInviteHours(Number(event.target.value || 72))
+              }
             />
           </label>
           <button
@@ -478,11 +495,15 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
                 </tr>
               </thead>
               <tbody>
-                {invites.map(invite => (
+                {invites.map((invite) => (
                   <tr key={invite._id}>
                     <td>{invite.email || 'Any email'}</td>
                     <td>{invite.status}</td>
-                    <td>{invite.expiresAt ? new Date(invite.expiresAt).toLocaleString() : '-'}</td>
+                    <td>
+                      {invite.expiresAt
+                        ? new Date(invite.expiresAt).toLocaleString()
+                        : '-'}
+                    </td>
                     <td>
                       <button
                         type="button"

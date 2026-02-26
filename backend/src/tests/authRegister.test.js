@@ -44,7 +44,7 @@ describe('auth register', () => {
     expect(response.body?.data?.organization?.name).toBe('Northstar Logistics');
     expect(
       Array.isArray(response.headers['set-cookie']) &&
-        response.headers['set-cookie'].some(cookie =>
+        response.headers['set-cookie'].some((cookie) =>
           String(cookie).includes('refreshToken=')
         )
     ).toBe(true);
@@ -120,6 +120,8 @@ describe('auth register', () => {
 
     expect(loginResponse.status).toBe(200);
     expect(loginResponse.body?.success).toBe(true);
-    expect(loginResponse.body?.data?.user?.email).toBe('unicode-user@example.com');
+    expect(loginResponse.body?.data?.user?.email).toBe(
+      'unicode-user@example.com'
+    );
   });
 });

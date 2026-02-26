@@ -6,10 +6,9 @@ import {
 
 describe('realtime query invalidation', () => {
   it('returns configured prefixes for known event', () => {
-    expect(getRealtimeQueryPrefixes(REALTIME_EVENTS.INVENTORY_UPDATED)).toEqual([
-      'products:index',
-      'reports:index'
-    ]);
+    expect(getRealtimeQueryPrefixes(REALTIME_EVENTS.INVENTORY_UPDATED)).toEqual(
+      ['products:index', 'reports:index']
+    );
   });
 
   it('returns empty list for unknown events', () => {
@@ -29,10 +28,17 @@ describe('realtime query invalidation', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(3);
 
-    const firstPredicate = queryClient.invalidateQueries.mock.calls[0][0].predicate;
-    expect(firstPredicate({ queryKey: ['products:index', 'token-1', 'true'] })).toBe(true);
-    expect(firstPredicate({ queryKey: ['products:index', 'token-2', 'true'] })).toBe(false);
-    expect(firstPredicate({ queryKey: ['suppliers:index', 'token-1', 'true'] })).toBe(false);
+    const firstPredicate =
+      queryClient.invalidateQueries.mock.calls[0][0].predicate;
+    expect(
+      firstPredicate({ queryKey: ['products:index', 'token-1', 'true'] })
+    ).toBe(true);
+    expect(
+      firstPredicate({ queryKey: ['products:index', 'token-2', 'true'] })
+    ).toBe(false);
+    expect(
+      firstPredicate({ queryKey: ['suppliers:index', 'token-1', 'true'] })
+    ).toBe(false);
   });
 
   it('does nothing for unknown events', () => {

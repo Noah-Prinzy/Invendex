@@ -9,7 +9,7 @@ import {
 const SPEND_PAGE_SIZE = 8;
 const REPORTS_QUERY_STALE_TIME_MS = 45 * 1000;
 
-const formatCurrency = value =>
+const formatCurrency = (value) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -47,7 +47,9 @@ const Reports = ({ accessToken, userRole = null }) => {
       return {
         statusSummary: statusData || {},
         spendSummary: spendData || { totalSpend: 0 },
-        spendBySupplier: Array.isArray(supplierSpendData) ? supplierSpendData : []
+        spendBySupplier: Array.isArray(supplierSpendData)
+          ? supplierSpendData
+          : []
       };
     }
   });
@@ -82,32 +84,45 @@ const Reports = ({ accessToken, userRole = null }) => {
   }, [statusSummary, statusSortDirection]);
 
   const filteredSpendRows = useMemo(() => {
-    const normalizedSearch = String(spendSearch || '').trim().toLowerCase();
+    const normalizedSearch = String(spendSearch || '')
+      .trim()
+      .toLowerCase();
 
-    const rows = spendBySupplier.filter(row => {
+    const rows = spendBySupplier.filter((row) => {
       if (!normalizedSearch) return true;
-      return String(row.supplierName || '').toLowerCase().includes(normalizedSearch);
+      return String(row.supplierName || '')
+        .toLowerCase()
+        .includes(normalizedSearch);
     });
 
     rows.sort((a, b) => {
       const direction = spendSortDirection === 'asc' ? 1 : -1;
       if (spendSortKey === 'supplierName') {
         return (
-          String(a.supplierName || '').localeCompare(String(b.supplierName || ''), undefined, {
-            sensitivity: 'base'
-          }) * direction
+          String(a.supplierName || '').localeCompare(
+            String(b.supplierName || ''),
+            undefined,
+            {
+              sensitivity: 'base'
+            }
+          ) * direction
         );
       }
-      return (Number(a.totalSpend || 0) - Number(b.totalSpend || 0)) * direction;
+      return (
+        (Number(a.totalSpend || 0) - Number(b.totalSpend || 0)) * direction
+      );
     });
 
     return rows;
   }, [spendBySupplier, spendSearch, spendSortKey, spendSortDirection]);
 
-  const spendTotalPages = Math.max(1, Math.ceil(filteredSpendRows.length / SPEND_PAGE_SIZE));
+  const spendTotalPages = Math.max(
+    1,
+    Math.ceil(filteredSpendRows.length / SPEND_PAGE_SIZE)
+  );
 
   useEffect(() => {
-    setSpendPage(current => Math.min(current, spendTotalPages));
+    setSpendPage((current) => Math.min(current, spendTotalPages));
   }, [spendTotalPages]);
 
   const paginatedSpendRows = useMemo(() => {
@@ -128,8 +143,8 @@ const Reports = ({ accessToken, userRole = null }) => {
           <p className="metric-label">Permission required</p>
           <h3>Admin role needed</h3>
           <p className="muted">
-            Your current role is `{userRole || 'unknown'}`. The `/api/reports/*` endpoints are
-            currently protected with `requireRoles('admin')`.
+            Your current role is `{userRole || 'unknown'}`. The `/api/reports/*`
+            endpoints are currently protected with `requireRoles('admin')`.
           </p>
         </article>
       </section>
@@ -156,7 +171,9 @@ const Reports = ({ accessToken, userRole = null }) => {
       <div className="metric-grid">
         <article className="metric-card">
           <p className="metric-label">Total spend</p>
-          <p className="metric-value">{formatCurrency(spendSummary?.totalSpend)}</p>
+          <p className="metric-value">
+            {formatCurrency(spendSummary?.totalSpend)}
+          </p>
         </article>
         <article className="metric-card">
           <p className="metric-label">Open purchase orders</p>
@@ -180,7 +197,9 @@ const Reports = ({ accessToken, userRole = null }) => {
                   <span>Sort by count</span>
                   <select
                     value={statusSortDirection}
-                    onChange={event => setStatusSortDirection(event.target.value)}
+                    onChange={(event) =>
+                      setStatusSortDirection(event.target.value)
+                    }
                   >
                     <option value="desc">High to low</option>
                     <option value="asc">Low to high</option>
@@ -188,7 +207,7 @@ const Reports = ({ accessToken, userRole = null }) => {
                 </label>
               </div>
               <ul className="rank-list">
-                {sortedStatusRows.map(row => (
+                {sortedStatusRows.map((row) => (
                   <li key={row.status} className="rank-item">
                     <p>{row.status}</p>
                     <span>{row.count}</span>
@@ -211,7 +230,7 @@ const Reports = ({ accessToken, userRole = null }) => {
                   <input
                     type="text"
                     value={spendSearch}
-                    onChange={event => {
+                    onChange={(event) => {
                       setSpendSearch(event.target.value);
                       setSpendPage(1);
                     }}
@@ -222,7 +241,7 @@ const Reports = ({ accessToken, userRole = null }) => {
                   <span>Sort</span>
                   <select
                     value={spendSortKey}
-                    onChange={event => {
+                    onChange={(event) => {
                       setSpendSortKey(event.target.value);
                       setSpendPage(1);
                     }}
@@ -235,7 +254,7 @@ const Reports = ({ accessToken, userRole = null }) => {
                   <span>Direction</span>
                   <select
                     value={spendSortDirection}
-                    onChange={event => {
+                    onChange={(event) => {
                       setSpendSortDirection(event.target.value);
                       setSpendPage(1);
                     }}
@@ -255,7 +274,7 @@ const Reports = ({ accessToken, userRole = null }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedSpendRows.map(row => (
+                    {paginatedSpendRows.map((row) => (
                       <tr key={row._id || row.supplierName}>
                         <td>{row.supplierName || 'Unknown supplier'}</td>
                         <td>{formatCurrency(row.totalSpend)}</td>
@@ -267,14 +286,17 @@ const Reports = ({ accessToken, userRole = null }) => {
 
               <footer className="pagination-row">
                 <p className="muted">
-                  Showing {paginatedSpendRows.length} of {filteredSpendRows.length} suppliers (
-                  {spendBySupplier.length} total)
+                  Showing {paginatedSpendRows.length} of{' '}
+                  {filteredSpendRows.length} suppliers ({spendBySupplier.length}{' '}
+                  total)
                 </p>
                 <div className="pagination-controls">
                   <button
                     type="button"
                     className="btn-ghost"
-                    onClick={() => setSpendPage(current => Math.max(1, current - 1))}
+                    onClick={() =>
+                      setSpendPage((current) => Math.max(1, current - 1))
+                    }
                     disabled={spendPage <= 1}
                   >
                     Prev
@@ -285,7 +307,11 @@ const Reports = ({ accessToken, userRole = null }) => {
                   <button
                     type="button"
                     className="btn-ghost"
-                    onClick={() => setSpendPage(current => Math.min(spendTotalPages, current + 1))}
+                    onClick={() =>
+                      setSpendPage((current) =>
+                        Math.min(spendTotalPages, current + 1)
+                      )
+                    }
                     disabled={spendPage >= spendTotalPages}
                   >
                     Next

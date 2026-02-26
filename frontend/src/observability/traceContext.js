@@ -1,12 +1,14 @@
 const TRACE_STORAGE_KEY = 'ledgerly_client_trace_id';
 
-const sanitize = value => String(value || '').trim();
+const sanitize = (value) => String(value || '').trim();
 
-const randomSegment = () =>
-  Math.random().toString(36).slice(2, 10);
+const randomSegment = () => Math.random().toString(36).slice(2, 10);
 
 const generateId = () => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
     return crypto.randomUUID();
   }
   return `${Date.now().toString(36)}-${randomSegment()}-${randomSegment()}`;
@@ -49,4 +51,3 @@ export default {
   getClientTraceId,
   createRequestTrace
 };
-

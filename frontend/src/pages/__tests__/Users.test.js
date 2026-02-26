@@ -26,8 +26,12 @@ describe('Users page', () => {
   });
 
   it('shows role restriction message for non-admin roles', () => {
-    renderWithProviders(<Users accessToken="token" userRole="staff" currentUserId="u-1" />);
-    expect(screen.getByText('Only owner/admin roles can manage users.')).toBeInTheDocument();
+    renderWithProviders(
+      <Users accessToken="token" userRole="staff" currentUserId="u-1" />
+    );
+    expect(
+      screen.getByText('Only owner/admin roles can manage users.')
+    ).toBeInTheDocument();
   });
 
   it('loads users and toggles status', async () => {
@@ -86,13 +90,17 @@ describe('Users page', () => {
       isVerified: false
     });
 
-    renderWithProviders(<Users accessToken="token" userRole="admin" currentUserId="u-1" />);
+    renderWithProviders(
+      <Users accessToken="token" userRole="admin" currentUserId="u-1" />
+    );
 
     const staffRows = await screen.findAllByText('staff@example.com');
     expect(staffRows.length).toBeGreaterThan(0);
 
-    const deactivateButtons = screen.getAllByRole('button', { name: 'Deactivate' });
-    fireEvent.click(deactivateButtons.find(button => !button.disabled));
+    const deactivateButtons = screen.getAllByRole('button', {
+      name: 'Deactivate'
+    });
+    fireEvent.click(deactivateButtons.find((button) => !button.disabled));
 
     await waitFor(() => {
       expect(updateUserStatusRequest).toHaveBeenCalledWith({
@@ -100,7 +108,9 @@ describe('Users page', () => {
         userId: 'u-2',
         isActive: false
       });
-      expect(screen.getAllByRole('button', { name: 'Activate' }).length).toBeGreaterThan(0);
+      expect(
+        screen.getAllByRole('button', { name: 'Activate' }).length
+      ).toBeGreaterThan(0);
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Create invite' }));

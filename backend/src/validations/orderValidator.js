@@ -7,7 +7,7 @@ import Warehouse from '../models/Warehouse.js';
 const ORDER_TYPES = ['purchase', 'sale'];
 const ORDER_STATUSES = ['pending', 'completed', 'cancelled'];
 
-const ensureOrganizationContext = req => {
+const ensureOrganizationContext = (req) => {
   if (!req.organizationId) {
     throw new Error('Organization context is required');
   }
@@ -55,8 +55,8 @@ export const createOrderValidator = [
       const productIds = [
         ...new Set(
           normalizedItems
-            .map(item => item?.product)
-            .filter(id => mongoose.Types.ObjectId.isValid(id))
+            .map((item) => item?.product)
+            .filter((id) => mongoose.Types.ObjectId.isValid(id))
         )
       ];
 
@@ -74,7 +74,10 @@ export const createOrderValidator = [
 
       const lineWarehouseIds = new Set();
       for (const item of normalizedItems) {
-        if (item?.warehouse && mongoose.Types.ObjectId.isValid(item.warehouse)) {
+        if (
+          item?.warehouse &&
+          mongoose.Types.ObjectId.isValid(item.warehouse)
+        ) {
           lineWarehouseIds.add(String(item.warehouse));
         }
 
@@ -87,7 +90,9 @@ export const createOrderValidator = [
           }
 
           if (!Number.isFinite(Number(item?.unitSalePrice))) {
-            throw new Error('unitSalePrice is required for each sale line item');
+            throw new Error(
+              'unitSalePrice is required for each sale line item'
+            );
           }
 
           const quantity = Number(item?.quantity || 0);
@@ -97,7 +102,11 @@ export const createOrderValidator = [
 
           if (serialNumbers.length) {
             const normalizedSerials = serialNumbers
-              .map(serial => String(serial || '').trim().toUpperCase())
+              .map((serial) =>
+                String(serial || '')
+                  .trim()
+                  .toUpperCase()
+              )
               .filter(Boolean);
 
             if (normalizedSerials.length !== serialNumbers.length) {
@@ -118,7 +127,8 @@ export const createOrderValidator = [
       }
 
       const warehouseIdsToValidate = [
-        ...(topLevelWarehouse && mongoose.Types.ObjectId.isValid(topLevelWarehouse)
+        ...(topLevelWarehouse &&
+        mongoose.Types.ObjectId.isValid(topLevelWarehouse)
           ? [String(topLevelWarehouse)]
           : []),
         ...lineWarehouseIds
@@ -130,7 +140,9 @@ export const createOrderValidator = [
           organization: organizationId
         });
         if (warehouseCount !== warehouseIdsToValidate.length) {
-          throw new Error('One or more warehouses were not found in your organization');
+          throw new Error(
+            'One or more warehouses were not found in your organization'
+          );
         }
       }
 

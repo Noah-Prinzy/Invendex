@@ -63,16 +63,18 @@ describe('order and wms request validators', () => {
       stock: 10
     });
 
-    const response = await request(app).post('/api/orders').send({
-      type: 'sale',
-      warehouse: warehouse._id.toString(),
-      products: [
-        {
-          product: product._id.toString(),
-          quantity: 1
-        }
-      ]
-    });
+    const response = await request(app)
+      .post('/api/orders')
+      .send({
+        type: 'sale',
+        warehouse: warehouse._id.toString(),
+        products: [
+          {
+            product: product._id.toString(),
+            quantity: 1
+          }
+        ]
+      });
 
     expect(response.status).toBe(400);
     expect(response.body?.success).toBe(false);

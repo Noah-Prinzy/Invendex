@@ -26,8 +26,20 @@ describe('Suppliers page', () => {
 
   it('loads admin data and filters directory by search text', async () => {
     getSuppliersRequest.mockResolvedValueOnce([
-      { _id: 's1', name: 'Acme Supply', email: 'a@acme.com', phone: '111', isActive: true },
-      { _id: 's2', name: 'Bravo Parts', email: 'b@bravo.com', phone: '222', isActive: true }
+      {
+        _id: 's1',
+        name: 'Acme Supply',
+        email: 'a@acme.com',
+        phone: '111',
+        isActive: true
+      },
+      {
+        _id: 's2',
+        name: 'Bravo Parts',
+        email: 'b@bravo.com',
+        phone: '222',
+        isActive: true
+      }
     ]);
     getSupplierRankingsRequest.mockResolvedValueOnce([
       { supplierId: 's1', rank: 1, name: 'Acme Supply', finalScore: 91 }
@@ -43,7 +55,9 @@ describe('Suppliers page', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getAllByText('Acme Supply').length).toBeGreaterThanOrEqual(2);
+      expect(screen.getAllByText('Acme Supply').length).toBeGreaterThanOrEqual(
+        2
+      );
       expect(screen.queryByText('Bravo Parts')).not.toBeInTheDocument();
     });
   });

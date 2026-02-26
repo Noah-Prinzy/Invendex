@@ -1,10 +1,10 @@
 import CogsEntry from '../../models/CogsEntry.js';
-import Order from '../../models/Order.js';
 import { AppError } from '../../errors/AppError.js';
 
-const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+const roundMoney = (value) =>
+  Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
-const normalizeGroupBy = value => {
+const normalizeGroupBy = (value) => {
   const normalized = String(value || 'day').toLowerCase();
   if (['day', 'product', 'category'].includes(normalized)) {
     return normalized;
@@ -113,12 +113,10 @@ export const getGrossMarginReport = async ({
     row.grossMargin = roundMoney(row.grossMargin + margin);
   }
 
-  const items = Array.from(bucket.values()).map(row => ({
+  const items = Array.from(bucket.values()).map((row) => ({
     ...row,
     grossMarginPct:
-      row.revenue > 0
-        ? roundMoney((row.grossMargin / row.revenue) * 100)
-        : 0
+      row.revenue > 0 ? roundMoney((row.grossMargin / row.revenue) * 100) : 0
   }));
 
   items.sort((a, b) => {

@@ -43,7 +43,7 @@ export const useLedgerlyRealtime = ({
     const unsubscribers = [];
     const subscribeWithInvalidation = (subscribeFn, eventName, callback) => {
       unsubscribers.push(
-        subscribeFn(payload => {
+        subscribeFn((payload) => {
           invalidateQueriesForRealtimeEvent({
             queryClient,
             eventName,

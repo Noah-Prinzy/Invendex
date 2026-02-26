@@ -1,9 +1,7 @@
 import { body, param } from 'express-validator';
 
 export const updateUserStatusValidator = [
-  param('id')
-    .isMongoId()
-    .withMessage('User ID must be a valid Mongo ID'),
+  param('id').isMongoId().withMessage('User ID must be a valid Mongo ID'),
   body('isActive')
     .exists()
     .withMessage('isActive is required')
@@ -27,8 +25,5 @@ export const createInviteValidator = [
 ];
 
 export const inviteIdParamValidator = [
-  param('id')
-    .isMongoId()
-    .withMessage('Invite ID must be a valid Mongo ID')
+  param('id').isMongoId().withMessage('Invite ID must be a valid Mongo ID')
 ];
-

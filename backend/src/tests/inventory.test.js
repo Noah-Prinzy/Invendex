@@ -15,7 +15,7 @@ import { jest } from '@jest/globals';
 
 // 🔐 Auth middleware (blocks immediately)
 await jest.unstable_mockModule('../middlewares/authMiddleware.js', () => ({
-  protect: (req, res, next) => {
+  protect: (req, res, _next) => {
     return res.status(401).json({
       success: false,
       message: 'Not authorized, no token provided'
@@ -56,27 +56,21 @@ app.use('/api/inventory', inventoryRoutes);
 
 describe('Inventory API – auth protection', () => {
   it('blocks active reorder alerts without token', async () => {
-    const res = await request(app).get(
-      '/api/inventory/alerts/reorder/active'
-    );
+    const res = await request(app).get('/api/inventory/alerts/reorder/active');
 
     expect(res.statusCode).toBe(401);
     expect(res.body.success).toBe(false);
   });
 
   it('blocks reorder intelligence without token', async () => {
-    const res = await request(app).get(
-      '/api/inventory/reorder-intelligence'
-    );
+    const res = await request(app).get('/api/inventory/reorder-intelligence');
 
     expect(res.statusCode).toBe(401);
     expect(res.body.success).toBe(false);
   });
 
   it('blocks reorder alert trend without token', async () => {
-    const res = await request(app).get(
-      '/api/inventory/alerts/reorder/trend'
-    );
+    const res = await request(app).get('/api/inventory/alerts/reorder/trend');
 
     expect(res.statusCode).toBe(401);
     expect(res.body.success).toBe(false);

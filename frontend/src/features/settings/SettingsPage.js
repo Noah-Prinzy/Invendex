@@ -10,7 +10,9 @@ const Settings = () => (
     </header>
     <article className="event-card">
       <h3>Status</h3>
-      <p className="muted">Placeholder view ready for settings endpoint integration.</p>
+      <p className="muted">
+        Placeholder view ready for settings endpoint integration.
+      </p>
     </article>
   </section>
 );

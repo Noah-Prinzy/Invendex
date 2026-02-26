@@ -45,12 +45,20 @@ const Suppliers = ({ accessToken, userRole = null }) => {
     }
   });
 
-  const suppliers = useMemo(() => (Array.isArray(data?.suppliers) ? data.suppliers : []), [data]);
-  const rankings = useMemo(() => (Array.isArray(data?.rankings) ? data.rankings : []), [data]);
+  const suppliers = useMemo(
+    () => (Array.isArray(data?.suppliers) ? data.suppliers : []),
+    [data]
+  );
+  const rankings = useMemo(
+    () => (Array.isArray(data?.rankings) ? data.rankings : []),
+    [data]
+  );
   const errorMessage = String(error?.message || '').trim();
 
   const stats = useMemo(() => {
-    const activeCount = suppliers.filter(supplier => supplier.isActive !== false).length;
+    const activeCount = suppliers.filter(
+      (supplier) => supplier.isActive !== false
+    ).length;
     const topSupplier = rankings[0]?.name || suppliers[0]?.name || 'n/a';
     return {
       total: suppliers.length,
@@ -60,10 +68,13 @@ const Suppliers = ({ accessToken, userRole = null }) => {
   }, [suppliers, rankings]);
 
   const filteredDirectory = useMemo(() => {
-    const normalizedSearch = String(searchTerm || '').trim().toLowerCase();
-    const rows = suppliers.filter(row => {
+    const normalizedSearch = String(searchTerm || '')
+      .trim()
+      .toLowerCase();
+    const rows = suppliers.filter((row) => {
       if (normalizedSearch) {
-        const haystack = `${row.name || ''} ${row.email || ''} ${row.phone || ''}`.toLowerCase();
+        const haystack =
+          `${row.name || ''} ${row.email || ''} ${row.phone || ''}`.toLowerCase();
         if (!haystack.includes(normalizedSearch)) return false;
       }
 
@@ -82,17 +93,25 @@ const Suppliers = ({ accessToken, userRole = null }) => {
         return aStatus.localeCompare(bStatus) * direction;
       }
 
-      return String(a[sortKey] || '')
-        .localeCompare(String(b[sortKey] || ''), undefined, { sensitivity: 'base' }) * direction;
+      return (
+        String(a[sortKey] || '').localeCompare(
+          String(b[sortKey] || ''),
+          undefined,
+          { sensitivity: 'base' }
+        ) * direction
+      );
     });
 
     return rows;
   }, [suppliers, searchTerm, statusFilter, sortKey, sortDirection]);
 
-  const directoryTotalPages = Math.max(1, Math.ceil(filteredDirectory.length / DIRECTORY_PAGE_SIZE));
+  const directoryTotalPages = Math.max(
+    1,
+    Math.ceil(filteredDirectory.length / DIRECTORY_PAGE_SIZE)
+  );
 
   useEffect(() => {
-    setDirectoryPage(current => Math.min(current, directoryTotalPages));
+    setDirectoryPage((current) => Math.min(current, directoryTotalPages));
   }, [directoryTotalPages]);
 
   const paginatedDirectory = useMemo(() => {
@@ -101,20 +120,27 @@ const Suppliers = ({ accessToken, userRole = null }) => {
   }, [filteredDirectory, directoryPage]);
 
   const filteredRankings = useMemo(() => {
-    const normalizedSearch = String(searchTerm || '').trim().toLowerCase();
-    const rows = rankings.filter(row => {
+    const normalizedSearch = String(searchTerm || '')
+      .trim()
+      .toLowerCase();
+    const rows = rankings.filter((row) => {
       if (!normalizedSearch) return true;
-      return String(row.name || '').toLowerCase().includes(normalizedSearch);
+      return String(row.name || '')
+        .toLowerCase()
+        .includes(normalizedSearch);
     });
 
     rows.sort((a, b) => Number(b.finalScore || 0) - Number(a.finalScore || 0));
     return rows;
   }, [rankings, searchTerm]);
 
-  const rankingTotalPages = Math.max(1, Math.ceil(filteredRankings.length / RANKING_PAGE_SIZE));
+  const rankingTotalPages = Math.max(
+    1,
+    Math.ceil(filteredRankings.length / RANKING_PAGE_SIZE)
+  );
 
   useEffect(() => {
-    setRankingPage(current => Math.min(current, rankingTotalPages));
+    setRankingPage((current) => Math.min(current, rankingTotalPages));
   }, [rankingTotalPages]);
 
   const paginatedRankings = useMemo(() => {
@@ -135,8 +161,9 @@ const Suppliers = ({ accessToken, userRole = null }) => {
           <p className="metric-label">Permission required</p>
           <h3>Admin role needed</h3>
           <p className="muted">
-            Your current role is `{userRole || 'unknown'}`. The `/api/suppliers/*` endpoints are
-            currently protected with `requireRoles('admin')`.
+            Your current role is `{userRole || 'unknown'}`. The
+            `/api/suppliers/*` endpoints are currently protected with
+            `requireRoles('admin')`.
           </p>
         </article>
       </section>
@@ -148,7 +175,9 @@ const Suppliers = ({ accessToken, userRole = null }) => {
       <header className="panel-head panel-head-row">
         <div>
           <h2>Suppliers</h2>
-          <p>Supplier directory and reliability ranking from backend analytics.</p>
+          <p>
+            Supplier directory and reliability ranking from backend analytics.
+          </p>
         </div>
         <button
           type="button"
@@ -186,7 +215,7 @@ const Suppliers = ({ accessToken, userRole = null }) => {
               <input
                 type="text"
                 value={searchTerm}
-                onChange={event => {
+                onChange={(event) => {
                   setSearchTerm(event.target.value);
                   setDirectoryPage(1);
                   setRankingPage(1);
@@ -198,7 +227,7 @@ const Suppliers = ({ accessToken, userRole = null }) => {
               <span>Status</span>
               <select
                 value={statusFilter}
-                onChange={event => {
+                onChange={(event) => {
                   setStatusFilter(event.target.value);
                   setDirectoryPage(1);
                 }}
@@ -212,7 +241,7 @@ const Suppliers = ({ accessToken, userRole = null }) => {
               <span>Sort</span>
               <select
                 value={sortKey}
-                onChange={event => {
+                onChange={(event) => {
                   setSortKey(event.target.value);
                   setDirectoryPage(1);
                 }}
@@ -227,7 +256,7 @@ const Suppliers = ({ accessToken, userRole = null }) => {
               <span>Direction</span>
               <select
                 value={sortDirection}
-                onChange={event => {
+                onChange={(event) => {
                   setSortDirection(event.target.value);
                   setDirectoryPage(1);
                 }}
@@ -250,12 +279,14 @@ const Suppliers = ({ accessToken, userRole = null }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedDirectory.map(supplier => (
+                  {paginatedDirectory.map((supplier) => (
                     <tr key={supplier._id || supplier.id}>
                       <td>{supplier.name || '-'}</td>
                       <td>{supplier.email || '-'}</td>
                       <td>{supplier.phone || '-'}</td>
-                      <td>{supplier.isActive === false ? 'Inactive' : 'Active'}</td>
+                      <td>
+                        {supplier.isActive === false ? 'Inactive' : 'Active'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -267,14 +298,16 @@ const Suppliers = ({ accessToken, userRole = null }) => {
 
           <footer className="pagination-row">
             <p className="muted">
-              Showing {paginatedDirectory.length} of {filteredDirectory.length} filtered suppliers (
-              {suppliers.length} total)
+              Showing {paginatedDirectory.length} of {filteredDirectory.length}{' '}
+              filtered suppliers ({suppliers.length} total)
             </p>
             <div className="pagination-controls">
               <button
                 type="button"
                 className="btn-ghost"
-                onClick={() => setDirectoryPage(current => Math.max(1, current - 1))}
+                onClick={() =>
+                  setDirectoryPage((current) => Math.max(1, current - 1))
+                }
                 disabled={directoryPage <= 1}
               >
                 Prev
@@ -285,7 +318,11 @@ const Suppliers = ({ accessToken, userRole = null }) => {
               <button
                 type="button"
                 className="btn-ghost"
-                onClick={() => setDirectoryPage(current => Math.min(directoryTotalPages, current + 1))}
+                onClick={() =>
+                  setDirectoryPage((current) =>
+                    Math.min(directoryTotalPages, current + 1)
+                  )
+                }
                 disabled={directoryPage >= directoryTotalPages}
               >
                 Next
@@ -298,7 +335,7 @@ const Suppliers = ({ accessToken, userRole = null }) => {
           <h3>Supplier Ranking</h3>
           {filteredRankings.length ? (
             <ul className="rank-list">
-              {paginatedRankings.map(row => (
+              {paginatedRankings.map((row) => (
                 <li key={row.supplierId || row.name} className="rank-item">
                   <p>
                     #{row.rank || '-'} {row.name || 'Unknown'}
@@ -316,7 +353,9 @@ const Suppliers = ({ accessToken, userRole = null }) => {
               <button
                 type="button"
                 className="btn-ghost"
-                onClick={() => setRankingPage(current => Math.max(1, current - 1))}
+                onClick={() =>
+                  setRankingPage((current) => Math.max(1, current - 1))
+                }
                 disabled={rankingPage <= 1}
               >
                 Prev
@@ -327,7 +366,11 @@ const Suppliers = ({ accessToken, userRole = null }) => {
               <button
                 type="button"
                 className="btn-ghost"
-                onClick={() => setRankingPage(current => Math.min(rankingTotalPages, current + 1))}
+                onClick={() =>
+                  setRankingPage((current) =>
+                    Math.min(rankingTotalPages, current + 1)
+                  )
+                }
                 disabled={rankingPage >= rankingTotalPages}
               >
                 Next

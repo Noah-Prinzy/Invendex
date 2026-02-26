@@ -12,7 +12,12 @@ export const APP_TABS = Object.freeze([
 ]);
 
 const ADMIN_ROLES = new Set(['owner', 'admin']);
-const EMPLOYEE_ALLOWED_TABS = new Set(['dashboard', 'products', 'account', 'settings']);
+const EMPLOYEE_ALLOWED_TABS = new Set([
+  'dashboard',
+  'products',
+  'account',
+  'settings'
+]);
 
 export const useTabs = (userRole = null, initialKey = APP_TABS[0].key) => {
   const [activeTab, setActiveTab] = useState(initialKey);
@@ -21,7 +26,7 @@ export const useTabs = (userRole = null, initialKey = APP_TABS[0].key) => {
   const isAdmin = ADMIN_ROLES.has(normalizedRole);
   const visibleTabs = isAdmin
     ? APP_TABS
-    : APP_TABS.filter(tab => EMPLOYEE_ALLOWED_TABS.has(tab.key));
+    : APP_TABS.filter((tab) => EMPLOYEE_ALLOWED_TABS.has(tab.key));
 
   const tabMap = useMemo(() => {
     const map = new Map();
@@ -32,7 +37,9 @@ export const useTabs = (userRole = null, initialKey = APP_TABS[0].key) => {
   }, [visibleTabs]);
 
   const isValidTab = tabMap.has(activeTab);
-  const resolvedTab = isValidTab ? activeTab : visibleTabs[0]?.key || APP_TABS[0].key;
+  const resolvedTab = isValidTab
+    ? activeTab
+    : visibleTabs[0]?.key || APP_TABS[0].key;
 
   return {
     tabs: visibleTabs,

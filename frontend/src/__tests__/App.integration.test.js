@@ -1,5 +1,11 @@
 import React from 'react';
-import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react';
 import App from '../App.js';
 import useAuth from '../hooks/auth/useAuth.js';
 import { useLedgerlyRealtime } from '../hooks/realtime/useLedgerlyRealtime.js';
@@ -15,7 +21,7 @@ jest.mock('../hooks/realtime/useLedgerlyRealtime.js', () => ({
   useLedgerlyRealtime: jest.fn()
 }));
 
-const buildAuthState = overrides => ({
+const buildAuthState = (overrides) => ({
   user: null,
   accessToken: null,
   isAuthenticated: false,
@@ -115,15 +121,17 @@ describe('App integration', () => {
     fireEvent.change(screen.getByLabelText('Confirm Password'), {
       target: { value: 'StrongPass123' }
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Create admin account' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Create admin account' })
+    );
 
     await waitFor(() => {
       expect(signup).toHaveBeenCalledWith(
         expect.objectContaining({
-        email: 'owner@ledgerly.com',
-        password: 'StrongPass123',
-        confirmPassword: 'StrongPass123',
-        organizationName: 'Ledgerly Ops'
+          email: 'owner@ledgerly.com',
+          password: 'StrongPass123',
+          confirmPassword: 'StrongPass123',
+          organizationName: 'Ledgerly Ops'
         })
       );
     });
@@ -173,7 +181,9 @@ describe('App integration', () => {
     });
 
     expect(screen.getByText('Delta +5 | On hand 42')).toBeInTheDocument();
-    const notificationsButton = screen.getByRole('button', { name: 'Notifications' });
+    const notificationsButton = screen.getByRole('button', {
+      name: 'Notifications'
+    });
     expect(within(notificationsButton).getByText('2')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Purchase Orders' }));

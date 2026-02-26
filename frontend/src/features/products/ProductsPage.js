@@ -9,7 +9,7 @@ const ROLES_WITH_LOW_STOCK_ACCESS = new Set(['admin', 'staff']);
 const PAGE_SIZE = 8;
 const PRODUCTS_QUERY_STALE_TIME_MS = 45 * 1000;
 
-const formatCurrency = value =>
+const formatCurrency = (value) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -23,9 +23,15 @@ const Products = ({ accessToken, userRole = null }) => {
   const [sortDirection, setSortDirection] = useState('asc');
   const [page, setPage] = useState(1);
 
-  const canReadLowStockSummary = ROLES_WITH_LOW_STOCK_ACCESS.has(String(userRole || ''));
+  const canReadLowStockSummary = ROLES_WITH_LOW_STOCK_ACCESS.has(
+    String(userRole || '')
+  );
   const productsQueryKey = useMemo(
-    () => ['products:index', String(accessToken || ''), String(canReadLowStockSummary)],
+    () => [
+      'products:index',
+      String(accessToken || ''),
+      String(canReadLowStockSummary)
+    ],
     [accessToken, canReadLowStockSummary]
   );
 
@@ -46,7 +52,10 @@ const Products = ({ accessToken, userRole = null }) => {
     }
   });
 
-  const products = useMemo(() => (Array.isArray(data?.products) ? data.products : []), [data]);
+  const products = useMemo(
+    () => (Array.isArray(data?.products) ? data.products : []),
+    [data]
+  );
   const lowStockSummary = useMemo(
     () => (Array.isArray(data?.lowStockSummary) ? data.lowStockSummary : []),
     [data]
@@ -58,20 +67,28 @@ const Products = ({ accessToken, userRole = null }) => {
     const lowStockCount = lowStockSummary.length;
     const avgPrice =
       total > 0
-        ? products.reduce((sum, product) => sum + Number(product.price || 0), 0) / total
+        ? products.reduce(
+            (sum, product) => sum + Number(product.price || 0),
+            0
+          ) / total
         : 0;
     return { total, lowStockCount, avgPrice };
   }, [products, lowStockSummary]);
 
   const lowStockSkus = useMemo(
-    () => new Set(lowStockSummary.map(item => String(item.sku || '').toUpperCase())),
+    () =>
+      new Set(
+        lowStockSummary.map((item) => String(item.sku || '').toUpperCase())
+      ),
     [lowStockSummary]
   );
 
   const filteredProducts = useMemo(() => {
-    const normalizedSearch = String(searchTerm || '').trim().toLowerCase();
+    const normalizedSearch = String(searchTerm || '')
+      .trim()
+      .toLowerCase();
 
-    const withFlags = products.map(product => {
+    const withFlags = products.map((product) => {
       const sku = String(product.sku || '').toUpperCase();
       const stock = Number(product.stock || 0);
       const threshold = Number(product.lowStockThreshold || 0);
@@ -81,11 +98,12 @@ const Products = ({ accessToken, userRole = null }) => {
       };
     });
 
-    const filtered = withFlags.filter(product => {
+    const filtered = withFlags.filter((product) => {
       if (normalizedSearch) {
-        const haystack = `${product.name || ''} ${product.sku || ''} ${product.category || ''}`
-          .toLowerCase()
-          .trim();
+        const haystack =
+          `${product.name || ''} ${product.sku || ''} ${product.category || ''}`
+            .toLowerCase()
+            .trim();
         if (!haystack.includes(normalizedSearch)) return false;
       }
 
@@ -106,21 +124,31 @@ const Products = ({ accessToken, userRole = null }) => {
       }
       if (sortKey === 'threshold') {
         return (
-          (Number(a.lowStockThreshold || 0) - Number(b.lowStockThreshold || 0)) * direction
+          (Number(a.lowStockThreshold || 0) -
+            Number(b.lowStockThreshold || 0)) *
+          direction
         );
       }
 
-      return String(a[sortKey] || '')
-        .localeCompare(String(b[sortKey] || ''), undefined, { sensitivity: 'base' }) * direction;
+      return (
+        String(a[sortKey] || '').localeCompare(
+          String(b[sortKey] || ''),
+          undefined,
+          { sensitivity: 'base' }
+        ) * direction
+      );
     });
 
     return filtered;
   }, [products, lowStockSkus, searchTerm, stockFilter, sortKey, sortDirection]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredProducts.length / PAGE_SIZE)
+  );
 
   useEffect(() => {
-    setPage(current => Math.min(current, totalPages));
+    setPage((current) => Math.min(current, totalPages));
   }, [totalPages]);
 
   const paginatedProducts = useMemo(() => {
@@ -163,7 +191,8 @@ const Products = ({ accessToken, userRole = null }) => {
       {errorMessage ? <p className="form-error">{errorMessage}</p> : null}
       {!canReadLowStockSummary ? (
         <p className="section-note">
-          Low-stock summary is restricted to `admin` and `staff` roles in current backend policy.
+          Low-stock summary is restricted to `admin` and `staff` roles in
+          current backend policy.
         </p>
       ) : null}
 
@@ -175,7 +204,7 @@ const Products = ({ accessToken, userRole = null }) => {
             <input
               type="text"
               value={searchTerm}
-              onChange={event => {
+              onChange={(event) => {
                 setSearchTerm(event.target.value);
                 setPage(1);
               }}
@@ -186,7 +215,7 @@ const Products = ({ accessToken, userRole = null }) => {
             <span>Stock</span>
             <select
               value={stockFilter}
-              onChange={event => {
+              onChange={(event) => {
                 setStockFilter(event.target.value);
                 setPage(1);
               }}
@@ -200,7 +229,7 @@ const Products = ({ accessToken, userRole = null }) => {
             <span>Sort</span>
             <select
               value={sortKey}
-              onChange={event => {
+              onChange={(event) => {
                 setSortKey(event.target.value);
                 setPage(1);
               }}
@@ -217,7 +246,7 @@ const Products = ({ accessToken, userRole = null }) => {
             <span>Direction</span>
             <select
               value={sortDirection}
-              onChange={event => {
+              onChange={(event) => {
                 setSortDirection(event.target.value);
                 setPage(1);
               }}
@@ -242,7 +271,7 @@ const Products = ({ accessToken, userRole = null }) => {
                 </tr>
               </thead>
               <tbody>
-                {paginatedProducts.map(product => (
+                {paginatedProducts.map((product) => (
                   <tr key={product.id || product._id}>
                     <td>{product.name || '-'}</td>
                     <td>{product.sku || '-'}</td>
@@ -261,14 +290,14 @@ const Products = ({ accessToken, userRole = null }) => {
 
         <footer className="pagination-row">
           <p className="muted">
-            Showing {paginatedProducts.length} of {filteredProducts.length} filtered products (
-            {products.length} total)
+            Showing {paginatedProducts.length} of {filteredProducts.length}{' '}
+            filtered products ({products.length} total)
           </p>
           <div className="pagination-controls">
             <button
               type="button"
               className="btn-ghost"
-              onClick={() => setPage(current => Math.max(1, current - 1))}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
               disabled={page <= 1}
             >
               Prev
@@ -279,7 +308,9 @@ const Products = ({ accessToken, userRole = null }) => {
             <button
               type="button"
               className="btn-ghost"
-              onClick={() => setPage(current => Math.min(totalPages, current + 1))}
+              onClick={() =>
+                setPage((current) => Math.min(totalPages, current + 1))
+              }
               disabled={page >= totalPages}
             >
               Next

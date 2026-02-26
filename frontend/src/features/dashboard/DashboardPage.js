@@ -2,21 +2,21 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getObservabilityPingRequest } from '../../api/client.js';
 
-const formatWhen = iso => {
+const formatWhen = (iso) => {
   if (!iso) return 'n/a';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return 'n/a';
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-const formatDateTime = iso => {
+const formatDateTime = (iso) => {
   if (!iso) return 'n/a';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return 'n/a';
   return date.toLocaleString();
 };
 
-const copyTextToClipboard = async text => {
+const copyTextToClipboard = async (text) => {
   const value = String(text || '');
   if (!value.trim()) {
     throw new Error('Nothing to copy');
@@ -78,7 +78,8 @@ const Dashboard = ({
   const observabilityStatus = useMemo(() => {
     if (observabilityQuery.isError) return 'error';
     if (observabilityQuery.data) return 'ok';
-    if (observabilityQuery.isLoading || observabilityQuery.isFetching) return 'loading';
+    if (observabilityQuery.isLoading || observabilityQuery.isFetching)
+      return 'loading';
     return 'idle';
   }, [
     observabilityQuery.data,
@@ -91,7 +92,9 @@ const Dashboard = ({
     if (!observabilityQuery.isError) return '';
     const trace = observabilityQuery.error?.payload?.trace || {};
     const traceId = trace.serverRequestId || trace.requestId || 'n/a';
-    const message = String(observabilityQuery.error?.message || 'Observability ping failed');
+    const message = String(
+      observabilityQuery.error?.message || 'Observability ping failed'
+    );
     return traceId === 'n/a' ? message : `${message} (request: ${traceId})`;
   }, [observabilityQuery.error, observabilityQuery.isError]);
 
@@ -117,15 +120,22 @@ const Dashboard = ({
       await copyTextToClipboard(payload);
       setCopyTraceState('copied');
       setTimeout(() => {
-        setCopyTraceState(current => (current === 'copied' ? 'idle' : current));
+        setCopyTraceState((current) =>
+          current === 'copied' ? 'idle' : current
+        );
       }, 2000);
     } catch {
       setCopyTraceState('error');
       setTimeout(() => {
-        setCopyTraceState(current => (current === 'error' ? 'idle' : current));
+        setCopyTraceState((current) =>
+          current === 'error' ? 'idle' : current
+        );
       }, 2500);
     }
-  }, [observabilityQuery.data?.trace?.clientTraceId, observabilityQuery.data?.trace?.requestId]);
+  }, [
+    observabilityQuery.data?.trace?.clientTraceId,
+    observabilityQuery.data?.trace?.requestId
+  ]);
 
   const latestInventory = inventoryEvents[0] || null;
   const latestFinance = financeEvents[0] || null;
@@ -149,7 +159,7 @@ const Dashboard = ({
       </header>
 
       <div className="metric-grid">
-        {metrics.map(metric => (
+        {metrics.map((metric) => (
           <article key={metric.label} className="metric-card">
             <p className="metric-label">{metric.label}</p>
             <p className="metric-value">{metric.value}</p>
@@ -189,13 +199,17 @@ const Dashboard = ({
           </div>
 
           {observabilityStatus === 'error' ? (
-            <p className="form-error">{observabilityError || 'Observability ping failed'}</p>
+            <p className="form-error">
+              {observabilityError || 'Observability ping failed'}
+            </p>
           ) : null}
 
           <div className="obs-grid">
             <div className="obs-item">
               <p className="metric-label">Status</p>
-              <p className={`obs-value ${observabilityStatus === 'ok' ? 'ok' : ''}`}>
+              <p
+                className={`obs-value ${observabilityStatus === 'ok' ? 'ok' : ''}`}
+              >
                 {observabilitySummary}
               </p>
             </div>
@@ -214,7 +228,9 @@ const Dashboard = ({
             <div className="obs-item">
               <p className="metric-label">Realtime</p>
               <p className="obs-value">
-                {observabilityQuery.data?.realtime?.enabled ? 'Enabled' : 'Disabled'}
+                {observabilityQuery.data?.realtime?.enabled
+                  ? 'Enabled'
+                  : 'Disabled'}
               </p>
             </div>
             <div className="obs-item">
@@ -238,13 +254,15 @@ const Dashboard = ({
           <h3>Inventory stream</h3>
           <ul className="event-list">
             {inventoryEvents.length ? (
-              inventoryEvents.slice(0, 6).map(event => (
+              inventoryEvents.slice(0, 6).map((event) => (
                 <li key={event.id} className="event-item">
                   <div>
                     <p className="event-title">{event.title}</p>
                     <p className="event-sub">{event.subtitle}</p>
                   </div>
-                  <span className="event-time">{formatWhen(event.occurredAt)}</span>
+                  <span className="event-time">
+                    {formatWhen(event.occurredAt)}
+                  </span>
                 </li>
               ))
             ) : (
@@ -260,40 +278,48 @@ const Dashboard = ({
           <h3>Finance stream</h3>
           <ul className="event-list">
             {financeEvents.length ? (
-              financeEvents.slice(0, 6).map(event => (
+              financeEvents.slice(0, 6).map((event) => (
                 <li key={event.id} className="event-item">
                   <div>
                     <p className="event-title">{event.title}</p>
                     <p className="event-sub">{event.subtitle}</p>
                   </div>
-                  <span className="event-time">{formatWhen(event.occurredAt)}</span>
+                  <span className="event-time">
+                    {formatWhen(event.occurredAt)}
+                  </span>
                 </li>
               ))
             ) : (
               <li className="event-empty">No finance events yet.</li>
             )}
           </ul>
-          {latestFinance ? <pre>{JSON.stringify(latestFinance.raw, null, 2)}</pre> : null}
+          {latestFinance ? (
+            <pre>{JSON.stringify(latestFinance.raw, null, 2)}</pre>
+          ) : null}
         </article>
 
         <article className="event-card">
           <h3>Auth stream</h3>
           <ul className="event-list">
             {authEvents.length ? (
-              authEvents.slice(0, 6).map(event => (
+              authEvents.slice(0, 6).map((event) => (
                 <li key={event.id} className="event-item">
                   <div>
                     <p className="event-title">{event.title}</p>
                     <p className="event-sub">{event.subtitle}</p>
                   </div>
-                  <span className="event-time">{formatWhen(event.occurredAt)}</span>
+                  <span className="event-time">
+                    {formatWhen(event.occurredAt)}
+                  </span>
                 </li>
               ))
             ) : (
               <li className="event-empty">No auth events yet.</li>
             )}
           </ul>
-          {latestAuth ? <pre>{JSON.stringify(latestAuth.raw, null, 2)}</pre> : null}
+          {latestAuth ? (
+            <pre>{JSON.stringify(latestAuth.raw, null, 2)}</pre>
+          ) : null}
         </article>
       </div>
     </section>

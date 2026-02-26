@@ -3,13 +3,15 @@ import InventoryCostLayer from '../../models/InventoryCostLayer.js';
 import InventoryValuationConfig, {
   VALUATION_METHODS
 } from '../../models/InventoryValuationConfig.js';
-import Product from '../../models/Product.js';
 import { AppError } from '../../errors/AppError.js';
 
-const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+const roundMoney = (value) =>
+  Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
-const normalizeMethod = method => {
-  const normalized = String(method || '').trim().toUpperCase();
+const normalizeMethod = (method) => {
+  const normalized = String(method || '')
+    .trim()
+    .toUpperCase();
   return VALUATION_METHODS.includes(normalized) ? normalized : null;
 };
 
@@ -39,7 +41,7 @@ const getSortedLayers = async ({
   return cursor;
 };
 
-const getLayerTotals = layers => {
+const getLayerTotals = (layers) => {
   const totalQuantity = layers.reduce(
     (sum, layer) => sum + Number(layer.quantityRemaining || 0),
     0
@@ -55,11 +57,7 @@ const getLayerTotals = layers => {
   };
 };
 
-const estimateCostForQuantity = ({
-  layers,
-  quantity,
-  method
-}) => {
+const estimateCostForQuantity = ({ layers, quantity, method }) => {
   if (quantity <= 0) {
     return {
       totalCost: 0,
@@ -98,7 +96,7 @@ const estimateCostForQuantity = ({
   };
 };
 
-export const getOrCreateValuationConfig = async organizationId => {
+export const getOrCreateValuationConfig = async (organizationId) => {
   const existing = await InventoryValuationConfig.findOne({
     organization: organizationId
   });
@@ -111,14 +109,14 @@ export const getOrCreateValuationConfig = async organizationId => {
   });
 };
 
-export const getEffectiveMethod = async (organizationId, overrideMethod = null) => {
+export const getEffectiveMethod = async (
+  organizationId,
+  overrideMethod = null
+) => {
   const config = await getOrCreateValuationConfig(organizationId);
   const normalizedOverride = normalizeMethod(overrideMethod);
 
-  if (
-    normalizedOverride &&
-    config.allowMethodOverride
-  ) {
+  if (normalizedOverride && config.allowMethodOverride) {
     return normalizedOverride;
   }
 

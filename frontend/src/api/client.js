@@ -11,7 +11,10 @@ class ApiError extends Error {
   }
 }
 
-const sanitizeBaseUrl = value => String(value || '').trim().replace(/\/+$/, '');
+const sanitizeBaseUrl = (value) =>
+  String(value || '')
+    .trim()
+    .replace(/\/+$/, '');
 
 const getDefaultBaseUrl = () => {
   const envBase = sanitizeBaseUrl(process.env.REACT_APP_API_BASE_URL);
@@ -34,19 +37,23 @@ let csrfToken = '';
 
 const emitTraceLog = (message, meta = {}) => {
   if (process.env.NODE_ENV === 'production') return;
-  if (String(process.env.REACT_APP_API_TRACE_LOG || 'false').toLowerCase() !== 'true') return;
+  if (
+    String(process.env.REACT_APP_API_TRACE_LOG || 'false').toLowerCase() !==
+    'true'
+  )
+    return;
   // eslint-disable-next-line no-console
   console.info(`[api_trace] ${message}`, meta);
 };
 
-const buildUrl = path => {
+const buildUrl = (path) => {
   const normalizedPath = String(path || '').startsWith('/')
     ? String(path)
     : `/${String(path || '')}`;
   return `${API_BASE_URL}${normalizedPath}`;
 };
 
-const parseJsonSafe = async response => {
+const parseJsonSafe = async (response) => {
   const text = await response.text();
   if (!text) return null;
   try {
@@ -79,7 +86,9 @@ const request = async ({
         'x-request-id': trace.requestId,
         'x-client-trace-id': trace.clientTraceId,
         ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
-        ...(normalizedMethod !== 'GET' && normalizedMethod !== 'HEAD' && csrfToken
+        ...(normalizedMethod !== 'GET' &&
+        normalizedMethod !== 'HEAD' &&
+        csrfToken
           ? { [CSRF_HEADER_NAME]: csrfToken }
           : {}),
         ...headers
@@ -111,7 +120,8 @@ const request = async ({
 
   const payload = await parseJsonSafe(response);
   const serverRequestId =
-    String(response.headers?.get('x-request-id') || '').trim() || trace.requestId;
+    String(response.headers?.get('x-request-id') || '').trim() ||
+    trace.requestId;
 
   emitTraceLog('response_received', {
     requestId: trace.requestId,
@@ -247,44 +257,44 @@ export const authRefreshRequest = () =>
     path: API_ENDPOINTS.AUTH_REFRESH
   });
 
-export const authMeRequest = accessToken =>
+export const authMeRequest = (accessToken) =>
   request({
     method: 'GET',
     path: API_ENDPOINTS.AUTH_ME,
     accessToken
   });
 
-export const authLogoutRequest = accessToken =>
+export const authLogoutRequest = (accessToken) =>
   request({
     method: 'POST',
     path: API_ENDPOINTS.AUTH_LOGOUT,
     accessToken
   });
 
-const readData = payload => payload?.data;
+const readData = (payload) => payload?.data;
 
-export const getProductsRequest = accessToken =>
+export const getProductsRequest = (accessToken) =>
   request({
     method: 'GET',
     path: API_ENDPOINTS.PRODUCTS,
     accessToken
   }).then(readData);
 
-export const getUsersRequest = accessToken =>
+export const getUsersRequest = (accessToken) =>
   request({
     method: 'GET',
     path: API_ENDPOINTS.USERS,
     accessToken
   }).then(readData);
 
-export const getOnlineUsersRequest = accessToken =>
+export const getOnlineUsersRequest = (accessToken) =>
   request({
     method: 'GET',
     path: API_ENDPOINTS.USERS_ONLINE,
     accessToken
   }).then(readData);
 
-export const getUserInvitesRequest = accessToken =>
+export const getUserInvitesRequest = (accessToken) =>
   request({
     method: 'GET',
     path: API_ENDPOINTS.USERS_INVITES,
@@ -318,49 +328,49 @@ export const updateUserStatusRequest = ({ accessToken, userId, isActive }) =>
     body: { isActive }
   }).then(readData);
 
-export const getProductsLowStockSummaryRequest = accessToken =>
+export const getProductsLowStockSummaryRequest = (accessToken) =>
   request({
     method: 'GET',
     path: API_ENDPOINTS.PRODUCTS_LOW_STOCK_SUMMARY,
     accessToken
   }).then(readData);
 
-export const getSuppliersRequest = accessToken =>
+export const getSuppliersRequest = (accessToken) =>
   request({
     method: 'GET',
     path: API_ENDPOINTS.SUPPLIERS,
     accessToken
   }).then(readData);
 
-export const getSupplierRankingsRequest = accessToken =>
+export const getSupplierRankingsRequest = (accessToken) =>
   request({
     method: 'GET',
     path: API_ENDPOINTS.SUPPLIERS_RANKINGS,
     accessToken
   }).then(readData);
 
-export const getReportPurchaseOrderStatusSummaryRequest = accessToken =>
+export const getReportPurchaseOrderStatusSummaryRequest = (accessToken) =>
   request({
     method: 'GET',
     path: API_ENDPOINTS.REPORT_PO_STATUS_SUMMARY,
     accessToken
   }).then(readData);
 
-export const getReportSpendSummaryRequest = accessToken =>
+export const getReportSpendSummaryRequest = (accessToken) =>
   request({
     method: 'GET',
     path: API_ENDPOINTS.REPORT_SPEND_SUMMARY,
     accessToken
   }).then(readData);
 
-export const getReportSpendBySupplierRequest = accessToken =>
+export const getReportSpendBySupplierRequest = (accessToken) =>
   request({
     method: 'GET',
     path: API_ENDPOINTS.REPORT_SPEND_BY_SUPPLIER,
     accessToken
   }).then(readData);
 
-export const getObservabilityPingRequest = accessToken =>
+export const getObservabilityPingRequest = (accessToken) =>
   request({
     method: 'GET',
     path: API_ENDPOINTS.OBSERVABILITY_PING,
