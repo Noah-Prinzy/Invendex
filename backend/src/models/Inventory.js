@@ -52,6 +52,16 @@ const inventorySchema = new mongoose.Schema(
   }
 );
 
+inventorySchema.pre('validate', function validateReservedVsOnHand(next) {
+  if (Number(this.quantityReserved || 0) > Number(this.quantityOnHand || 0)) {
+    this.invalidate(
+      'quantityReserved',
+      'quantityReserved cannot exceed quantityOnHand'
+    );
+  }
+  next();
+});
+
 inventorySchema.index(
   { organization: 1, product: 1, warehouse: 1 },
   { unique: true }

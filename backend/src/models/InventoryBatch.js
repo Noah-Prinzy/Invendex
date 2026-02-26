@@ -85,6 +85,16 @@ const inventoryBatchSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+inventoryBatchSchema.pre('validate', function validateReservedVsOnHand(next) {
+  if (Number(this.quantityReserved || 0) > Number(this.quantityOnHand || 0)) {
+    this.invalidate(
+      'quantityReserved',
+      'quantityReserved cannot exceed quantityOnHand'
+    );
+  }
+  next();
+});
+
 inventoryBatchSchema.index(
   { organization: 1, product: 1, warehouse: 1, lotNumber: 1 },
   { unique: true }
