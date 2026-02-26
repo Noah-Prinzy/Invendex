@@ -219,6 +219,28 @@ Completes order.
 - Sale orders trigger COGS recording and inventory decrement.
 - Purchase orders only change status to `completed`.
 
+## Idempotency for high-risk mutations
+
+The backend supports request idempotency keys for critical write endpoints:
+
+- `PATCH /api/products/:id/stock`
+- `PATCH /api/purchase-orders/:id/receive`
+
+Send either header:
+
+- `Idempotency-Key: <client-generated-key>`
+- `X-Idempotency-Key: <client-generated-key>`
+
+Or request body field:
+
+- `idempotencyKey`
+
+Behavior:
+
+- Same key + same payload: response is replayed without re-applying writes.
+- Same key + different payload: returns `409`.
+- Replayed responses include `X-Idempotency-Replayed: true`.
+
 ## User Management API
 
 ### `GET /api/users`

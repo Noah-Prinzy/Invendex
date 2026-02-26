@@ -67,7 +67,8 @@ const request = async ({
   path,
   body = null,
   accessToken = null,
-  headers = {}
+  headers = {},
+  idempotencyKey = null
 }) => {
   const normalizedMethod = String(method || 'GET').toUpperCase();
   const trace = createRequestTrace({
@@ -84,6 +85,9 @@ const request = async ({
         'content-type': 'application/json',
         'x-request-id': trace.requestId,
         'x-client-trace-id': trace.clientTraceId,
+        ...(idempotencyKey
+          ? { 'idempotency-key': String(idempotencyKey) }
+          : {}),
         ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
         ...(normalizedMethod !== 'GET' &&
         normalizedMethod !== 'HEAD' &&
@@ -339,17 +343,31 @@ export const adjustProductStockRequest = ({
   productId,
   amount,
   reason,
-  warehouseId
+  warehouseId,
+  idempotencyKey = null
 }) =>
   request({
     method: 'PATCH',
     path: `${API_ENDPOINTS.PRODUCTS}/${productId}/stock`,
     accessToken,
+    idempotencyKey,
     body: {
       amount,
       reason,
       warehouseId
     }
+  }).then(readData);
+
+export const receivePurchaseOrderRequest = ({
+  accessToken,
+  purchaseOrderId,
+  idempotencyKey = null
+}) =>
+  request({
+    method: 'PATCH',
+    path: `${API_ENDPOINTS.PURCHASE_ORDERS}/${purchaseOrderId}/receive`,
+    accessToken,
+    idempotencyKey
   }).then(readData);
 
 export const getSuppliersRequest = (accessToken) =>
@@ -419,6 +437,7 @@ export default {
   getProductsRequest,
   getProductsLowStockSummaryRequest,
   adjustProductStockRequest,
+  receivePurchaseOrderRequest,
   getSuppliersRequest,
   getSupplierRankingsRequest,
   getReportPurchaseOrderStatusSummaryRequest,

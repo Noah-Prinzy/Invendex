@@ -5,6 +5,7 @@ import {
   getProductsLowStockSummaryRequest,
   getProductsRequest
 } from '../../api/client.js';
+import { createIdempotencyKey } from '../../api/idempotency.js';
 
 const ROLES_WITH_LOW_STOCK_ACCESS = new Set(['admin', 'staff']);
 const PAGE_SIZE = 8;
@@ -60,13 +61,20 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
   });
 
   const stockAdjustMutation = useMutation({
-    mutationFn: async ({ productId, amount, reason, selectedWarehouseId }) =>
+    mutationFn: async ({
+      productId,
+      amount,
+      reason,
+      selectedWarehouseId,
+      idempotencyKey
+    }) =>
       adjustProductStockRequest({
         accessToken,
         productId,
         amount,
         reason,
-        warehouseId: selectedWarehouseId
+        warehouseId: selectedWarehouseId,
+        idempotencyKey
       }),
     onSuccess: () => {
       setAdjustNotice('Stock adjustment saved.');
@@ -117,7 +125,8 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
       productId: adjustProductId,
       amount,
       reason: adjustReason,
-      selectedWarehouseId: normalizedWarehouseId
+      selectedWarehouseId: normalizedWarehouseId,
+      idempotencyKey: createIdempotencyKey('manual-stock-adjustment')
     });
   };
 
