@@ -1,5 +1,12 @@
 const CACHE_NAME = 'ledgerly-shell-v1';
-const OFFLINE_URLS = ['/', '/index.html'];
+const OFFLINE_URLS = [
+  '/',
+  '/index.html',
+  '/manifest.webmanifest',
+  '/icons/favicon-32x32.png',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png'
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
