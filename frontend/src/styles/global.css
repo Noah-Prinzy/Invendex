@@ -262,7 +262,7 @@ select {
 }
 
 .btn-primary:hover:not(:disabled) {
-  transform: translateY(-1px);
+  transform: translateY(-2px) scale(1.01);
   box-shadow: 0 12px 24px rgba(13, 106, 165, 0.32);
 }
 
@@ -281,7 +281,8 @@ select {
 .btn-ghost:hover:not(:disabled) {
   border-color: var(--border-strong);
   background: #ffffff;
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(15, 38, 72, 0.12);
 }
 
 .form-error {
@@ -474,6 +475,8 @@ select {
   color: #1e3152;
   background: rgba(255, 255, 255, 0.85);
   border-color: rgba(164, 184, 216, 0.56);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(20, 47, 85, 0.16);
 }
 
 .tab.active {

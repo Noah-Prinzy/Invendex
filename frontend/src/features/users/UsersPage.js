@@ -321,7 +321,7 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
       </header>
 
       <div className="metric-grid">
-        <article className="metric-card">
+        <article className="metric-card metric-card-users-total">
           <p className="metric-label">Total users</p>
           <p className="metric-value">{users.length}</p>
         </article>

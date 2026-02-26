@@ -249,7 +249,7 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
       </header>
 
       <div className="metric-grid">
-        <article className="metric-card">
+        <article className="metric-card metric-card-products-total">
           <p className="metric-label">Total products</p>
           <p className="metric-value">{stats.total}</p>
         </article>
