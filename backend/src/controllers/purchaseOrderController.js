@@ -19,6 +19,11 @@ import {
   publishPurchaseOrderReceived,
   publishPurchaseOrderUpdated
 } from '../realtime/publisher.js';
+import {
+  extractIdempotencyKeyFromRequest,
+  IDEMPOTENCY_SCOPE,
+  runIdempotentOperation
+} from '../services/idempotency/idempotencyService.js';
 
 /**
  * ➕ Create Purchase Order
@@ -144,22 +149,43 @@ export const getPurchaseOrderById = async (req, res, next) => {
 export const receivePurchaseOrder = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const idempotencyKey = extractIdempotencyKeyFromRequest(req);
 
-    const purchaseOrder = await receivePurchaseOrderService({
-      purchaseOrderId: id,
-      userId: req.user?._id,
-      organizationId: req.organizationId
-    });
-
-    publishPurchaseOrderReceived({
+    const operation = await runIdempotentOperation({
       organizationId: req.organizationId,
-      actorUserId: req.user?._id || null,
-      purchaseOrder
+      scope: IDEMPOTENCY_SCOPE.RECEIVE_PURCHASE_ORDER,
+      idempotencyKey,
+      requestFingerprint: {
+        purchaseOrderId: String(id),
+        organizationId: String(req.organizationId)
+      },
+      operation: async () => {
+        const purchaseOrder = await receivePurchaseOrderService({
+          purchaseOrderId: id,
+          userId: req.user?._id,
+          organizationId: req.organizationId
+        });
+
+        publishPurchaseOrderReceived({
+          organizationId: req.organizationId,
+          actorUserId: req.user?._id || null,
+          purchaseOrder
+        });
+
+        return purchaseOrder;
+      }
     });
+
+    if (operation.keyUsed) {
+      res.setHeader('X-Idempotency-Key', String(idempotencyKey));
+    }
+    if (operation.replayed) {
+      res.setHeader('X-Idempotency-Replayed', 'true');
+    }
 
     return successResponse(
       res,
-      purchaseOrder,
+      operation.result,
       'Purchase order received successfully'
     );
   } catch (err) {

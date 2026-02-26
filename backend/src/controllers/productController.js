@@ -4,6 +4,11 @@ import { AppError } from '../errors/AppError.js';
 import { logAudit } from '../utils/auditLogger.js';
 import mongoose from 'mongoose';
 import { adjustInventoryFromManualInput } from '../services/inventory/manualAdjustmentService.js';
+import {
+  extractIdempotencyKeyFromRequest,
+  IDEMPOTENCY_SCOPE,
+  runIdempotentOperation
+} from '../services/idempotency/idempotencyService.js';
 
 /* ======================================================
    HELPERS
@@ -121,17 +126,38 @@ export const restoreProduct = async (req, res, next) => {
 export const adjustProductStock = async (req, res, next) => {
   try {
     const { amount, reason, warehouseId } = req.body;
-    const result = await adjustInventoryFromManualInput({
+    const idempotencyKey = extractIdempotencyKeyFromRequest(req);
+
+    const operation = await runIdempotentOperation({
       organizationId: req.organizationId,
-      productId: req.params.id,
-      amount,
-      reason,
-      warehouseId: warehouseId || null,
-      actorUserId: req.user?._id || null,
-      actorRole: req.user?.role || null
+      scope: IDEMPOTENCY_SCOPE.MANUAL_STOCK_ADJUSTMENT,
+      idempotencyKey,
+      requestFingerprint: {
+        productId: String(req.params.id),
+        amount: Number(amount),
+        reason: String(reason || ''),
+        warehouseId: warehouseId ? String(warehouseId) : null
+      },
+      operation: async () =>
+        adjustInventoryFromManualInput({
+          organizationId: req.organizationId,
+          productId: req.params.id,
+          amount,
+          reason,
+          warehouseId: warehouseId || null,
+          actorUserId: req.user?._id || null,
+          actorRole: req.user?.role || null
+        })
     });
 
-    return successResponse(res, result.product, 'Stock adjusted');
+    if (operation.keyUsed) {
+      res.setHeader('X-Idempotency-Key', String(idempotencyKey));
+    }
+    if (operation.replayed) {
+      res.setHeader('X-Idempotency-Replayed', 'true');
+    }
+
+    return successResponse(res, operation.result?.product, 'Stock adjusted');
   } catch (err) {
     next(err);
   }
