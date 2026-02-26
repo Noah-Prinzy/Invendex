@@ -353,11 +353,10 @@ const App = () => {
       <main className="auth-layout">
         <section className="auth-intro">
           <p className="eyebrow">Ledgerly</p>
-          <h2>Warehouse operations with real-time visibility.</h2>
+          <h2>Modern inventory control for fast-moving operations.</h2>
           <p>
-            This frontend shell is now aligned with your backend realtime events
-            and multi-tenant architecture. Sign in to open the dashboard
-            workspace.
+            Coordinate purchasing, stock movement, and finance signals from one
+            workspace with live event visibility and tenant-safe controls.
           </p>
         </section>
         <AuthForm
@@ -407,7 +406,9 @@ const App = () => {
               placeholder="Optional warehouse id"
             />
           </label>
-          <p className="section-note">
+          <p
+            className={`section-note status-note ${isOnline ? 'online' : 'offline'}`}
+          >
             {isOnline ? 'Online' : 'Offline'} | Queue {offlineQueueSize}
           </p>
           <NotificationBell count={unreadCount} onClick={clearUnread} />
