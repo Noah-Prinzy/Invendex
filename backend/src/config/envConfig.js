@@ -249,6 +249,47 @@ const validateSecret = (key, issues, warnings, nodeEnv) => {
   }
 };
 
+const validatePreviousSecretChain = (
+  primaryKey,
+  previousKey,
+  issues,
+  warnings,
+  nodeEnv
+) => {
+  validateSecret(primaryKey, issues, warnings, nodeEnv);
+
+  const primaryValue = asString(process.env[primaryKey]);
+  const previousValues = parseCsv(process.env[previousKey]);
+
+  if (!previousValues.length) {
+    return;
+  }
+
+  for (const previousValue of previousValues) {
+    if (previousValue === primaryValue) {
+      const message = `${previousKey} should not include the active ${primaryKey}`;
+      if (nodeEnv === 'production') {
+        issues.push(message);
+      } else {
+        warnings.push(message);
+      }
+      continue;
+    }
+
+    if (
+      previousValue.length < 16 ||
+      DEFAULT_WEAK_SECRETS.has(previousValue.toLowerCase())
+    ) {
+      const message = `${previousKey} contains weak secret material`;
+      if (nodeEnv === 'production') {
+        issues.push(message);
+      } else {
+        warnings.push(message);
+      }
+    }
+  }
+};
+
 const validateCors = (issues) => {
   const nodeEnv = asString(process.env.NODE_ENV || 'development');
   const origins = getAllowedCorsOrigins();
@@ -516,8 +557,20 @@ export const validateRuntimeEnv = () => {
   const issues = [];
   const warnings = [];
   validateDbUrl(issues);
-  validateSecret('JWT_ACCESS_SECRET', issues, warnings, nodeEnv);
-  validateSecret('JWT_REFRESH_SECRET', issues, warnings, nodeEnv);
+  validatePreviousSecretChain(
+    'JWT_ACCESS_SECRET',
+    'JWT_ACCESS_SECRET_PREVIOUS',
+    issues,
+    warnings,
+    nodeEnv
+  );
+  validatePreviousSecretChain(
+    'JWT_REFRESH_SECRET',
+    'JWT_REFRESH_SECRET_PREVIOUS',
+    issues,
+    warnings,
+    nodeEnv
+  );
   validateCors(issues);
   validateRealtimeCors(issues);
   validateRateLimitRedis(issues);

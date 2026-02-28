@@ -28,6 +28,174 @@
   --shadow-lg: 0 28px 64px rgba(2, 10, 24, 0.28);
 }
 
+:root[data-theme='ledgerly-classic'] {
+  --bg-canvas: #061224;
+  --bg-canvas-deep: #030a16;
+  --bg-panel: #edf4fd;
+  --surface-main: #ffffff;
+  --surface-muted: #f1f7ff;
+  --surface-elevated: #e7f1fe;
+  --ink-strong: #0f223f;
+  --ink-main: #1c3355;
+  --ink-muted: #5a7398;
+  --ink-inverse: #f5f9ff;
+  --border-soft: #ccddf2;
+  --border-strong: #94b3db;
+  --accent: #1f8fda;
+  --accent-strong: #1569a8;
+  --accent-alt: #aee3ff;
+  --accent-cyan: #35c6ff;
+  --success: #138a63;
+  --danger: #d64242;
+}
+
+:root[data-theme='glacier-blue'] {
+  --bg-canvas: #051b2f;
+  --bg-canvas-deep: #03111f;
+  --bg-panel: #edf7ff;
+  --surface-main: #ffffff;
+  --surface-muted: #f0f8ff;
+  --surface-elevated: #e2f1ff;
+  --ink-strong: #0f2948;
+  --ink-main: #213e66;
+  --ink-muted: #5e7fa8;
+  --ink-inverse: #f3f9ff;
+  --border-soft: #c8ddf6;
+  --border-strong: #90b9e5;
+  --accent: #2e9de6;
+  --accent-strong: #1f78c0;
+  --accent-alt: #c0ebff;
+  --accent-cyan: #57cfff;
+  --success: #138a63;
+  --danger: #d64242;
+}
+
+:root[data-theme='emerald-shift'] {
+  --bg-canvas: #071b17;
+  --bg-canvas-deep: #04120f;
+  --bg-panel: #effaf6;
+  --surface-main: #ffffff;
+  --surface-muted: #f2fbf7;
+  --surface-elevated: #e6f7ef;
+  --ink-strong: #133427;
+  --ink-main: #275142;
+  --ink-muted: #5d7d71;
+  --ink-inverse: #f2fffa;
+  --border-soft: #c8e6da;
+  --border-strong: #92c9b3;
+  --accent: #2f9d78;
+  --accent-strong: #1f7b5d;
+  --accent-alt: #bfeedd;
+  --accent-cyan: #65d6ae;
+  --success: #1a8f61;
+  --danger: #d84545;
+}
+
+:root[data-theme='graphite-noir'] {
+  --bg-canvas: #11151f;
+  --bg-canvas-deep: #0b0f17;
+  --bg-panel: #eaeef7;
+  --surface-main: #f8faff;
+  --surface-muted: #eef2fb;
+  --surface-elevated: #e4e9f6;
+  --ink-strong: #1b2438;
+  --ink-main: #2f3e59;
+  --ink-muted: #63718b;
+  --ink-inverse: #f6f8ff;
+  --border-soft: #cad3e7;
+  --border-strong: #9fb0d2;
+  --accent: #5871e4;
+  --accent-strong: #4157bd;
+  --accent-alt: #c8d5ff;
+  --accent-cyan: #8aa0ff;
+  --success: #26816a;
+  --danger: #d24a56;
+}
+
+:root[data-theme='sunset-ember'] {
+  --bg-canvas: #2b1408;
+  --bg-canvas-deep: #1a0d06;
+  --bg-panel: #fff3e7;
+  --surface-main: #fffdf9;
+  --surface-muted: #fff4ea;
+  --surface-elevated: #ffe8d4;
+  --ink-strong: #402315;
+  --ink-main: #5e3824;
+  --ink-muted: #8a6146;
+  --ink-inverse: #fff7f0;
+  --border-soft: #f0cdae;
+  --border-strong: #dfad85;
+  --accent: #f27b35;
+  --accent-strong: #cc5b1a;
+  --accent-alt: #ffd4ad;
+  --accent-cyan: #ffb87b;
+  --success: #1d8b5e;
+  --danger: #cc3b3b;
+}
+
+:root[data-theme='royal-violet'] {
+  --bg-canvas: #1a1129;
+  --bg-canvas-deep: #11091f;
+  --bg-panel: #f4f0ff;
+  --surface-main: #fdfbff;
+  --surface-muted: #f4efff;
+  --surface-elevated: #ebe2ff;
+  --ink-strong: #2c2254;
+  --ink-main: #44366f;
+  --ink-muted: #6d6194;
+  --ink-inverse: #f7f2ff;
+  --border-soft: #d8ccf8;
+  --border-strong: #b9a6eb;
+  --accent: #7b5be6;
+  --accent-strong: #5d3ec0;
+  --accent-alt: #d9ccff;
+  --accent-cyan: #ab95ff;
+  --success: #2d8f6d;
+  --danger: #d24d6a;
+}
+
+:root[data-theme='sand-dune'] {
+  --bg-canvas: #241d17;
+  --bg-canvas-deep: #18120d;
+  --bg-panel: #f8f2e9;
+  --surface-main: #fffdfa;
+  --surface-muted: #f8f1e7;
+  --surface-elevated: #efe3d3;
+  --ink-strong: #3a2e23;
+  --ink-main: #564437;
+  --ink-muted: #7a6554;
+  --ink-inverse: #fff9f1;
+  --border-soft: #e0ccb7;
+  --border-strong: #c8a98b;
+  --accent: #b07a3f;
+  --accent-strong: #895c2d;
+  --accent-alt: #ead3b8;
+  --accent-cyan: #d5b08a;
+  --success: #2d845e;
+  --danger: #bf4848;
+}
+
+:root[data-theme='neon-grid'] {
+  --bg-canvas: #080b17;
+  --bg-canvas-deep: #03050d;
+  --bg-panel: #edf4ff;
+  --surface-main: #f9fcff;
+  --surface-muted: #eef3ff;
+  --surface-elevated: #e5ecff;
+  --ink-strong: #172143;
+  --ink-main: #263860;
+  --ink-muted: #5f6f97;
+  --ink-inverse: #f5f9ff;
+  --border-soft: #c6d4f7;
+  --border-strong: #94ace8;
+  --accent: #1ee7ff;
+  --accent-strong: #00b9d3;
+  --accent-alt: #ff55cf;
+  --accent-cyan: #7af6ff;
+  --success: #1e9a72;
+  --danger: #df4e6b;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -657,4 +825,256 @@ select {
     animation: none !important;
     transition: none !important;
   }
+}
+
+:root[data-theme='sunset-ember'] body {
+  background:
+    radial-gradient(circle at 10% 12%, rgba(242, 123, 53, 0.3) 0%, transparent 38%),
+    radial-gradient(circle at 88% 14%, rgba(255, 176, 123, 0.28) 0%, transparent 36%),
+    linear-gradient(162deg, #2b1408 0%, #1a0d06 100%);
+}
+
+:root[data-theme='sunset-ember'] .auth-intro {
+  background:
+    radial-gradient(120% 100% at 0% 0%, rgba(255, 151, 82, 0.34) 0%, transparent 45%),
+    linear-gradient(165deg, #5a2a12 0%, #3b1c0d 54%, #241109 100%);
+}
+
+:root[data-theme='sunset-ember'] .auth-card {
+  background: linear-gradient(180deg, #fffdfa 0%, #fff0e4 100%);
+}
+
+:root[data-theme='sunset-ember'] .app-header {
+  border-color: rgba(231, 167, 126, 0.34);
+  background:
+    linear-gradient(130deg, rgba(68, 31, 12, 0.96) 0%, rgba(42, 20, 9, 0.96) 65%, rgba(78, 35, 14, 0.94) 100%),
+    rgba(42, 20, 9, 0.9);
+}
+
+:root[data-theme='sunset-ember'] .brand-company-frame {
+  border-color: rgba(255, 190, 146, 0.62);
+  background: linear-gradient(130deg, rgba(114, 56, 24, 0.84) 0%, rgba(71, 33, 13, 0.84) 100%);
+}
+
+:root[data-theme='sunset-ember'] .brand-company-frame::after {
+  background: linear-gradient(90deg, rgba(255, 160, 102, 0.2) 0%, rgba(255, 160, 102, 0.95) 54%, rgba(255, 220, 180, 0.88) 100%);
+}
+
+:root[data-theme='sunset-ember'] .warehouse-filter {
+  color: rgba(255, 228, 210, 0.88);
+}
+
+:root[data-theme='sunset-ember'] .notification-bell {
+  border-color: rgba(253, 212, 184, 0.34);
+  background: rgba(84, 38, 15, 0.84);
+  color: #ffe9da;
+}
+
+:root[data-theme='sunset-ember'] .bell-count {
+  background: linear-gradient(120deg, #ffb87b 0%, #f27b35 100%);
+}
+
+:root[data-theme='sunset-ember'] .tabbar {
+  border-color: rgba(223, 173, 133, 0.42);
+  background: rgba(255, 236, 221, 0.9);
+}
+
+:root[data-theme='sunset-ember'] .tab.active {
+  border-color: rgba(204, 91, 26, 0.88);
+  background: linear-gradient(120deg, #cc5b1a 0%, #f27b35 58%, #ffb87b 100%);
+  box-shadow: 0 8px 18px rgba(204, 91, 26, 0.3);
+}
+
+:root[data-theme='sunset-ember'] .app-body {
+  border-color: rgba(223, 173, 133, 0.54);
+  background: linear-gradient(180deg, #fffaf4 0%, #ffefdf 100%);
+}
+
+:root[data-theme='royal-violet'] body {
+  background:
+    radial-gradient(circle at 10% 12%, rgba(123, 91, 230, 0.34) 0%, transparent 38%),
+    radial-gradient(circle at 88% 14%, rgba(171, 149, 255, 0.24) 0%, transparent 36%),
+    linear-gradient(162deg, #1a1129 0%, #11091f 100%);
+}
+
+:root[data-theme='royal-violet'] .auth-intro {
+  background:
+    radial-gradient(120% 100% at 0% 0%, rgba(171, 149, 255, 0.36) 0%, transparent 44%),
+    linear-gradient(165deg, #37205d 0%, #241440 54%, #170d2a 100%);
+}
+
+:root[data-theme='royal-violet'] .auth-card {
+  background: linear-gradient(180deg, #fdfbff 0%, #f1ebff 100%);
+}
+
+:root[data-theme='royal-violet'] .app-header {
+  border-color: rgba(185, 166, 235, 0.36);
+  background:
+    linear-gradient(130deg, rgba(41, 24, 70, 0.96) 0%, rgba(25, 15, 44, 0.96) 65%, rgba(51, 30, 86, 0.94) 100%),
+    rgba(25, 15, 44, 0.9);
+}
+
+:root[data-theme='royal-violet'] .brand-company-frame {
+  border-color: rgba(207, 190, 255, 0.62);
+  background: linear-gradient(130deg, rgba(79, 58, 140, 0.84) 0%, rgba(50, 36, 93, 0.84) 100%);
+}
+
+:root[data-theme='royal-violet'] .brand-company-frame::after {
+  background: linear-gradient(90deg, rgba(171, 149, 255, 0.22) 0%, rgba(171, 149, 255, 0.95) 54%, rgba(217, 204, 255, 0.9) 100%);
+}
+
+:root[data-theme='royal-violet'] .warehouse-filter {
+  color: rgba(236, 229, 255, 0.88);
+}
+
+:root[data-theme='royal-violet'] .notification-bell {
+  border-color: rgba(217, 204, 255, 0.36);
+  background: rgba(42, 27, 74, 0.86);
+  color: #eee7ff;
+}
+
+:root[data-theme='royal-violet'] .bell-count {
+  background: linear-gradient(120deg, #d9ccff 0%, #7b5be6 100%);
+}
+
+:root[data-theme='royal-violet'] .tabbar {
+  border-color: rgba(185, 166, 235, 0.4);
+  background: rgba(236, 230, 255, 0.9);
+}
+
+:root[data-theme='royal-violet'] .tab.active {
+  border-color: rgba(93, 62, 192, 0.9);
+  background: linear-gradient(120deg, #5d3ec0 0%, #7b5be6 58%, #ab95ff 100%);
+  box-shadow: 0 8px 18px rgba(93, 62, 192, 0.32);
+}
+
+:root[data-theme='royal-violet'] .app-body {
+  border-color: rgba(185, 166, 235, 0.5);
+  background: linear-gradient(180deg, #fdfbff 0%, #eee8ff 100%);
+}
+
+:root[data-theme='sand-dune'] body {
+  background:
+    radial-gradient(circle at 10% 12%, rgba(176, 122, 63, 0.3) 0%, transparent 38%),
+    radial-gradient(circle at 88% 14%, rgba(213, 176, 138, 0.25) 0%, transparent 36%),
+    linear-gradient(162deg, #241d17 0%, #18120d 100%);
+}
+
+:root[data-theme='sand-dune'] .auth-intro {
+  background:
+    radial-gradient(120% 100% at 0% 0%, rgba(213, 176, 138, 0.33) 0%, transparent 44%),
+    linear-gradient(165deg, #4d3a2b 0%, #34281d 54%, #211911 100%);
+}
+
+:root[data-theme='sand-dune'] .auth-card {
+  background: linear-gradient(180deg, #fffdfa 0%, #f6eee2 100%);
+}
+
+:root[data-theme='sand-dune'] .app-header {
+  border-color: rgba(200, 169, 139, 0.35);
+  background:
+    linear-gradient(130deg, rgba(61, 46, 33, 0.96) 0%, rgba(39, 30, 22, 0.96) 65%, rgba(71, 53, 38, 0.94) 100%),
+    rgba(39, 30, 22, 0.9);
+}
+
+:root[data-theme='sand-dune'] .brand-company-frame {
+  border-color: rgba(234, 211, 184, 0.62);
+  background: linear-gradient(130deg, rgba(112, 81, 52, 0.84) 0%, rgba(73, 53, 35, 0.84) 100%);
+}
+
+:root[data-theme='sand-dune'] .brand-company-frame::after {
+  background: linear-gradient(90deg, rgba(213, 176, 138, 0.2) 0%, rgba(213, 176, 138, 0.94) 54%, rgba(245, 226, 205, 0.9) 100%);
+}
+
+:root[data-theme='sand-dune'] .warehouse-filter {
+  color: rgba(246, 233, 217, 0.88);
+}
+
+:root[data-theme='sand-dune'] .notification-bell {
+  border-color: rgba(234, 211, 184, 0.34);
+  background: rgba(71, 53, 38, 0.86);
+  color: #f8eddf;
+}
+
+:root[data-theme='sand-dune'] .bell-count {
+  background: linear-gradient(120deg, #ead3b8 0%, #b07a3f 100%);
+}
+
+:root[data-theme='sand-dune'] .tabbar {
+  border-color: rgba(200, 169, 139, 0.4);
+  background: rgba(245, 237, 227, 0.9);
+}
+
+:root[data-theme='sand-dune'] .tab.active {
+  border-color: rgba(137, 92, 45, 0.92);
+  background: linear-gradient(120deg, #895c2d 0%, #b07a3f 58%, #d5b08a 100%);
+  box-shadow: 0 8px 18px rgba(137, 92, 45, 0.3);
+}
+
+:root[data-theme='sand-dune'] .app-body {
+  border-color: rgba(200, 169, 139, 0.5);
+  background: linear-gradient(180deg, #fffaf3 0%, #f3e8da 100%);
+}
+
+:root[data-theme='neon-grid'] body {
+  background:
+    radial-gradient(circle at 10% 12%, rgba(30, 231, 255, 0.3) 0%, transparent 38%),
+    radial-gradient(circle at 88% 14%, rgba(255, 85, 207, 0.25) 0%, transparent 36%),
+    linear-gradient(162deg, #080b17 0%, #03050d 100%);
+}
+
+:root[data-theme='neon-grid'] .auth-intro {
+  background:
+    radial-gradient(120% 100% at 0% 0%, rgba(30, 231, 255, 0.34) 0%, transparent 44%),
+    linear-gradient(165deg, #13234d 0%, #0d1630 54%, #0a1125 100%);
+}
+
+:root[data-theme='neon-grid'] .auth-card {
+  background: linear-gradient(180deg, #f9fcff 0%, #edf3ff 100%);
+}
+
+:root[data-theme='neon-grid'] .app-header {
+  border-color: rgba(148, 172, 232, 0.36);
+  background:
+    linear-gradient(130deg, rgba(10, 19, 46, 0.96) 0%, rgba(6, 11, 28, 0.96) 65%, rgba(17, 29, 66, 0.94) 100%),
+    rgba(6, 11, 28, 0.9);
+}
+
+:root[data-theme='neon-grid'] .brand-company-frame {
+  border-color: rgba(122, 246, 255, 0.66);
+  background: linear-gradient(130deg, rgba(12, 43, 72, 0.84) 0%, rgba(17, 29, 66, 0.84) 100%);
+}
+
+:root[data-theme='neon-grid'] .brand-company-frame::after {
+  background: linear-gradient(90deg, rgba(255, 85, 207, 0.24) 0%, rgba(30, 231, 255, 0.95) 52%, rgba(255, 85, 207, 0.9) 100%);
+}
+
+:root[data-theme='neon-grid'] .warehouse-filter {
+  color: rgba(220, 233, 255, 0.88);
+}
+
+:root[data-theme='neon-grid'] .notification-bell {
+  border-color: rgba(148, 172, 232, 0.36);
+  background: rgba(12, 26, 62, 0.86);
+  color: #ecf3ff;
+}
+
+:root[data-theme='neon-grid'] .bell-count {
+  background: linear-gradient(120deg, #ff55cf 0%, #1ee7ff 100%);
+}
+
+:root[data-theme='neon-grid'] .tabbar {
+  border-color: rgba(148, 172, 232, 0.42);
+  background: rgba(228, 236, 255, 0.9);
+}
+
+:root[data-theme='neon-grid'] .tab.active {
+  border-color: rgba(0, 185, 211, 0.92);
+  background: linear-gradient(120deg, #00b9d3 0%, #1ee7ff 56%, #ff55cf 100%);
+  box-shadow: 0 8px 18px rgba(0, 185, 211, 0.34);
+}
+
+:root[data-theme='neon-grid'] .app-body {
+  border-color: rgba(148, 172, 232, 0.5);
+  background: linear-gradient(180deg, #f8fbff 0%, #e7eeff 100%);
 }

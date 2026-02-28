@@ -2,6 +2,7 @@ import Inventory from '../../models/Inventory.js';
 import InventorySnapshot from '../../models/InventorySnapshot.js';
 import Product, { STOCK_REASONS } from '../../models/Product.js';
 import Warehouse from '../../models/Warehouse.js';
+import OrganizationSettings from '../../models/OrganizationSettings.js';
 import { AppError } from '../../errors/AppError.js';
 import { runWithMongoTransactionFallback } from '../../utils/runWithMongoTransactionFallback.js';
 import { syncProductStockFromInventory } from './stockSyncService.js';
@@ -10,10 +11,27 @@ import { logInventoryMutation } from '../../observability/inventoryMutationLogge
 import { logger } from '../../observability/logger.js';
 import { publishInventoryUpdated } from '../../realtime/publisher.js';
 
-const isWarehouseStrictMode = () =>
+const getWarehouseStrictModeDefault = () =>
   String(process.env.INVENTORY_ADJUST_REQUIRE_WAREHOUSE_ID || 'true')
     .trim()
     .toLowerCase() === 'true';
+
+const isWarehouseStrictMode = async ({ organizationId, session = null }) => {
+  const fallbackValue = getWarehouseStrictModeDefault();
+  const settingsQuery = OrganizationSettings.findOne({
+    organization: organizationId
+  }).select('inventory.enforceWarehouseForAdjustments');
+  if (session) {
+    settingsQuery.session(session);
+  }
+  const settings = await settingsQuery.lean();
+  if (
+    typeof settings?.inventory?.enforceWarehouseForAdjustments === 'boolean'
+  ) {
+    return settings.inventory.enforceWarehouseForAdjustments;
+  }
+  return fallbackValue;
+};
 
 const calculateAverageDailyUsage = (stockHistory = []) => {
   const sales = stockHistory.filter(
@@ -60,6 +78,11 @@ const resolveWarehouseForAdjustment = async ({
   warehouseId,
   session = null
 }) => {
+  const strictMode = await isWarehouseStrictMode({
+    organizationId,
+    session
+  });
+
   if (warehouseId) {
     return {
       warehouseId,
@@ -67,7 +90,7 @@ const resolveWarehouseForAdjustment = async ({
     };
   }
 
-  if (isWarehouseStrictMode()) {
+  if (strictMode) {
     throw new AppError('warehouseId is required for stock adjustment', 400);
   }
 

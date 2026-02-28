@@ -20,7 +20,6 @@ const normalizeUsersPayload = (payload) => ({
 
 const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteHours, setInviteHours] = useState(72);
   const [latestInviteCode, setLatestInviteCode] = useState('');
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -152,13 +151,12 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
   });
 
   const createInviteMutation = useMutation({
-    mutationFn: ({ email, expiresInHours }) =>
+    mutationFn: ({ email }) =>
       createUserInviteRequest({
         accessToken,
-        email,
-        expiresInHours
+        email
       }),
-    onMutate: async ({ email, expiresInHours }) => {
+    onMutate: async ({ email }) => {
       const tempInviteId = `temp-${Date.now()}`;
       setError('');
       setLatestInviteCode('');
@@ -172,9 +170,7 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
           _id: tempInviteId,
           email: email || null,
           status: 'CREATING',
-          expiresAt: new Date(
-            Date.now() + Number(expiresInHours || 72) * 60 * 60 * 1000
-          ).toISOString()
+          expiresAt: null
         };
 
         return {
@@ -274,14 +270,9 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
     if (!accessToken) return;
 
     const normalizedEmail = String(inviteEmail || '').trim();
-    const parsedHours = Number(inviteHours || 72);
-    const expiresInHours = Number.isFinite(parsedHours)
-      ? Math.min(720, Math.max(1, parsedHours))
-      : 72;
 
     createInviteMutation.mutate({
-      email: normalizedEmail,
-      expiresInHours
+      email: normalizedEmail
     });
   };
 
@@ -455,18 +446,6 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
               placeholder="employee@company.com"
             />
           </label>
-          <label className="control-field">
-            <span>Expires in hours</span>
-            <input
-              type="number"
-              min="1"
-              max="720"
-              value={inviteHours}
-              onChange={(event) =>
-                setInviteHours(Number(event.target.value || 72))
-              }
-            />
-          </label>
           <button
             type="button"
             className="btn-ghost"
@@ -476,6 +455,10 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
             {createInviteMutation.isPending ? 'Creating...' : 'Create invite'}
           </button>
         </div>
+
+        <p className="event-sub">
+          Invite expiry uses your organization default from Settings.
+        </p>
 
         {latestInviteCode ? (
           <p className="form-copy">

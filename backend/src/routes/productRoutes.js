@@ -4,6 +4,7 @@ import {
   getDeletedProducts,
   getProductById,
   createProduct,
+  createProductsBulk,
   updateProduct,
   deleteProduct,
   permanentlyDeleteProduct,
@@ -25,6 +26,7 @@ import { PERMISSIONS } from '../authorization/permissions.js';
 
 import {
   createProductValidator,
+  createProductsBulkValidator,
   updateProductValidator,
   adjustStockValidator
 } from '../validations/productValidators.js';
@@ -109,6 +111,19 @@ router.post(
     resource: 'PRODUCT'
   }),
   createProduct
+);
+
+router.post(
+  '/bulk-import',
+  requirePermission(PERMISSIONS.PRODUCTS_EDIT),
+  createProductLimiter,
+  createProductsBulkValidator,
+  validateRequest,
+  auditMiddleware({
+    action: 'BULK_CREATE_PRODUCTS',
+    resource: 'PRODUCT'
+  }),
+  createProductsBulk
 );
 
 /**

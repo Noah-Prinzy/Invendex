@@ -3,11 +3,15 @@ import crypto from 'node:crypto';
 import { successResponse } from '../utils/response.js';
 import { AppError } from '../errors/AppError.js';
 import Organization from '../models/Organization.js';
+import OrganizationSettings from '../models/OrganizationSettings.js';
 import User from '../models/User.js';
 import EmployeeInvite from '../models/EmployeeInvite.js';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import { generateAccessToken, generateRefreshToken } from '../utils/token.js';
+import {
+  generateAccessToken,
+  generateRefreshToken,
+  verifyRefreshToken
+} from '../utils/token.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { logger } from '../observability/logger.js';
 import { publishEmployeeSignedIn } from '../realtime/publisher.js';
@@ -20,6 +24,17 @@ const MAX_SESSIONS = 5;
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
 const ADMIN_ROLES = new Set(['owner', 'admin']);
+const ALLOWED_UI_THEMES = new Set([
+  'ledgerly-classic',
+  'glacier-blue',
+  'emerald-shift',
+  'graphite-noir',
+  'sunset-ember',
+  'royal-violet',
+  'sand-dune',
+  'neon-grid'
+]);
+const DEFAULT_UI_THEME = 'ledgerly-classic';
 
 const isEmailVerificationRequired = () =>
   String(process.env.AUTH_REQUIRE_EMAIL_VERIFICATION || 'false')
@@ -110,6 +125,9 @@ const buildAuthUser = (user, organization = null) => ({
   _id: user._id,
   email: user.email,
   role: user.role,
+  uiTheme: ALLOWED_UI_THEMES.has(String(user.uiTheme || '').trim())
+    ? String(user.uiTheme || '').trim()
+    : DEFAULT_UI_THEME,
   organization: user.organization || organization?._id || null,
   organizationName: organization?.name || null,
   isVerified: Boolean(user.isVerified),
@@ -330,10 +348,21 @@ export const employeeLogin = async (req, res, next) => {
         throw new AppError('Invite code does not match this email', 403);
       }
 
+      const organizationSettings = await OrganizationSettings.findOne({
+        organization: organization._id
+      })
+        .select('userAccess.defaultEmployeeRole')
+        .lean();
+
+      const defaultEmployeeRole =
+        organizationSettings?.userAccess?.defaultEmployeeRole === 'manager'
+          ? 'manager'
+          : 'staff';
+
       user = await User.create({
         email: normalizedEmail,
         password: normalizedPassword,
-        role: 'staff',
+        role: defaultEmployeeRole,
         organization: organization._id,
         isVerified: true,
         isActive: true
@@ -426,6 +455,49 @@ export const getMe = async (req, res, next) => {
   }
 };
 
+export const updateMePreferences = async (req, res, next) => {
+  try {
+    if (!req.user?._id) {
+      throw new AppError('Not authenticated', 401);
+    }
+
+    const requestedTheme = String(req.body?.uiTheme || '').trim();
+    if (!ALLOWED_UI_THEMES.has(requestedTheme)) {
+      throw new AppError('Unsupported uiTheme value', 400);
+    }
+
+    req.user.uiTheme = requestedTheme;
+    await req.user.save();
+
+    const organization = await resolveOrganizationPayloadById(
+      req.user.organization
+    );
+    const userPayload = buildAuthUser(req.user, organization);
+
+    await logAudit({
+      req,
+      action: 'UPDATE_USER_PREFERENCES',
+      resource: 'AUTH',
+      resourceId: req.user._id,
+      organizationId: req.user.organization || null,
+      meta: {
+        uiTheme: requestedTheme
+      }
+    });
+
+    return successResponse(
+      res,
+      {
+        ...userPayload,
+        organization
+      },
+      'User preferences updated'
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const refreshToken = async (req, res, next) => {
   try {
     const oldToken = req.cookies.refreshToken;
@@ -436,7 +508,7 @@ export const refreshToken = async (req, res, next) => {
 
     let decoded;
     try {
-      decoded = jwt.verify(oldToken, process.env.JWT_REFRESH_SECRET);
+      decoded = verifyRefreshToken(oldToken);
     } catch {
       clearRefreshCookie(res);
       throw new AppError('Invalid refresh token', 403);
@@ -494,7 +566,7 @@ export const logout = async (req, res, next) => {
 
     if (!user && cookieToken) {
       try {
-        const decoded = jwt.verify(cookieToken, process.env.JWT_REFRESH_SECRET);
+        const decoded = verifyRefreshToken(cookieToken);
         user = await User.findById(decoded.id);
       } catch {
         user = null;

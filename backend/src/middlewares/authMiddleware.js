@@ -1,7 +1,7 @@
-import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import { AppError } from '../errors/AppError.js';
 import { logAudit } from '../utils/auditLogger.js';
+import { verifyAccessToken } from '../utils/token.js';
 
 /**
  * 🔐 Protect Routes (Access Token Verification)
@@ -41,7 +41,7 @@ export const protect = async (req, res, next) => {
 
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+      decoded = verifyAccessToken(token);
     } catch (err) {
       if (err.name === 'TokenExpiredError') {
         return next(new AppError('Access token expired', 401));

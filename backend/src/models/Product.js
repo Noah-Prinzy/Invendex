@@ -58,6 +58,19 @@ const productSchema = new mongoose.Schema(
       // ❌ removed index:true (duplicate)
     },
 
+    barcode: {
+      type: String,
+      trim: true,
+      maxlength: 128,
+      default: null
+    },
+
+    barcodeType: {
+      type: String,
+      enum: ['CODE128', 'EAN13', 'UPC', 'QR', 'OTHER', null],
+      default: null
+    },
+
     price: {
       type: Number,
       required: true,
@@ -205,6 +218,15 @@ productSchema.virtual('isLowStock').get(function () {
  * 🔍 Indexes
  */
 productSchema.index({ organization: 1, sku: 1 }, { unique: true });
+productSchema.index(
+  { organization: 1, barcode: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      barcode: { $type: 'string', $gt: '' }
+    }
+  }
+);
 productSchema.index({ category: 1, isActive: 1 });
 productSchema.index({ organization: 1, isActive: 1, deleteStatus: 1 });
 productSchema.index({ createdAt: -1 });

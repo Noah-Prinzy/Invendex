@@ -12,7 +12,8 @@ import {
   authCsrfTokenRequest,
   authLogoutRequest,
   authMeRequest,
-  authRefreshRequest
+  authRefreshRequest,
+  authUpdatePreferencesRequest
 } from '../../api/client.js';
 
 const ACCESS_TOKEN_KEY = 'ledgerly_access_token';
@@ -50,6 +51,7 @@ const normalizeUser = (user, organization = null) => {
     _id: user._id,
     email: user.email,
     role: user.role,
+    uiTheme: String(user.uiTheme || '').trim() || null,
     organization: normalizedOrganizationId,
     organizationName: normalizedOrganizationName,
     name: user.name || (user.email ? user.email.split('@')[0] : 'Operator')
@@ -443,6 +445,36 @@ export const useAuth = () => {
     []
   );
 
+  const updatePreferences = useCallback(
+    async ({ uiTheme }) => {
+      const normalizedTheme = String(uiTheme || '').trim();
+      if (!normalizedTheme || !accessToken) {
+        return { success: false };
+      }
+
+      try {
+        const response = await authUpdatePreferencesRequest({
+          accessToken,
+          uiTheme: normalizedTheme
+        });
+        const updatedUser = normalizeUser(
+          response?.data || null,
+          response?.data?.organization || null
+        );
+        if (updatedUser) {
+          setUser(updatedUser);
+        }
+        return { success: true, user: updatedUser };
+      } catch (prefError) {
+        return {
+          success: false,
+          message: getMessage(prefError)
+        };
+      }
+    },
+    [accessToken]
+  );
+
   return {
     accessToken,
     user,
@@ -459,6 +491,7 @@ export const useAuth = () => {
     verifyEmail,
     requestPasswordReset,
     resetPassword,
+    updatePreferences,
     logout
   };
 };

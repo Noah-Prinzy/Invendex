@@ -107,6 +107,29 @@ export const resetPasswordValidator = [
     .withMessage('Password and confirmPassword do not match')
 ];
 
+const allowedUiThemes = [
+  'ledgerly-classic',
+  'glacier-blue',
+  'emerald-shift',
+  'graphite-noir',
+  'sunset-ember',
+  'royal-violet',
+  'sand-dune',
+  'neon-grid'
+];
+
+export const updateMePreferencesValidator = [
+  body('uiTheme')
+    .exists({ checkFalsy: true })
+    .withMessage('uiTheme is required')
+    .bail()
+    .isString()
+    .withMessage('uiTheme must be a string')
+    .bail()
+    .isIn(allowedUiThemes)
+    .withMessage(`uiTheme must be one of: ${allowedUiThemes.join(', ')}`)
+];
+
 export default {
   registerValidator,
   loginValidator,
@@ -114,5 +137,6 @@ export default {
   requestEmailVerificationValidator,
   verifyEmailValidator,
   forgotPasswordValidator,
-  resetPasswordValidator
+  resetPasswordValidator,
+  updateMePreferencesValidator
 };

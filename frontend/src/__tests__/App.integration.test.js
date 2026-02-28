@@ -8,8 +8,14 @@ import {
 import App from '../App.js';
 import useAuth from '../hooks/auth/useAuth.js';
 import { useLedgerlyRealtime } from '../hooks/realtime/useLedgerlyRealtime.js';
+import { useOfflineSync } from '../hooks/offline/useOfflineSync.js';
 import { renderWithProviders } from '../test/renderWithProviders.js';
-import { getPurchaseOrdersRequest } from '../api/client.js';
+import {
+  getFinanceRealtimeStatsRequest,
+  getObservabilityPingRequest,
+  getPurchaseOrdersRequest,
+  getSettingsRequest
+} from '../api/client.js';
 
 jest.mock('../hooks/auth/useAuth.js', () => ({
   __esModule: true,
@@ -21,8 +27,16 @@ jest.mock('../hooks/realtime/useLedgerlyRealtime.js', () => ({
   useLedgerlyRealtime: jest.fn()
 }));
 
+jest.mock('../hooks/offline/useOfflineSync.js', () => ({
+  __esModule: true,
+  useOfflineSync: jest.fn()
+}));
+
 jest.mock('../api/client.js', () => ({
-  getPurchaseOrdersRequest: jest.fn()
+  getPurchaseOrdersRequest: jest.fn(),
+  getSettingsRequest: jest.fn(),
+  getObservabilityPingRequest: jest.fn(),
+  getFinanceRealtimeStatsRequest: jest.fn()
 }));
 
 const buildAuthState = (overrides) => ({
@@ -41,6 +55,7 @@ const buildAuthState = (overrides) => ({
   verifyEmail: jest.fn(),
   requestPasswordReset: jest.fn(),
   resetPassword: jest.fn(),
+  updatePreferences: jest.fn(),
   logout: jest.fn(),
   ...overrides
 });
@@ -55,7 +70,19 @@ describe('App integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     useLedgerlyRealtime.mockImplementation(() => ({}));
+    useOfflineSync.mockImplementation(() => {});
     getPurchaseOrdersRequest.mockResolvedValue([]);
+    getSettingsRequest.mockResolvedValue({
+      organizationName: 'Test Org',
+      organizationCode: 'TEST'
+    });
+    getObservabilityPingRequest.mockResolvedValue({
+      trace: { requestId: 'req-1', clientTraceId: 'trace-1' },
+      realtime: { enabled: true },
+      errorTracking: { provider: 'none' },
+      uptimeSeconds: 12
+    });
+    getFinanceRealtimeStatsRequest.mockResolvedValue([]);
   });
 
   it('renders session initialization state', () => {
@@ -97,6 +124,41 @@ describe('App integration', () => {
       expect.objectContaining({
         email: 'ops@ledgerly.com',
         password: 'secret123'
+      })
+    );
+  });
+
+  it('submits employee sign in without invite code for returning staff', () => {
+    const employeeLogin = jest.fn();
+    useAuth.mockReturnValue(
+      buildAuthState({
+        employeeLogin
+      })
+    );
+
+    renderWithProviders(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Employee' }));
+
+    fireEvent.change(screen.getByLabelText('Company Name'), {
+      target: { value: 'Warehouse Heroes' }
+    });
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'employee1@example.com' }
+    });
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'EmployeePass123!' }
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Sign in as employee' })
+    );
+
+    expect(employeeLogin).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyName: 'Warehouse Heroes',
+        email: 'employee1@example.com',
+        password: 'EmployeePass123!',
+        inviteCode: ''
       })
     );
   });
@@ -197,5 +259,32 @@ describe('App integration', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Notifications' }));
     expect(within(notificationsButton).getByText('0')).toBeInTheDocument();
+  });
+
+  it('opens settings sub-page from URL deep link', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/?tab=settings&settingsPage=inventory-controls'
+    );
+
+    useAuth.mockReturnValue(
+      buildAuthState({
+        user: {
+          _id: 'user-2',
+          email: 'owner@ledgerly.com',
+          role: 'admin',
+          organization: 'org-1'
+        },
+        accessToken: 'token-2',
+        isAuthenticated: true
+      })
+    );
+
+    renderWithProviders(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Inventory Controls')).toBeInTheDocument();
+    });
   });
 });

@@ -272,6 +272,16 @@ export const authMeRequest = (accessToken) =>
     accessToken
   });
 
+export const authUpdatePreferencesRequest = ({ accessToken, uiTheme }) =>
+  request({
+    method: 'PATCH',
+    path: API_ENDPOINTS.AUTH_ME_PREFERENCES,
+    accessToken,
+    body: {
+      uiTheme
+    }
+  });
+
 export const authLogoutRequest = (accessToken) =>
   request({
     method: 'POST',
@@ -281,12 +291,20 @@ export const authLogoutRequest = (accessToken) =>
 
 const readData = (payload) => payload?.data;
 
-export const getProductsRequest = (accessToken) =>
-  request({
+export const getProductsRequest = (accessToken, filters = {}) => {
+  const query = new URLSearchParams();
+  if (filters?.q) query.set('q', String(filters.q));
+  if (filters?.sku) query.set('sku', String(filters.sku));
+  if (filters?.barcode) query.set('barcode', String(filters.barcode));
+  if (filters?.category) query.set('category', String(filters.category));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
     method: 'GET',
-    path: API_ENDPOINTS.PRODUCTS,
+    path: `${API_ENDPOINTS.PRODUCTS}${suffix}`,
     accessToken
   }).then(readData);
+};
 
 export const getDeletedProductsRequest = (accessToken) =>
   request({
@@ -298,11 +316,14 @@ export const getDeletedProductsRequest = (accessToken) =>
 export const createProductRequest = ({
   accessToken,
   name,
-  sku,
+  sku = '',
+  skuPrefix = '',
   price,
   category = '',
   description = '',
-  lowStockThreshold = 5
+  lowStockThreshold = 5,
+  barcode = '',
+  barcodeType = ''
 }) =>
   request({
     method: 'POST',
@@ -310,11 +331,31 @@ export const createProductRequest = ({
     accessToken,
     body: {
       name,
-      sku,
+      ...(String(sku || '').trim() ? { sku } : {}),
+      ...(String(skuPrefix || '').trim() ? { skuPrefix } : {}),
       price,
       category,
       description,
-      lowStockThreshold
+      lowStockThreshold,
+      ...(String(barcode || '').trim() ? { barcode } : {}),
+      ...(String(barcodeType || '').trim() ? { barcodeType } : {})
+    }
+  }).then(readData);
+
+export const createProductsBulkImportRequest = ({
+  accessToken,
+  products,
+  fieldMap = {},
+  options = {}
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.PRODUCTS_BULK_IMPORT,
+    accessToken,
+    body: {
+      products,
+      fieldMap,
+      options
     }
   }).then(readData);
 
@@ -353,6 +394,83 @@ export const getUsersRequest = (accessToken) =>
     accessToken
   }).then(readData);
 
+export const getSettingsRequest = (accessToken) =>
+  request({
+    method: 'GET',
+    path: API_ENDPOINTS.SETTINGS,
+    accessToken
+  }).then(readData);
+
+export const patchSettingsRequest = ({ accessToken, payload }) =>
+  request({
+    method: 'PATCH',
+    path: API_ENDPOINTS.SETTINGS,
+    accessToken,
+    body: payload || {}
+  }).then(readData);
+
+export const getFinanceValuationConfigRequest = (accessToken) =>
+  request({
+    method: 'GET',
+    path: API_ENDPOINTS.FINANCE_VALUATION_METHOD,
+    accessToken
+  }).then(readData);
+
+export const patchFinanceValuationConfigRequest = ({
+  accessToken,
+  defaultMethod,
+  allowMethodOverride
+}) =>
+  request({
+    method: 'PATCH',
+    path: API_ENDPOINTS.FINANCE_VALUATION_METHOD,
+    accessToken,
+    body: {
+      defaultMethod,
+      ...(allowMethodOverride !== undefined ? { allowMethodOverride } : {})
+    }
+  }).then(readData);
+
+export const getFinanceTaxConfigRequest = (accessToken) =>
+  request({
+    method: 'GET',
+    path: API_ENDPOINTS.FINANCE_TAX_CONFIG,
+    accessToken
+  }).then(readData);
+
+export const patchFinanceTaxConfigRequest = ({ accessToken, payload }) =>
+  request({
+    method: 'PATCH',
+    path: API_ENDPOINTS.FINANCE_TAX_CONFIG,
+    accessToken,
+    body: payload || {}
+  }).then(readData);
+
+export const getFinanceNotificationSettingsRequest = (accessToken) =>
+  request({
+    method: 'GET',
+    path: API_ENDPOINTS.FINANCE_NOTIFICATION_SETTINGS,
+    accessToken
+  }).then(readData);
+
+export const patchFinanceNotificationSettingsRequest = ({
+  accessToken,
+  payload
+}) =>
+  request({
+    method: 'PATCH',
+    path: API_ENDPOINTS.FINANCE_NOTIFICATION_SETTINGS,
+    accessToken,
+    body: payload || {}
+  }).then(readData);
+
+export const getFinanceRealtimeStatsRequest = (accessToken) =>
+  request({
+    method: 'GET',
+    path: API_ENDPOINTS.FINANCE_REALTIME_STATS,
+    accessToken
+  }).then(readData);
+
 export const getOnlineUsersRequest = (accessToken) =>
   request({
     method: 'GET',
@@ -370,13 +488,18 @@ export const getUserInvitesRequest = (accessToken) =>
 export const createUserInviteRequest = ({
   accessToken,
   email = '',
-  expiresInHours = 72
+  expiresInHours = null
 }) =>
   request({
     method: 'POST',
     path: API_ENDPOINTS.USERS_INVITES,
     accessToken,
-    body: { email, expiresInHours }
+    body: {
+      email,
+      ...(Number.isFinite(Number(expiresInHours))
+        ? { expiresInHours: Number(expiresInHours) }
+        : {})
+    }
   }).then(readData);
 
 export const revokeUserInviteRequest = ({ accessToken, inviteId }) =>
@@ -559,8 +682,18 @@ export default {
   authCsrfTokenRequest,
   authRefreshRequest,
   authMeRequest,
+  authUpdatePreferencesRequest,
   authLogoutRequest,
   getUsersRequest,
+  getSettingsRequest,
+  patchSettingsRequest,
+  getFinanceValuationConfigRequest,
+  patchFinanceValuationConfigRequest,
+  getFinanceTaxConfigRequest,
+  patchFinanceTaxConfigRequest,
+  getFinanceNotificationSettingsRequest,
+  patchFinanceNotificationSettingsRequest,
+  getFinanceRealtimeStatsRequest,
   getOnlineUsersRequest,
   getUserInvitesRequest,
   createUserInviteRequest,
@@ -570,6 +703,7 @@ export default {
   getProductsRequest,
   getDeletedProductsRequest,
   createProductRequest,
+  createProductsBulkImportRequest,
   softDeleteProductRequest,
   restoreDeletedProductRequest,
   permanentlyDeleteProductRequest,

@@ -1,1 +1,3 @@
-export { default } from '../features/settings/SettingsPage.js';
+import SettingsPage from '../features/settings/SettingsPage.js';
+
+export default SettingsPage;

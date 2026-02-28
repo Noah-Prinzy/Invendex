@@ -5,6 +5,7 @@ import {
   adminLogin,
   employeeLogin,
   getMe,
+  updateMePreferences,
   refreshToken,
   logout,
   requestEmailVerification,
@@ -20,6 +21,7 @@ import {
   registerValidator,
   loginValidator,
   employeeLoginValidator,
+  updateMePreferencesValidator,
   requestEmailVerificationValidator,
   verifyEmailValidator,
   forgotPasswordValidator,
@@ -72,5 +74,12 @@ router.post(
 router.post('/refresh', requireCsrf, refreshToken);
 router.post('/logout', requireCsrf, logout);
 router.get('/me', protect, getMe);
+router.patch(
+  '/me/preferences',
+  protect,
+  updateMePreferencesValidator,
+  validateRequest,
+  updateMePreferences
+);
 
 export default router;

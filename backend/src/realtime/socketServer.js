@@ -1,10 +1,10 @@
-import jwt from 'jsonwebtoken';
 import { Server as SocketIOServer } from 'socket.io';
 import User from '../models/User.js';
 import { createSocketRateLimiter } from './socketRateLimiter.js';
 import { logger } from '../observability/logger.js';
 import { captureException } from '../observability/errorTracker.js';
 import { getSocketCorsOrigin } from '../config/envConfig.js';
+import { verifyAccessToken } from '../utils/token.js';
 
 let ioInstance = null;
 let realtimeEnabled = false;
@@ -125,7 +125,7 @@ export const initSocketServer = async (httpServer, { enabled = null } = {}) => {
 
       let decoded;
       try {
-        decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+        decoded = verifyAccessToken(token);
       } catch {
         return next(new Error('Realtime auth failed: invalid token'));
       }

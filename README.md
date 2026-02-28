@@ -1,0 +1,83 @@
+# Ledgerly
+
+Ledgerly is a multi-tenant inventory and purchasing platform with:
+
+- warehouse-aware inventory,
+- serial/batch tracking,
+- financial valuation/COGS flows,
+- realtime updates,
+- role-based access control.
+
+## Monorepo Structure
+
+- `backend/` Express + MongoDB API
+- `frontend/` React web app
+
+## Prerequisites
+
+- Node.js 18+
+- npm 9+
+- MongoDB (local or Atlas)
+
+## Quick Start
+
+1. Install dependencies:
+
+```bash
+npm --prefix backend ci
+npm --prefix frontend ci
+```
+
+2. Configure backend env:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+3. Start backend:
+
+```bash
+npm --prefix backend run dev
+```
+
+4. Start frontend:
+
+```bash
+npm --prefix frontend start
+```
+
+## Quality Commands
+
+- Backend lint/test:
+
+```bash
+npm --prefix backend run lint
+npm --prefix backend test
+```
+
+- Frontend lint/test/build:
+
+```bash
+npm --prefix frontend run lint
+npm --prefix frontend test
+npm --prefix frontend run build
+```
+
+## Environment and Secrets
+
+- Never commit real secrets.
+- Use `backend/.env.example` as the canonical template.
+- Backend runtime performs strict env validation and refuses startup on critical issues.
+
+## Release Hygiene
+
+- Do not ship `node_modules/` in git or release artifacts.
+- Do not ship `.git/` history in release artifacts.
+- Build from source in deploy environments (`npm ci` + build/test).
+
+## CI
+
+GitHub Actions CI runs:
+
+- backend format/lint/test,
+- frontend format/lint/test/build.

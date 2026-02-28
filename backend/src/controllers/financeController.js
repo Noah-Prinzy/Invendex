@@ -1,5 +1,6 @@
 import CogsEntry from '../models/CogsEntry.js';
 import Organization from '../models/Organization.js';
+import OrganizationSettings from '../models/OrganizationSettings.js';
 import { successResponse } from '../utils/response.js';
 import {
   computeInventoryValuation,
@@ -108,9 +109,22 @@ export const getGrossMargin = async (req, res, next) => {
 
 export const getDeadStock = async (req, res, next) => {
   try {
+    let deadStockDays = req.query.days || null;
+
+    if (!deadStockDays) {
+      const organizationSettings = await OrganizationSettings.findOne({
+        organization: req.organizationId
+      })
+        .select('inventory.deadStockThresholdDays')
+        .lean();
+
+      deadStockDays =
+        organizationSettings?.inventory?.deadStockThresholdDays || 90;
+    }
+
     const report = await getDeadStockItems({
       organizationId: req.organizationId,
-      days: req.query.days || 90,
+      days: deadStockDays,
       warehouseId: req.query.warehouseId || null
     });
 

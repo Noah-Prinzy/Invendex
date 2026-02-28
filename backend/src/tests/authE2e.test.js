@@ -94,6 +94,52 @@ describe('auth e2e', () => {
     expect(logoutResponse.body?.message).toBe('Logged out successfully');
   });
 
+  it('persists uiTheme preference updates on the authenticated profile', async () => {
+    const registerResponse = await request(app).post('/auth/register').send({
+      email: 'theme-auth@example.com',
+      password: 'Password123!',
+      confirmPassword: 'Password123!',
+      organizationName: 'Theme Org'
+    });
+    expect(registerResponse.status).toBe(201);
+
+    const loginResponse = await request(app).post('/auth/login').send({
+      email: 'theme-auth@example.com',
+      password: 'Password123!'
+    });
+    expect(loginResponse.status).toBe(200);
+
+    const accessToken = loginResponse.body?.data?.accessToken;
+    expect(typeof accessToken).toBe('string');
+
+    const updateResponse = await request(app)
+      .patch('/auth/me/preferences')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        uiTheme: 'neon-grid'
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body?.success).toBe(true);
+    expect(updateResponse.body?.data?.uiTheme).toBe('neon-grid');
+
+    const meResponse = await request(app)
+      .get('/auth/me')
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    expect(meResponse.status).toBe(200);
+    expect(meResponse.body?.data?.uiTheme).toBe('neon-grid');
+
+    const invalidThemeResponse = await request(app)
+      .patch('/auth/me/preferences')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        uiTheme: 'non-existent-theme'
+      });
+
+    expect(invalidThemeResponse.status).toBe(400);
+  });
+
   it('supports forgot-password and reset-password flow', async () => {
     const email = 'recover-auth@example.com';
     const initialPassword = 'Password123!';
@@ -233,6 +279,16 @@ describe('auth e2e', () => {
     expect(employeeLoginResponse.status).toBe(200);
     expect(employeeLoginResponse.body?.success).toBe(true);
     expect(employeeLoginResponse.body?.data?.user?.role).toBe('staff');
+
+    const repeatEmployeeLoginWithoutInvite = await request(app)
+      .post('/auth/employee/login')
+      .send({
+        companyName: 'Warehouse Heroes',
+        email: 'employee1@example.com',
+        password: 'EmployeePass123!'
+      });
+    expect(repeatEmployeeLoginWithoutInvite.status).toBe(200);
+    expect(repeatEmployeeLoginWithoutInvite.body?.success).toBe(true);
 
     const employeeInDb = await User.findOne({
       email: 'employee1@example.com'

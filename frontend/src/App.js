@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AuthForm from './components/AuthForm.js';
 import NotificationBell from './components/NotificationBell.js';
 import TabBar from './components/TabBar.js';
 import useAuth from './hooks/auth/useAuth.js';
 import useTabs from './hooks/ui/useTabs.js';
 import { useLedgerlyRealtime } from './hooks/realtime/useLedgerlyRealtime.js';
+import { useOfflineSync } from './hooks/offline/useOfflineSync.js';
 import Dashboard from './pages/Dashboard.js';
 import PurchaseOrders from './pages/PurchaseOrders.js';
 import Products from './pages/Products.js';
@@ -14,16 +15,19 @@ import Users from './pages/Users.js';
 import Account from './pages/Account.js';
 import Settings from './pages/Settings.js';
 import { useAppActions, useAppState } from './state/appState.js';
+import { isKnownThemeId } from './themes/themeCatalog.js';
 import {
-  flushOfflineMutations,
-  getOfflineQueueSize
-} from './offline/offlineQueue.js';
-import { API_BASE_URL } from './api/client.js';
+  applyThemePreference,
+  readThemePreference,
+  writeThemePreference
+} from './themes/themePreference.js';
 import './styles/global.css';
 import './styles/dashboard.css';
 
 const EVENT_LIMIT = 40;
 const ADMIN_ROLES = new Set(['owner', 'admin']);
+const TAB_QUERY_KEY = 'tab';
+const SETTINGS_PAGE_QUERY_KEY = 'settingsPage';
 const sanitizeBaseUrl = (value) =>
   String(value || '')
     .trim()
@@ -109,6 +113,28 @@ const buildAuthEvent = (payload) => {
 
 const prependEvent = (list, event) => [event, ...list].slice(0, EVENT_LIMIT);
 
+const readTabFromUrl = () => {
+  if (typeof window === 'undefined') return '';
+  const params = new URLSearchParams(window.location.search);
+  return String(params.get(TAB_QUERY_KEY) || '')
+    .trim()
+    .toLowerCase();
+};
+
+const writeTabToUrl = (tabKey) => {
+  if (typeof window === 'undefined') return;
+  const nextTab = String(tabKey || '').trim();
+  if (!nextTab) return;
+
+  const url = new URL(window.location.href);
+  url.searchParams.set(TAB_QUERY_KEY, nextTab);
+  if (nextTab !== 'settings') {
+    url.searchParams.delete(SETTINGS_PAGE_QUERY_KEY);
+  }
+  const nextPath = `${url.pathname}${url.search}${url.hash}`;
+  window.history.replaceState(window.history.state, '', nextPath);
+};
+
 const App = () => {
   const {
     user,
@@ -125,17 +151,20 @@ const App = () => {
     verifyEmail,
     requestPasswordReset,
     resetPassword,
+    updatePreferences,
     logout
   } = useAuth();
   const { activeWarehouseId, isOnline, offlineQueueSize } = useAppState();
   const { setActiveWarehouseId, setIsOnline, setOfflineQueueSize, setSession } =
     useAppActions();
   const { tabs, activeTab, setActiveTab } = useTabs(user?.role || null);
+  const hasResolvedInitialTabRef = useRef(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [inventoryEvents, setInventoryEvents] = useState([]);
   const [financeEvents, setFinanceEvents] = useState([]);
   const [authEvents, setAuthEvents] = useState([]);
   const [poEvents, setPoEvents] = useState([]);
+  const [themeId, setThemeId] = useState(() => readThemePreference());
 
   const realtimeBaseUrl = useMemo(() => getRealtimeBaseUrl(), []);
   const companyName = useMemo(() => {
@@ -220,7 +249,66 @@ const App = () => {
     onEmployeeSignedIn: handleEmployeeSignedIn
   });
 
+  useOfflineSync({
+    isOnline,
+    isAuthenticated,
+    accessToken,
+    setIsOnline,
+    setOfflineQueueSize
+  });
+
   const clearUnread = useCallback(() => setUnreadCount(0), []);
+
+  const handleThemeChange = useCallback(
+    async (nextThemeId) => {
+      if (!isKnownThemeId(nextThemeId)) return;
+      setThemeId(nextThemeId);
+
+      if (!isAuthenticated || !accessToken) {
+        return;
+      }
+
+      await updatePreferences({
+        uiTheme: nextThemeId
+      });
+    },
+    [isAuthenticated, accessToken, updatePreferences]
+  );
+
+  useEffect(() => {
+    const profileTheme = String(user?.uiTheme || '').trim();
+    if (!isAuthenticated || !isKnownThemeId(profileTheme)) {
+      return;
+    }
+
+    setThemeId((current) =>
+      current === profileTheme ? current : profileTheme
+    );
+  }, [isAuthenticated, user?.uiTheme]);
+
+  useEffect(() => {
+    applyThemePreference(themeId);
+    writeThemePreference(themeId);
+  }, [themeId]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      hasResolvedInitialTabRef.current = false;
+      return;
+    }
+    if (hasResolvedInitialTabRef.current) return;
+
+    const tabFromUrl = readTabFromUrl();
+    if (tabFromUrl) {
+      setActiveTab(tabFromUrl);
+    }
+    hasResolvedInitialTabRef.current = true;
+  }, [isAuthenticated, setActiveTab]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    writeTabToUrl(activeTab);
+  }, [isAuthenticated, activeTab]);
 
   useEffect(() => {
     if (isAuthenticated) return;
@@ -238,43 +326,6 @@ const App = () => {
       organizationId: user?.organization || null
     });
   }, [setSession, user]);
-
-  useEffect(() => {
-    setOfflineQueueSize(getOfflineQueueSize());
-  }, [setOfflineQueueSize]);
-
-  useEffect(() => {
-    const onOnline = () => setIsOnline(true);
-    const onOffline = () => setIsOnline(false);
-
-    window.addEventListener('online', onOnline);
-    window.addEventListener('offline', onOffline);
-    return () => {
-      window.removeEventListener('online', onOnline);
-      window.removeEventListener('offline', onOffline);
-    };
-  }, [setIsOnline]);
-
-  useEffect(() => {
-    if (!isOnline || !isAuthenticated || !accessToken) {
-      return;
-    }
-
-    let cancelled = false;
-    const flush = async () => {
-      const result = await flushOfflineMutations({
-        accessToken,
-        baseUrl: API_BASE_URL
-      });
-      if (cancelled) return;
-      setOfflineQueueSize(Number(result?.remaining || 0));
-    };
-
-    flush().catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [isOnline, isAuthenticated, accessToken, setOfflineQueueSize]);
 
   const page = useMemo(() => {
     if (activeTab === 'dashboard') {
@@ -320,7 +371,16 @@ const App = () => {
       );
     }
     if (activeTab === 'account') return <Account user={user} />;
-    if (activeTab === 'settings') return <Settings accessToken={accessToken} />;
+    if (activeTab === 'settings') {
+      return (
+        <Settings
+          accessToken={accessToken}
+          userRole={user?.role || null}
+          themeId={themeId}
+          onThemeChange={handleThemeChange}
+        />
+      );
+    }
     return (
       <Dashboard
         accessToken={accessToken}
@@ -338,7 +398,9 @@ const App = () => {
     inventoryEvents,
     financeEvents,
     authEvents,
-    poEvents
+    poEvents,
+    themeId,
+    handleThemeChange
   ]);
 
   if (isInitializing) {

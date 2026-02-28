@@ -1,66 +1,361 @@
-import { useCallback, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { getObservabilityPingRequest } from '../../api/client.js';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  getFinanceRealtimeStatsRequest,
+  getObservabilityPingRequest,
+  getSettingsRequest,
+  patchSettingsRequest
+} from '../../api/client.js';
+import {
+  ThemeSelectionSection,
+  CompanyProfileSection,
+  NotificationRulesSection,
+  InventoryControlsSection,
+  FinanceDefaultsSection,
+  UserAccessPolicySection,
+  SecuritySessionSection,
+  RealtimeOfflineSection,
+  AuditBackupSection,
+  ObservabilityPipelineSection,
+  SettingsSaveFooter
+} from './components/SettingsSections.js';
+import {
+  SETTINGS_MANAGE_ROLES,
+  OBS_STALE_MS,
+  SETTINGS_QUERY_STALE_MS,
+  mapApiSettingsToForm,
+  mapFormToApiPayload,
+  parseRecipientsText,
+  recipientsToText,
+  getDefaultSettings,
+  copyTextToClipboard
+} from './settingsUtils.js';
 
-const formatDateTime = (iso) => {
-  if (!iso) return 'n/a';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return 'n/a';
-  return date.toLocaleString();
+const SETTINGS_HUB_PAGE_ID = 'hub';
+const TAB_QUERY_KEY = 'tab';
+const SETTINGS_PAGE_QUERY_KEY = 'settingsPage';
+
+const SETTINGS_PAGES = [
+  {
+    id: 'theme',
+    title: 'Theme Studio',
+    description: 'Pick and preview your Ledgerly visual theme.',
+    scope: 'Personal'
+  },
+  {
+    id: 'company-profile',
+    title: 'Company Profile',
+    description: 'Organization identity, timezone, currency, and VAT defaults.',
+    scope: 'Organization'
+  },
+  {
+    id: 'notifications',
+    title: 'Notification Rules',
+    description: 'Low-stock alerts, quiet hours, and recipients.',
+    scope: 'Operations'
+  },
+  {
+    id: 'inventory-controls',
+    title: 'Inventory Controls',
+    description: 'Warehouse adjustment policy and stock safety settings.',
+    scope: 'Inventory'
+  },
+  {
+    id: 'finance-defaults',
+    title: 'Finance Defaults',
+    description: 'Valuation method and pricing tax mode.',
+    scope: 'Finance'
+  },
+  {
+    id: 'user-access',
+    title: 'User Access Policy',
+    description: 'Invite defaults and staff privilege boundaries.',
+    scope: 'Security'
+  },
+  {
+    id: 'security-session',
+    title: 'Security & Session',
+    description: 'Session lifetimes, lockout window, and password policy.',
+    scope: 'Security'
+  },
+  {
+    id: 'realtime-offline',
+    title: 'Realtime & Offline',
+    description: 'Socket behavior, reconnect policy, and sync controls.',
+    scope: 'Platform'
+  },
+  {
+    id: 'audit-backup',
+    title: 'Audit & Backup',
+    description: 'Retention windows, schedules, and restore approval rules.',
+    scope: 'Compliance'
+  },
+  {
+    id: 'observability',
+    title: 'Observability Pipeline',
+    description: 'Trace IDs, runtime health, and realtime diagnostics.',
+    scope: 'Platform'
+  }
+];
+
+const EDITABLE_SETTINGS_PAGE_IDS = new Set([
+  'company-profile',
+  'notifications',
+  'inventory-controls',
+  'finance-defaults',
+  'user-access',
+  'security-session',
+  'realtime-offline',
+  'audit-backup'
+]);
+
+const SETTINGS_PAGE_IDS = new Set(SETTINGS_PAGES.map((page) => page.id));
+
+const getValidatedSettingsPageId = (value) => {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  return SETTINGS_PAGE_IDS.has(normalized) ? normalized : SETTINGS_HUB_PAGE_ID;
 };
 
-const copyTextToClipboard = async (text) => {
-  const value = String(text || '');
-  if (!value.trim()) {
-    throw new Error('Nothing to copy');
-  }
-
-  if (
-    typeof navigator !== 'undefined' &&
-    navigator.clipboard &&
-    typeof navigator.clipboard.writeText === 'function'
-  ) {
-    await navigator.clipboard.writeText(value);
-    return;
-  }
-
-  if (typeof document === 'undefined') {
-    throw new Error('Clipboard is not available in this context');
-  }
-
-  const textarea = document.createElement('textarea');
-  textarea.value = value;
-  textarea.setAttribute('readonly', '');
-  textarea.style.position = 'fixed';
-  textarea.style.left = '-9999px';
-  document.body.appendChild(textarea);
-  textarea.select();
-
-  try {
-    const didCopy = document.execCommand('copy');
-    if (!didCopy) {
-      throw new Error('Clipboard write failed');
-    }
-  } finally {
-    document.body.removeChild(textarea);
-  }
+const readSettingsPageFromUrl = () => {
+  if (typeof window === 'undefined') return SETTINGS_HUB_PAGE_ID;
+  const params = new URLSearchParams(window.location.search);
+  return getValidatedSettingsPageId(params.get(SETTINGS_PAGE_QUERY_KEY));
 };
 
-const Settings = ({ accessToken = null }) => {
+const writeSettingsPageToUrl = (pageId) => {
+  if (typeof window === 'undefined') return;
+  const nextPageId = getValidatedSettingsPageId(pageId);
+  const url = new URL(window.location.href);
+  url.searchParams.set(TAB_QUERY_KEY, 'settings');
+  if (nextPageId === SETTINGS_HUB_PAGE_ID) {
+    url.searchParams.delete(SETTINGS_PAGE_QUERY_KEY);
+  } else {
+    url.searchParams.set(SETTINGS_PAGE_QUERY_KEY, nextPageId);
+  }
+
+  const nextPath = `${url.pathname}${url.search}${url.hash}`;
+  window.history.replaceState(window.history.state, '', nextPath);
+};
+
+const Settings = ({
+  accessToken = null,
+  userRole = null,
+  themeId = null,
+  onThemeChange = () => {}
+}) => {
+  const queryClient = useQueryClient();
+  const [activePageId, setActivePageId] = useState(() =>
+    readSettingsPageFromUrl()
+  );
+  const [form, setForm] = useState(getDefaultSettings());
+  const [recipientsText, setRecipientsText] = useState('');
+  const [formNotice, setFormNotice] = useState('');
+  const [formError, setFormError] = useState('');
+  const [isDirty, setIsDirty] = useState(false);
   const [lastCheckedAt, setLastCheckedAt] = useState(null);
   const [copyTraceState, setCopyTraceState] = useState('idle');
+
+  const normalizedRole = String(userRole || '')
+    .trim()
+    .toLowerCase();
+  const canManageSettings =
+    !normalizedRole || SETTINGS_MANAGE_ROLES.has(normalizedRole);
+
+  const activePageMeta = useMemo(
+    () => SETTINGS_PAGES.find((page) => page.id === activePageId) || null,
+    [activePageId]
+  );
+
+  const isHubView = activePageId === SETTINGS_HUB_PAGE_ID;
+  const isEditableView = EDITABLE_SETTINGS_PAGE_IDS.has(activePageId);
+  const showSaveFooter = isEditableView || (isHubView && isDirty);
+
+  const settingsQuery = useQuery({
+    queryKey: ['settings:get', String(accessToken || '')],
+    enabled: Boolean(accessToken),
+    staleTime: SETTINGS_QUERY_STALE_MS,
+    queryFn: async () => getSettingsRequest(accessToken)
+  });
 
   const observabilityQuery = useQuery({
     queryKey: ['observability:ping:settings', String(accessToken || '')],
     enabled: Boolean(accessToken),
-    staleTime: 45 * 1000,
-    refetchInterval: 45 * 1000,
+    staleTime: OBS_STALE_MS,
+    refetchInterval: OBS_STALE_MS,
     queryFn: async () => {
       const data = await getObservabilityPingRequest(accessToken);
       setLastCheckedAt(new Date().toISOString());
       return data;
     }
   });
+
+  const realtimeStatsQuery = useQuery({
+    queryKey: ['finance:realtime:stats', String(accessToken || '')],
+    enabled: Boolean(accessToken),
+    staleTime: OBS_STALE_MS,
+    refetchInterval: OBS_STALE_MS,
+    queryFn: async () => getFinanceRealtimeStatsRequest(accessToken)
+  });
+
+  useEffect(() => {
+    const mapped = mapApiSettingsToForm(settingsQuery.data);
+    setForm(mapped);
+    setRecipientsText(
+      recipientsToText(mapped.notifications.lowStockRecipients)
+    );
+    setIsDirty(false);
+  }, [settingsQuery.data]);
+
+  useEffect(() => {
+    const syncFromUrl = () => {
+      const nextFromUrl = readSettingsPageFromUrl();
+      setActivePageId((current) =>
+        current === nextFromUrl ? current : nextFromUrl
+      );
+    };
+
+    syncFromUrl();
+    window.addEventListener('popstate', syncFromUrl);
+    return () => {
+      window.removeEventListener('popstate', syncFromUrl);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isHubView || activePageMeta) return;
+    setActivePageId(SETTINGS_HUB_PAGE_ID);
+  }, [activePageMeta, isHubView]);
+
+  useEffect(() => {
+    writeSettingsPageToUrl(activePageId);
+  }, [activePageId]);
+
+  const saveSettingsMutation = useMutation({
+    mutationFn: async (payload) =>
+      patchSettingsRequest({
+        accessToken,
+        payload
+      }),
+    onSuccess: (updated) => {
+      const mapped = mapApiSettingsToForm(updated);
+      queryClient.setQueryData(
+        ['settings:get', String(accessToken || '')],
+        updated
+      );
+      setForm(mapped);
+      setRecipientsText(
+        recipientsToText(mapped.notifications.lowStockRecipients)
+      );
+      setIsDirty(false);
+      setFormError('');
+      setFormNotice('Settings saved.');
+    },
+    onError: (error) => {
+      setFormNotice('');
+      setFormError(String(error?.message || 'Failed to save settings'));
+    }
+  });
+
+  const setTopField = (key, value) => {
+    setForm((current) => ({
+      ...current,
+      [key]: value
+    }));
+    setFormNotice('');
+    setFormError('');
+    setIsDirty(true);
+  };
+
+  const setNestedField = (section, field, value) => {
+    setForm((current) => ({
+      ...current,
+      [section]: {
+        ...(current[section] || {}),
+        [field]: value
+      }
+    }));
+    setFormNotice('');
+    setFormError('');
+    setIsDirty(true);
+  };
+
+  const setDoubleNestedField = (section, child, field, value) => {
+    setForm((current) => ({
+      ...current,
+      [section]: {
+        ...(current[section] || {}),
+        [child]: {
+          ...(current[section]?.[child] || {}),
+          [field]: value
+        }
+      }
+    }));
+    setFormNotice('');
+    setFormError('');
+    setIsDirty(true);
+  };
+
+  const handleRecipientsChange = (value) => {
+    setRecipientsText(value);
+    setNestedField(
+      'notifications',
+      'lowStockRecipients',
+      parseRecipientsText(value)
+    );
+  };
+
+  const handleSave = async () => {
+    if (!accessToken) return;
+    setFormNotice('');
+    setFormError('');
+    const payload = mapFormToApiPayload(form);
+    await saveSettingsMutation.mutateAsync(payload);
+  };
+
+  const handleReset = () => {
+    const mapped = mapApiSettingsToForm(settingsQuery.data);
+    setForm(mapped);
+    setRecipientsText(
+      recipientsToText(mapped.notifications.lowStockRecipients)
+    );
+    setFormNotice('');
+    setFormError('');
+    setIsDirty(false);
+  };
+
+  const handleRefreshAll = () => {
+    settingsQuery.refetch();
+    realtimeStatsQuery.refetch();
+    observabilityQuery.refetch();
+  };
+
+  const handleCopyTraceIds = useCallback(async () => {
+    const requestId = observabilityQuery.data?.trace?.requestId || '';
+    const clientTraceId = observabilityQuery.data?.trace?.clientTraceId || '';
+    const payload = `requestId=${requestId || 'n/a'}\nclientTraceId=${clientTraceId || 'n/a'}`;
+
+    try {
+      await copyTextToClipboard(payload);
+      setCopyTraceState('copied');
+      setTimeout(() => {
+        setCopyTraceState((current) =>
+          current === 'copied' ? 'idle' : current
+        );
+      }, 2000);
+    } catch {
+      setCopyTraceState('error');
+      setTimeout(() => {
+        setCopyTraceState((current) =>
+          current === 'error' ? 'idle' : current
+        );
+      }, 2500);
+    }
+  }, [
+    observabilityQuery.data?.trace?.clientTraceId,
+    observabilityQuery.data?.trace?.requestId
+  ]);
 
   const observabilityStatus = useMemo(() => {
     if (observabilityQuery.isError) return 'error';
@@ -93,121 +388,246 @@ const Settings = ({ accessToken = null }) => {
     return 'Not checked';
   }, [observabilityStatus]);
 
-  const handleCopyTraceIds = useCallback(async () => {
-    const requestId = observabilityQuery.data?.trace?.requestId || '';
-    const clientTraceId = observabilityQuery.data?.trace?.clientTraceId || '';
-    const payload = `requestId=${requestId || 'n/a'}\nclientTraceId=${clientTraceId || 'n/a'}`;
+  const realtimeEventStats = useMemo(() => {
+    if (!Array.isArray(realtimeStatsQuery.data)) return [];
+    return realtimeStatsQuery.data;
+  }, [realtimeStatsQuery.data]);
 
-    try {
-      await copyTextToClipboard(payload);
-      setCopyTraceState('copied');
-      setTimeout(() => {
-        setCopyTraceState((current) =>
-          current === 'copied' ? 'idle' : current
-        );
-      }, 2000);
-    } catch {
-      setCopyTraceState('error');
-      setTimeout(() => {
-        setCopyTraceState((current) =>
-          current === 'error' ? 'idle' : current
-        );
-      }, 2500);
+  const renderHub = () => (
+    <article className="data-card settings-card">
+      <h3>Settings Areas</h3>
+      <p className="event-sub">
+        Open a settings page to configure that area. Changes are saved at
+        section level.
+      </p>
+      <div className="settings-hub-grid">
+        {SETTINGS_PAGES.map((page) => (
+          <button
+            key={page.id}
+            type="button"
+            className="settings-hub-card"
+            onClick={() => setActivePageId(page.id)}
+          >
+            <p className="settings-hub-card-title">{page.title}</p>
+            <p className="settings-hub-card-description">{page.description}</p>
+            <span className="settings-hub-card-scope">{page.scope}</span>
+          </button>
+        ))}
+      </div>
+    </article>
+  );
+
+  const renderActivePage = () => {
+    if (isHubView) return renderHub();
+
+    if (activePageId === 'theme') {
+      return (
+        <ThemeSelectionSection
+          themeId={themeId}
+          onThemeChange={onThemeChange}
+        />
+      );
     }
-  }, [
-    observabilityQuery.data?.trace?.clientTraceId,
-    observabilityQuery.data?.trace?.requestId
-  ]);
+
+    if (activePageId === 'company-profile') {
+      return (
+        <CompanyProfileSection
+          form={form}
+          canManageSettings={canManageSettings}
+          isSaving={saveSettingsMutation.isPending}
+          setTopField={setTopField}
+          setNestedField={setNestedField}
+        />
+      );
+    }
+
+    if (activePageId === 'notifications') {
+      return (
+        <NotificationRulesSection
+          form={form}
+          recipientsText={recipientsText}
+          canManageSettings={canManageSettings}
+          isSaving={saveSettingsMutation.isPending}
+          setNestedField={setNestedField}
+          setDoubleNestedField={setDoubleNestedField}
+          handleRecipientsChange={handleRecipientsChange}
+        />
+      );
+    }
+
+    if (activePageId === 'inventory-controls') {
+      return (
+        <InventoryControlsSection
+          form={form}
+          canManageSettings={canManageSettings}
+          isSaving={saveSettingsMutation.isPending}
+          setNestedField={setNestedField}
+        />
+      );
+    }
+
+    if (activePageId === 'finance-defaults') {
+      return (
+        <FinanceDefaultsSection
+          form={form}
+          canManageSettings={canManageSettings}
+          isSaving={saveSettingsMutation.isPending}
+          setNestedField={setNestedField}
+        />
+      );
+    }
+
+    if (activePageId === 'user-access') {
+      return (
+        <UserAccessPolicySection
+          form={form}
+          canManageSettings={canManageSettings}
+          isSaving={saveSettingsMutation.isPending}
+          setNestedField={setNestedField}
+        />
+      );
+    }
+
+    if (activePageId === 'security-session') {
+      return (
+        <SecuritySessionSection
+          form={form}
+          canManageSettings={canManageSettings}
+          isSaving={saveSettingsMutation.isPending}
+          setNestedField={setNestedField}
+        />
+      );
+    }
+
+    if (activePageId === 'realtime-offline') {
+      return (
+        <RealtimeOfflineSection
+          form={form}
+          canManageSettings={canManageSettings}
+          isSaving={saveSettingsMutation.isPending}
+          setNestedField={setNestedField}
+          realtimeEventStats={realtimeEventStats}
+        />
+      );
+    }
+
+    if (activePageId === 'audit-backup') {
+      return (
+        <AuditBackupSection
+          form={form}
+          canManageSettings={canManageSettings}
+          isSaving={saveSettingsMutation.isPending}
+          setNestedField={setNestedField}
+        />
+      );
+    }
+
+    if (activePageId === 'observability') {
+      return (
+        <ObservabilityPipelineSection
+          lastCheckedAt={lastCheckedAt}
+          handleCopyTraceIds={handleCopyTraceIds}
+          copyTraceState={copyTraceState}
+          observabilityQuery={observabilityQuery}
+          observabilityStatus={observabilityStatus}
+          observabilitySummary={observabilitySummary}
+          observabilityError={observabilityError}
+          accessToken={accessToken}
+        />
+      );
+    }
+
+    return renderHub();
+  };
+
+  if (!accessToken) {
+    return (
+      <section className="panel">
+        <header className="panel-head">
+          <div>
+            <h2>Settings</h2>
+            <p>Sign in to view organization settings.</p>
+          </div>
+        </header>
+      </section>
+    );
+  }
 
   return (
-    <section className="panel">
-      <header className="panel-head">
+    <section className="panel settings-panel">
+      <header className="panel-head panel-head-row">
         <div>
-          <h2>Settings</h2>
-          <p>Organization controls, valuation defaults, and notifications.</p>
+          <h2>
+            {isHubView ? 'Settings' : activePageMeta?.title || 'Settings'}
+          </h2>
+          <p>
+            {isHubView
+              ? 'Open a settings page from the hub below.'
+              : activePageMeta?.description || 'Settings page'}
+          </p>
+        </div>
+        <div className="obs-actions">
+          {!isHubView ? (
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => setActivePageId(SETTINGS_HUB_PAGE_ID)}
+            >
+              Back to settings hub
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={handleRefreshAll}
+            disabled={
+              settingsQuery.isFetching ||
+              realtimeStatsQuery.isFetching ||
+              observabilityQuery.isFetching
+            }
+          >
+            {settingsQuery.isFetching ? 'Refreshing...' : 'Refresh all'}
+          </button>
         </div>
       </header>
-      <article className="event-card">
-        <h3>Observability pipeline</h3>
-        <div className="panel-head-row">
-          <p className="event-sub">
-            Last check: {formatDateTime(lastCheckedAt)}
-          </p>
-          <div className="obs-actions">
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={handleCopyTraceIds}
-              disabled={!observabilityQuery.data?.trace?.requestId}
-            >
-              {copyTraceState === 'copied'
-                ? 'Copied'
-                : copyTraceState === 'error'
-                  ? 'Copy failed'
-                  : 'Copy trace IDs'}
-            </button>
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => observabilityQuery.refetch()}
-              disabled={observabilityQuery.isFetching || !accessToken}
-            >
-              {observabilityQuery.isFetching ? 'Checking...' : 'Refresh'}
-            </button>
-          </div>
-        </div>
 
-        {observabilityStatus === 'error' ? (
+      {settingsQuery.isLoading ? (
+        <article className="event-card">
+          <p className="event-sub">Loading organization settings...</p>
+        </article>
+      ) : null}
+
+      {settingsQuery.isError ? (
+        <article className="event-card">
           <p className="form-error">
-            {observabilityError || 'Observability ping failed'}
+            {String(settingsQuery.error?.message || 'Failed to load settings')}
           </p>
-        ) : null}
+        </article>
+      ) : null}
 
-        <div className="obs-grid">
-          <div className="obs-item">
-            <p className="metric-label">Status</p>
-            <p
-              className={`obs-value ${observabilityStatus === 'ok' ? 'ok' : ''}`}
-            >
-              {observabilitySummary}
-            </p>
-          </div>
-          <div className="obs-item">
-            <p className="metric-label">Request ID</p>
-            <p className="obs-value monospace">
-              {observabilityQuery.data?.trace?.requestId || 'n/a'}
-            </p>
-          </div>
-          <div className="obs-item">
-            <p className="metric-label">Client trace ID</p>
-            <p className="obs-value monospace">
-              {observabilityQuery.data?.trace?.clientTraceId || 'n/a'}
-            </p>
-          </div>
-          <div className="obs-item">
-            <p className="metric-label">Realtime</p>
-            <p className="obs-value">
-              {observabilityQuery.data?.realtime?.enabled
-                ? 'Enabled'
-                : 'Disabled'}
-            </p>
-          </div>
-          <div className="obs-item">
-            <p className="metric-label">Error tracker</p>
-            <p className="obs-value">
-              {observabilityQuery.data?.errorTracking?.provider || 'n/a'}
-            </p>
-          </div>
-          <div className="obs-item">
-            <p className="metric-label">Uptime</p>
-            <p className="obs-value">
-              {Number.isFinite(observabilityQuery.data?.uptimeSeconds)
-                ? `${observabilityQuery.data?.uptimeSeconds}s`
-                : 'n/a'}
-            </p>
-          </div>
-        </div>
-      </article>
+      {!canManageSettings ? (
+        <p className="section-note">
+          You have read-only access. Manager/admin/owner role is required to
+          change settings.
+        </p>
+      ) : null}
+
+      {formNotice ? <p className="section-note">{formNotice}</p> : null}
+      {formError ? <p className="form-error">{formError}</p> : null}
+
+      {renderActivePage()}
+
+      {showSaveFooter ? (
+        <SettingsSaveFooter
+          updatedAt={form.updatedAt}
+          isDirty={isDirty}
+          handleReset={handleReset}
+          handleSave={handleSave}
+          canManageSettings={canManageSettings}
+          isSaving={saveSettingsMutation.isPending}
+          isLoadingSettings={settingsQuery.isLoading}
+        />
+      ) : null}
     </section>
   );
 };

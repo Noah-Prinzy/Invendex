@@ -30,6 +30,7 @@ import reportRoutes from './routes/reportRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import observabilityRoutes from './routes/observabilityRoutes.js';
 import mobileSyncRoutes from './routes/mobileSyncRoutes.js';
+import settingsRoutes from './routes/settingsRoutes.js';
 
 import { rateLimiter } from './middlewares/rateLimiter.js';
 import { errorHandler } from './middlewares/errorHandler.js';
@@ -132,6 +133,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/observability', observabilityRoutes);
 app.use('/api/mobile-sync', mobileSyncRoutes);
+app.use('/api/settings', settingsRoutes);
 
 app.get('/health', async (req, res, next) => {
   try {

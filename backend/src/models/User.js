@@ -20,6 +20,11 @@ const userSchema = new mongoose.Schema(
       enum: ['owner', 'admin', 'manager', 'staff'],
       default: 'staff'
     },
+    uiTheme: {
+      type: String,
+      default: 'ledgerly-classic',
+      trim: true
+    },
     organization: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Organization',

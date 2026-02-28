@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 
 import User from '../models/User.js';
 import EmployeeInvite from '../models/EmployeeInvite.js';
+import OrganizationSettings from '../models/OrganizationSettings.js';
 import { successResponse } from '../utils/response.js';
 import { AppError } from '../errors/AppError.js';
 import { logAudit } from '../utils/auditLogger.js';
@@ -136,8 +137,25 @@ export const listOrganizationOnlineUsers = async (req, res, next) => {
 export const createOrganizationInvite = async (req, res, next) => {
   try {
     const normalizedEmail = normalizeEmailInput(req.body?.email);
+    const hasExplicitExpiry =
+      req.body?.expiresInHours !== undefined &&
+      req.body?.expiresInHours !== null;
+
+    let settingsInviteExpiry = DEFAULT_INVITE_TTL_HOURS;
+    if (!hasExplicitExpiry) {
+      const organizationSettings = await OrganizationSettings.findOne({
+        organization: req.organizationId
+      })
+        .select('userAccess.defaultInviteExpiryHours')
+        .lean();
+      settingsInviteExpiry = Number(
+        organizationSettings?.userAccess?.defaultInviteExpiryHours ||
+          DEFAULT_INVITE_TTL_HOURS
+      );
+    }
+
     const rawExpiresInHours = Number(
-      req.body?.expiresInHours || DEFAULT_INVITE_TTL_HOURS
+      hasExplicitExpiry ? req.body?.expiresInHours : settingsInviteExpiry
     );
     const expiresInHours = Number.isFinite(rawExpiresInHours)
       ? Math.max(

@@ -16,6 +16,77 @@ const formatCurrency = (value) =>
     maximumFractionDigits: 2
   }).format(Number(value || 0));
 
+const sanitizeCsvCell = (value) => {
+  let normalized = String(value ?? '');
+  if (/^[=+\-@]/.test(normalized)) {
+    normalized = `'${normalized}`;
+  }
+  if (/[",\n]/.test(normalized)) {
+    return `"${normalized.replace(/"/g, '""')}"`;
+  }
+  return normalized;
+};
+
+const toCsv = (headers = [], rows = []) => {
+  const headerLine = headers.map(sanitizeCsvCell).join(',');
+  const bodyLines = rows.map((row) =>
+    row.map((value) => sanitizeCsvCell(value)).join(',')
+  );
+  return [headerLine, ...bodyLines].join('\n');
+};
+
+const downloadFile = ({ filename, content, mimeType }) => {
+  const blob = new Blob([content], {
+    type: mimeType || 'text/plain;charset=utf-8'
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+const buildReportFilename = (prefix, extension) => {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  return `ledgerly-${prefix}-${stamp}.${extension}`;
+};
+
+const downloadWorkbook = async ({ filename, sheets }) => {
+  const xlsxModule = await import('xlsx');
+  const XLSX = xlsxModule?.default || xlsxModule;
+  const workbook = XLSX.utils.book_new();
+
+  Object.entries(sheets || {}).forEach(([sheetName, rows]) => {
+    const normalizedName = String(sheetName || 'Sheet1').slice(0, 31);
+    const worksheet = XLSX.utils.aoa_to_sheet(
+      Array.isArray(rows) ? rows : [['']]
+    );
+    XLSX.utils.book_append_sheet(workbook, worksheet, normalizedName);
+  });
+
+  const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  downloadFile({
+    filename,
+    content: buffer,
+    mimeType:
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  });
+};
+
+const createPdfRuntime = async () => {
+  const [jspdfModule, autoTableModule] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable')
+  ]);
+  return {
+    jsPDF: jspdfModule.jsPDF,
+    autoTable: autoTableModule.default
+  };
+};
+
 const Reports = ({ accessToken, userRole = null }) => {
   const [spendSearch, setSpendSearch] = useState('');
   const [spendSortKey, setSpendSortKey] = useState('totalSpend');
@@ -130,6 +201,110 @@ const Reports = ({ accessToken, userRole = null }) => {
     return filteredSpendRows.slice(start, start + SPEND_PAGE_SIZE);
   }, [filteredSpendRows, spendPage]);
 
+  const handleDownloadSpendBySupplier = () => {
+    const csv = toCsv(
+      ['supplierName', 'totalSpend'],
+      filteredSpendRows.map((row) => [
+        row.supplierName || 'Unknown supplier',
+        Number(row.totalSpend || 0).toFixed(2)
+      ])
+    );
+
+    downloadFile({
+      filename: buildReportFilename('spend-by-supplier', 'csv'),
+      content: csv,
+      mimeType: 'text/csv;charset=utf-8'
+    });
+  };
+
+  const handleDownloadPoStatusSummaryExcel = async () => {
+    await downloadWorkbook({
+      filename: buildReportFilename('po-status-summary', 'xlsx'),
+      sheets: {
+        po_status_summary: [
+          ['status', 'count'],
+          ...sortedStatusRows.map((row) => [row.status, Number(row.count || 0)])
+        ]
+      }
+    });
+  };
+
+  const handleDownloadPoStatusSummaryPdf = async () => {
+    const { jsPDF, autoTable } = await createPdfRuntime();
+    const document = new jsPDF();
+    document.setFontSize(14);
+    document.text('Ledgerly PO Status Summary', 14, 16);
+
+    autoTable(document, {
+      startY: 22,
+      head: [['Status', 'Count']],
+      body: sortedStatusRows.map((row) => [row.status, Number(row.count || 0)])
+    });
+
+    document.save(buildReportFilename('po-status-summary', 'pdf'));
+  };
+
+  const handleDownloadFullSummaryExcel = async () => {
+    await downloadWorkbook({
+      filename: buildReportFilename('reports-summary', 'xlsx'),
+      sheets: {
+        summary: [
+          ['metric', 'value'],
+          ['generatedAt', new Date().toISOString()],
+          ['totalSpend', Number(spendSummary?.totalSpend || 0).toFixed(2)],
+          ['supplierCount', Number(spendBySupplier.length || 0)],
+          ['openPurchaseOrders', Number(totalOpenPurchaseOrders || 0)]
+        ],
+        po_status_summary: [
+          ['status', 'count'],
+          ...sortedStatusRows.map((row) => [row.status, Number(row.count || 0)])
+        ],
+        spend_by_supplier: [
+          ['supplierName', 'totalSpend'],
+          ...spendBySupplier.map((row) => [
+            row.supplierName || 'Unknown supplier',
+            Number(row.totalSpend || 0).toFixed(2)
+          ])
+        ]
+      }
+    });
+  };
+
+  const handleDownloadFullSummaryPdf = async () => {
+    const { jsPDF, autoTable } = await createPdfRuntime();
+    const document = new jsPDF();
+    document.setFontSize(14);
+    document.text('Ledgerly Full Summary Report', 14, 16);
+    document.setFontSize(10);
+    document.text(`Generated: ${new Date().toLocaleString()}`, 14, 22);
+    document.text(
+      `Total spend: ${formatCurrency(spendSummary?.totalSpend || 0)}`,
+      14,
+      28
+    );
+    document.text(`Open POs: ${totalOpenPurchaseOrders}`, 14, 34);
+    document.text(`Suppliers: ${spendBySupplier.length}`, 14, 40);
+
+    autoTable(document, {
+      startY: 46,
+      head: [['PO Status', 'Count']],
+      body: sortedStatusRows.map((row) => [row.status, Number(row.count || 0)])
+    });
+
+    autoTable(document, {
+      startY: document.lastAutoTable?.finalY
+        ? document.lastAutoTable.finalY + 8
+        : 70,
+      head: [['Supplier', 'Total spend']],
+      body: spendBySupplier.map((row) => [
+        row.supplierName || 'Unknown supplier',
+        formatCurrency(row.totalSpend)
+      ])
+    });
+
+    document.save(buildReportFilename('reports-summary', 'pdf'));
+  };
+
   if (!isAdmin) {
     return (
       <section className="panel">
@@ -158,14 +333,56 @@ const Reports = ({ accessToken, userRole = null }) => {
           <h2>Reports</h2>
           <p>Purchase order and spend summaries from reporting APIs.</p>
         </div>
-        <button
-          type="button"
-          className="btn-ghost"
-          onClick={() => refetch()}
-          disabled={isLoading || isFetching}
-        >
-          {isLoading || isFetching ? 'Loading...' : 'Refresh'}
-        </button>
+        <div className="obs-actions">
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={handleDownloadPoStatusSummaryExcel}
+            disabled={!sortedStatusRows.length}
+          >
+            PO status Excel
+          </button>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={handleDownloadPoStatusSummaryPdf}
+            disabled={!sortedStatusRows.length}
+          >
+            PO status PDF
+          </button>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={handleDownloadSpendBySupplier}
+            disabled={!filteredSpendRows.length}
+          >
+            Download supplier spend CSV
+          </button>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={handleDownloadFullSummaryExcel}
+            disabled={!statusSummary && !spendBySupplier.length}
+          >
+            Full summary Excel
+          </button>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={handleDownloadFullSummaryPdf}
+            disabled={!statusSummary && !spendBySupplier.length}
+          >
+            Full summary PDF
+          </button>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => refetch()}
+            disabled={isLoading || isFetching}
+          >
+            {isLoading || isFetching ? 'Loading...' : 'Refresh'}
+          </button>
+        </div>
       </header>
 
       <div className="metric-grid">

@@ -205,16 +205,19 @@ const AuthForm = ({
             required
           />
 
-          <label htmlFor="inviteCode">Invite Code</label>
+          <label htmlFor="inviteCode">Invite Code (First Login Only)</label>
           <input
             id="inviteCode"
             name="inviteCode"
             type="text"
-            placeholder="INV-XXXXXX-XXXXXX"
+            placeholder="Optional after your account is created"
             value={formValues.inviteCode}
             onChange={handleChange}
-            required
           />
+          <p className="form-copy">
+            Use invite code only the first time. After account creation, sign in
+            with company name, email, and password.
+          </p>
         </>
       ) : null}
 
