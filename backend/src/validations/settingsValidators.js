@@ -133,6 +133,12 @@ export const patchSettingsValidator = [
       return true;
     }),
   optionalBoolean('inventory.enforceWarehouseForAdjustments'),
+  body('inventory.sensitiveAdjustmentMinRole')
+    .optional()
+    .isIn(['staff', 'manager', 'admin', 'owner'])
+    .withMessage(
+      'inventory.sensitiveAdjustmentMinRole must be staff, manager, admin, or owner'
+    ),
   optionalBoolean('inventory.allowNegativeStock'),
   optionalInteger('inventory.deadStockThresholdDays', 1, 3650),
 

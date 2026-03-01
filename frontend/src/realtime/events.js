@@ -5,7 +5,8 @@ export const REALTIME_EVENTS = Object.freeze({
   PURCHASE_ORDER_RECEIVED: 'purchase_order.received',
   FINANCE_COGS_RECORDED: 'finance.cogs_recorded',
   FINANCE_VALUATION_UPDATED: 'finance.valuation_updated',
-  AUTH_EMPLOYEE_SIGNED_IN: 'auth.employee_signed_in'
+  AUTH_EMPLOYEE_SIGNED_IN: 'auth.employee_signed_in',
+  NOTIFICATION_CREATED: 'notification.created'
 });
 
 export default REALTIME_EVENTS;

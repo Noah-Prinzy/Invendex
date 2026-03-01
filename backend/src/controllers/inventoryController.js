@@ -7,6 +7,13 @@ import { successResponse } from '../utils/response.js';
 import { AppError } from '../errors/AppError.js';
 import { runReorderEngine } from '../services/reorderEngine.js';
 import { getAverageDailyDemandPerSku } from '../services/inventoryMetricsService.js';
+import {
+  approveStocktakeSession,
+  createStocktakeSession,
+  getStocktakeSessionById,
+  listStocktakeSessions,
+  submitStocktakeCounts
+} from '../services/inventory/stocktakeService.js';
 
 /* ======================================================
    INVENTORY SNAPSHOTS
@@ -439,5 +446,86 @@ export const getReorderAlertKPIs = async (req, res, next) => {
     );
   } catch (err) {
     next(err);
+  }
+};
+
+/* ======================================================
+   STOCKTAKE / CYCLE COUNT
+====================================================== */
+
+export const createInventoryStocktakeSession = async (req, res, next) => {
+  try {
+    const { warehouseId, title, notes, productIds } = req.body;
+
+    const session = await createStocktakeSession({
+      organizationId: req.organizationId,
+      warehouseId,
+      title,
+      notes,
+      productIds,
+      createdBy: req.user?._id
+    });
+
+    return successResponse(res, session, 'Stocktake session created', 201);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const listInventoryStocktakeSessions = async (req, res, next) => {
+  try {
+    const sessions = await listStocktakeSessions({
+      organizationId: req.organizationId,
+      warehouseId: req.query?.warehouseId || null,
+      status: req.query?.status || null,
+      limit: req.query?.limit || 50
+    });
+
+    return successResponse(res, sessions, 'Stocktake sessions fetched');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getInventoryStocktakeSession = async (req, res, next) => {
+  try {
+    const session = await getStocktakeSessionById({
+      organizationId: req.organizationId,
+      stocktakeSessionId: req.params.sessionId
+    });
+
+    return successResponse(res, session, 'Stocktake session fetched');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const submitInventoryStocktakeCounts = async (req, res, next) => {
+  try {
+    const session = await submitStocktakeCounts({
+      organizationId: req.organizationId,
+      stocktakeSessionId: req.params.sessionId,
+      counts: req.body?.counts || [],
+      actorUserId: req.user?._id || null
+    });
+
+    return successResponse(res, session, 'Stocktake counts recorded');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const approveInventoryStocktakeSession = async (req, res, next) => {
+  try {
+    const session = await approveStocktakeSession({
+      organizationId: req.organizationId,
+      stocktakeSessionId: req.params.sessionId,
+      actorUserId: req.user?._id || null,
+      actorRole: req.user?.role || null
+    });
+
+    return successResponse(res, session, 'Stocktake session approved');
+  } catch (error) {
+    next(error);
   }
 };

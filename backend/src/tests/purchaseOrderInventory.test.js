@@ -150,6 +150,59 @@ describe('applyPurchaseOrderToInventory', () => {
     expect(snapshots).toHaveLength(1);
   }, 10000);
 
+  it('converts purchase quantities into base units using purchaseToBaseFactor', async () => {
+    const organization = await Organization.create({
+      name: 'Tenant UOM',
+      code: 'TENANT_UOM'
+    });
+    const product = await Product.create({
+      organization: organization._id,
+      name: 'UOM Product',
+      sku: 'PO-SKU-UOM-001',
+      price: 100,
+      stock: 0,
+      uom: {
+        base: 'pcs',
+        purchase: 'box',
+        purchaseToBaseFactor: 24
+      }
+    });
+    const warehouse = await Warehouse.create({
+      organization: organization._id,
+      name: 'UOM Warehouse',
+      code: 'UOM'
+    });
+
+    const purchaseOrder = await PurchaseOrder.create({
+      organization: organization._id,
+      supplier: new mongoose.Types.ObjectId(),
+      warehouse: warehouse._id,
+      items: [
+        {
+          product: product._id,
+          sku: product.sku,
+          quantity: 2,
+          purchaseUom: 'box',
+          purchaseToBaseFactor: 24,
+          unitCost: 240,
+          totalCost: 480
+        }
+      ],
+      createdBy: new mongoose.Types.ObjectId()
+    });
+
+    await applyPurchaseOrderToInventory({ purchaseOrder });
+
+    const inventory = await Inventory.findOne({
+      product: product._id,
+      warehouse: warehouse._id
+    }).lean();
+    expect(Number(inventory?.quantityOnHand || 0)).toBe(48);
+
+    const refreshedProduct = await Product.findById(product._id).lean();
+    expect(Number(refreshedProduct?.stock || 0)).toBe(48);
+  }, 10000);
+
   it('throws an error if purchase order is invalid', async () => {
     await expect(
       applyPurchaseOrderToInventory({ purchaseOrder: null })

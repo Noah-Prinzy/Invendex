@@ -39,6 +39,40 @@ afterAll(async () => {
 });
 
 describe('manual inventory adjustment service', () => {
+  const seedInventoryContext = async ({
+    startingStock = 10,
+    codePrefix = 'MAN-CTX'
+  } = {}) => {
+    const organization = await Organization.create({
+      name: `Manual Org ${Date.now()}`,
+      code: `${codePrefix}-${Date.now()}`
+    });
+
+    const warehouse = await Warehouse.create({
+      organization: organization._id,
+      name: 'Manual Warehouse',
+      code: `${codePrefix}-WH-${Date.now()}`
+    });
+
+    const product = await Product.create({
+      organization: organization._id,
+      name: 'Manual Product',
+      sku: `${codePrefix}-SKU-${Date.now()}`,
+      price: 20,
+      stock: startingStock
+    });
+
+    await Inventory.create({
+      organization: organization._id,
+      product: product._id,
+      warehouse: warehouse._id,
+      quantityOnHand: startingStock,
+      quantityReserved: 0
+    });
+
+    return { organization, warehouse, product };
+  };
+
   it('rejects adjustment without warehouseId when strict mode is enabled', async () => {
     process.env.INVENTORY_ADJUST_REQUIRE_WAREHOUSE_ID = 'true';
 
@@ -129,5 +163,78 @@ describe('manual inventory adjustment service', () => {
       action: 'ADJUST_PRODUCT_STOCK'
     }).lean();
     expect(auditRows.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('rejects amount direction that conflicts with reason policy', async () => {
+    process.env.INVENTORY_ADJUST_REQUIRE_WAREHOUSE_ID = 'true';
+    const { organization, warehouse, product } = await seedInventoryContext({
+      startingStock: 10,
+      codePrefix: 'MAN-DIR'
+    });
+
+    await expect(
+      adjustInventoryFromManualInput({
+        organizationId: organization._id,
+        productId: product._id,
+        amount: 3,
+        reason: 'sale',
+        warehouseId: warehouse._id,
+        actorRole: 'admin',
+        actorUserId: new mongoose.Types.ObjectId()
+      })
+    ).rejects.toThrow('only allows negative stock adjustments');
+  });
+
+  it('rejects sensitive reasons for staff when minimum role is manager', async () => {
+    process.env.INVENTORY_ADJUST_REQUIRE_WAREHOUSE_ID = 'true';
+    process.env.INVENTORY_SENSITIVE_REASON_MIN_ROLE = 'manager';
+
+    const { organization, warehouse, product } = await seedInventoryContext({
+      startingStock: 10,
+      codePrefix: 'MAN-SENS'
+    });
+
+    await expect(
+      adjustInventoryFromManualInput({
+        organizationId: organization._id,
+        productId: product._id,
+        amount: -1,
+        reason: 'damaged',
+        warehouseId: warehouse._id,
+        actorRole: 'staff',
+        actorUserId: new mongoose.Types.ObjectId()
+      })
+    ).rejects.toThrow('requires role manager or higher');
+  });
+
+  it('allows sensitive reasons for manager role and records stock movement', async () => {
+    process.env.INVENTORY_ADJUST_REQUIRE_WAREHOUSE_ID = 'true';
+    process.env.INVENTORY_SENSITIVE_REASON_MIN_ROLE = 'manager';
+
+    const { organization, warehouse, product } = await seedInventoryContext({
+      startingStock: 8,
+      codePrefix: 'MAN-OK'
+    });
+
+    const result = await adjustInventoryFromManualInput({
+      organizationId: organization._id,
+      productId: product._id,
+      amount: -2,
+      reason: 'damaged',
+      warehouseId: warehouse._id,
+      actorRole: 'manager',
+      actorUserId: new mongoose.Types.ObjectId()
+    });
+
+    expect(result.reason).toBe('damaged');
+    expect(result.isSensitiveReason).toBe(true);
+    expect(result.sensitiveAdjustmentMinRole).toBe('manager');
+
+    const inventory = await Inventory.findOne({
+      organization: organization._id,
+      product: product._id,
+      warehouse: warehouse._id
+    }).lean();
+    expect(Number(inventory?.quantityOnHand || 0)).toBe(6);
   });
 });

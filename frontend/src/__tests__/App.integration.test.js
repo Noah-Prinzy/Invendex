@@ -1,16 +1,14 @@
-import {
-  act,
-  fireEvent,
-  screen,
-  waitFor,
-  within
-} from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import App from '../App.js';
 import useAuth from '../hooks/auth/useAuth.js';
 import { useLedgerlyRealtime } from '../hooks/realtime/useLedgerlyRealtime.js';
 import { useOfflineSync } from '../hooks/offline/useOfflineSync.js';
 import { renderWithProviders } from '../test/renderWithProviders.js';
 import {
+  getNotificationsRequest,
+  markNotificationReadRequest,
+  markAllNotificationsReadRequest,
+  seedOnboardingSampleDataRequest,
   getFinanceRealtimeStatsRequest,
   getObservabilityPingRequest,
   getPurchaseOrdersRequest,
@@ -33,6 +31,10 @@ jest.mock('../hooks/offline/useOfflineSync.js', () => ({
 }));
 
 jest.mock('../api/client.js', () => ({
+  getNotificationsRequest: jest.fn(),
+  markNotificationReadRequest: jest.fn(),
+  markAllNotificationsReadRequest: jest.fn(),
+  seedOnboardingSampleDataRequest: jest.fn(),
   getPurchaseOrdersRequest: jest.fn(),
   getSettingsRequest: jest.fn(),
   getObservabilityPingRequest: jest.fn(),
@@ -47,15 +49,28 @@ const buildAuthState = (overrides) => ({
   isInitializing: false,
   error: '',
   notice: '',
+  pendingTwoFactorLogin: null,
   adminLogin: jest.fn(),
   employeeLogin: jest.fn(),
   login: jest.fn(),
+  verifyTwoFactorLogin: jest.fn(),
   signup: jest.fn(),
   requestEmailVerification: jest.fn(),
   verifyEmail: jest.fn(),
   requestPasswordReset: jest.fn(),
   resetPassword: jest.fn(),
   updatePreferences: jest.fn(),
+  getTwoFactorStatus: jest.fn(),
+  setupTwoFactor: jest.fn(),
+  enableTwoFactor: jest.fn(),
+  disableTwoFactor: jest.fn(),
+  regenerateTwoFactorRecoveryCodes: jest.fn(),
+  exportComplianceData: jest.fn(),
+  deleteMyAccount: jest.fn(),
+  deleteOrganization: jest.fn(),
+  listSessions: jest.fn(),
+  revokeSession: jest.fn(),
+  logoutOtherSessions: jest.fn(),
   logout: jest.fn(),
   ...overrides
 });
@@ -72,6 +87,17 @@ describe('App integration', () => {
     useLedgerlyRealtime.mockImplementation(() => ({}));
     useOfflineSync.mockImplementation(() => {});
     getPurchaseOrdersRequest.mockResolvedValue([]);
+    getNotificationsRequest.mockResolvedValue({
+      items: [],
+      unreadCount: 0
+    });
+    markNotificationReadRequest.mockResolvedValue({});
+    markAllNotificationsReadRequest.mockResolvedValue({});
+    seedOnboardingSampleDataRequest.mockResolvedValue({
+      skipped: false,
+      seedVersion: 'v1',
+      summary: {}
+    });
     getSettingsRequest.mockResolvedValue({
       organizationName: 'Test Org',
       organizationCode: 'TEST'
@@ -204,7 +230,7 @@ describe('App integration', () => {
     });
   });
 
-  it('handles realtime inventory and purchase-order updates with unread clearing', () => {
+  it('handles realtime inventory and purchase-order updates', async () => {
     useAuth.mockReturnValue(
       buildAuthState({
         user: {
@@ -219,6 +245,9 @@ describe('App integration', () => {
     );
 
     renderWithProviders(<App />);
+    await waitFor(() => {
+      expect(getNotificationsRequest).toHaveBeenCalled();
+    });
 
     const inventoryPayload = {
       organizationId: 'org-1',
@@ -248,17 +277,12 @@ describe('App integration', () => {
     });
 
     expect(screen.getByText('Delta +5 | On hand 42')).toBeInTheDocument();
-    const notificationsButton = screen.getByRole('button', {
-      name: 'Notifications'
-    });
-    expect(within(notificationsButton).getByText('2')).toBeInTheDocument();
-
     fireEvent.click(screen.getByRole('button', { name: 'Purchase Orders' }));
     expect(screen.getByText('PO PO-1001')).toBeInTheDocument();
     expect(screen.getByText('Status RECEIVED')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Notifications' }));
-    expect(within(notificationsButton).getByText('0')).toBeInTheDocument();
+    expect(screen.getByText('Notifications')).toBeInTheDocument();
   });
 
   it('opens settings sub-page from URL deep link', async () => {
@@ -282,6 +306,9 @@ describe('App integration', () => {
     );
 
     renderWithProviders(<App />);
+    await waitFor(() => {
+      expect(getNotificationsRequest).toHaveBeenCalled();
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Inventory Controls')).toBeInTheDocument();

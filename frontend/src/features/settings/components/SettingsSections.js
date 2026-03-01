@@ -305,6 +305,25 @@ export const InventoryControlsSection = ({
         />
         <span>Require warehouse on manual adjustments</span>
       </label>
+      <label className="settings-field">
+        <span>Sensitive adjustment minimum role</span>
+        <select
+          value={form.inventory.sensitiveAdjustmentMinRole || 'manager'}
+          onChange={(event) =>
+            setNestedField(
+              'inventory',
+              'sensitiveAdjustmentMinRole',
+              event.target.value
+            )
+          }
+          disabled={isDisabled(canManageSettings, isSaving)}
+        >
+          <option value="staff">staff</option>
+          <option value="manager">manager</option>
+          <option value="admin">admin</option>
+          <option value="owner">owner</option>
+        </select>
+      </label>
       <label className="settings-toggle">
         <input
           type="checkbox"
@@ -793,6 +812,83 @@ export const ObservabilityPipelineSection = ({
         </p>
       </div>
     </div>
+  </article>
+);
+
+export const OnboardingSampleDataSection = ({
+  canManageSettings,
+  isSeeding,
+  seedResult,
+  seedError,
+  onSeed
+}) => (
+  <article className="data-card settings-card">
+    <h3>Onboarding and Sample Data</h3>
+    <p className="event-sub">
+      Seed a ready-to-demo baseline: warehouse, suppliers, products, and opening
+      inventory.
+    </p>
+    <div className="obs-actions">
+      <button
+        type="button"
+        className="btn-primary"
+        onClick={() => onSeed(false)}
+        disabled={!canManageSettings || isSeeding}
+      >
+        {isSeeding ? 'Seeding...' : 'Seed sample data'}
+      </button>
+      <button
+        type="button"
+        className="btn-ghost"
+        onClick={() => onSeed(true)}
+        disabled={!canManageSettings || isSeeding}
+      >
+        Force re-seed
+      </button>
+    </div>
+
+    {seedError ? <p className="form-error">{seedError}</p> : null}
+
+    {seedResult ? (
+      <div className="obs-grid settings-inline-grid">
+        <div className="obs-item">
+          <p className="metric-label">Status</p>
+          <p className="obs-value">
+            {seedResult.skipped ? 'Skipped' : 'Completed'}
+          </p>
+        </div>
+        <div className="obs-item">
+          <p className="metric-label">Seed version</p>
+          <p className="obs-value monospace">
+            {seedResult.seedVersion || 'n/a'}
+          </p>
+        </div>
+        <div className="obs-item">
+          <p className="metric-label">Suppliers created</p>
+          <p className="obs-value">
+            {Number(seedResult.summary?.suppliersCreated || 0)}
+          </p>
+        </div>
+        <div className="obs-item">
+          <p className="metric-label">Products created</p>
+          <p className="obs-value">
+            {Number(seedResult.summary?.productsCreated || 0)}
+          </p>
+        </div>
+        <div className="obs-item">
+          <p className="metric-label">Inventory rows created</p>
+          <p className="obs-value">
+            {Number(seedResult.summary?.inventoryRowsCreated || 0)}
+          </p>
+        </div>
+        <div className="obs-item">
+          <p className="metric-label">Seeded at</p>
+          <p className="obs-value">
+            {seedResult.seededAt ? formatDateTime(seedResult.seededAt) : 'n/a'}
+          </p>
+        </div>
+      </div>
+    ) : null}
   </article>
 );
 

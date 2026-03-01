@@ -33,6 +33,40 @@ export const createProductValidator = [
     .matches(/^[A-Za-z0-9-_ ]+$/)
     .withMessage('SKU prefix contains unsupported characters'),
 
+  body('isVariant')
+    .optional()
+    .isBoolean()
+    .withMessage('isVariant must be boolean'),
+
+  body('parentProduct')
+    .optional({ values: 'falsy' })
+    .isMongoId()
+    .withMessage('parentProduct must be a valid Mongo ID'),
+
+  body('variantAttributes')
+    .optional()
+    .isObject()
+    .withMessage('variantAttributes must be an object'),
+
+  body('uom').optional().isObject().withMessage('uom must be an object'),
+
+  body('uom.base')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isLength({ min: 1, max: 32 })
+    .withMessage('uom.base must be 1 to 32 characters'),
+
+  body('uom.purchase')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isLength({ min: 1, max: 32 })
+    .withMessage('uom.purchase must be 1 to 32 characters'),
+
+  body('uom.purchaseToBaseFactor')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('uom.purchaseToBaseFactor must be an integer >= 1'),
+
   body('barcode')
     .optional({ values: 'falsy' })
     .trim()
@@ -93,6 +127,40 @@ export const updateProductValidator = [
     .withMessage('SKU is too long')
     .matches(/^[A-Za-z0-9-_ ]+$/)
     .withMessage('SKU contains unsupported characters'),
+
+  body('isVariant')
+    .optional()
+    .isBoolean()
+    .withMessage('isVariant must be boolean'),
+
+  body('parentProduct')
+    .optional({ values: 'falsy' })
+    .isMongoId()
+    .withMessage('parentProduct must be a valid Mongo ID'),
+
+  body('variantAttributes')
+    .optional()
+    .isObject()
+    .withMessage('variantAttributes must be an object'),
+
+  body('uom').optional().isObject().withMessage('uom must be an object'),
+
+  body('uom.base')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isLength({ min: 1, max: 32 })
+    .withMessage('uom.base must be 1 to 32 characters'),
+
+  body('uom.purchase')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isLength({ min: 1, max: 32 })
+    .withMessage('uom.purchase must be 1 to 32 characters'),
+
+  body('uom.purchaseToBaseFactor')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('uom.purchaseToBaseFactor must be an integer >= 1'),
 
   body('price')
     .optional()

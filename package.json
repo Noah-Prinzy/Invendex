@@ -7,7 +7,8 @@
     "lint": "npm --prefix backend run lint && npm --prefix frontend run lint",
     "lint:fix": "npm --prefix backend run lint:fix && npm --prefix frontend run lint:fix",
     "format": "prettier . --write",
-    "format:check": "prettier . --check"
+    "format:check": "prettier . --check",
+    "release:bundle": "node scripts/createReleaseBundle.mjs"
   },
   "devDependencies": {
     "husky": "^9.1.7",

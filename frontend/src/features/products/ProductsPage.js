@@ -4,7 +4,9 @@ import {
   adjustProductStockRequest,
   createProductRequest,
   createProductsBulkImportRequest,
+  createProductsBulkImportJobRequest,
   getDeletedProductsRequest,
+  getProductsBulkImportJobStatusRequest,
   getProductsLowStockSummaryRequest,
   getProductsRequest,
   permanentlyDeleteProductRequest,
@@ -28,7 +30,36 @@ const ROLES_WITH_PRODUCT_MANAGE = new Set([
 const ROLES_WITH_DELETED_REVIEW = new Set(['owner', 'admin']);
 const PAGE_SIZE = 8;
 const PRODUCTS_QUERY_STALE_TIME_MS = 45 * 1000;
-const STOCK_ADJUST_REASONS = ['sale', 'restock', 'adjustment', 'return'];
+const STOCK_ADJUST_REASONS = [
+  'sale',
+  'restock',
+  'adjustment',
+  'return',
+  'damaged',
+  'expired',
+  'stolen',
+  'correction',
+  'supplier_return'
+];
+const STOCK_ADJUST_REASON_LABELS = Object.freeze({
+  sale: 'sale',
+  restock: 'restock',
+  adjustment: 'adjustment',
+  return: 'return',
+  damaged: 'damaged',
+  expired: 'expired',
+  stolen: 'stolen',
+  correction: 'correction',
+  supplier_return: 'supplier return'
+});
+const SENSITIVE_STOCK_ADJUST_REASONS = new Set([
+  'damaged',
+  'expired',
+  'stolen',
+  'correction',
+  'supplier_return'
+]);
+const ROLES_WITH_SENSITIVE_ADJUSTMENTS = new Set(['owner', 'admin', 'manager']);
 const BULK_PREVIEW_ROW_LIMIT = 5;
 const BULK_FIELD_KEYS = [
   'name',
@@ -68,6 +99,9 @@ const BULK_IMPORT_DUPLICATE_POLICIES = [
   { value: 'update', label: 'Update existing' },
   { value: 'fail', label: 'Fail duplicate rows' }
 ];
+const BULK_IMPORT_JOB_TERMINAL_STATUSES = new Set(['COMPLETED', 'FAILED']);
+const BULK_IMPORT_JOB_POLL_INTERVAL_MS = 2000;
+const PRODUCT_SAVED_VIEWS_STORAGE_KEY = 'ledgerly.products.savedViews.v1';
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('en-US', {
@@ -167,6 +201,20 @@ const parseCsvToObjects = (csvText) => {
   return { headers, rows };
 };
 
+const parseVariantAttributesText = (value) => {
+  const input = String(value || '').trim();
+  if (!input) return {};
+
+  return input.split(',').reduce((acc, pair) => {
+    const [rawKey, rawValue] = String(pair || '').split('=');
+    const key = String(rawKey || '').trim();
+    const parsedValue = String(rawValue || '').trim();
+    if (!key || !parsedValue) return acc;
+    acc[key] = parsedValue;
+    return acc;
+  }, {});
+};
+
 const buildDefaultBulkFieldMap = (headers = []) =>
   BULK_FIELD_KEYS.reduce((acc, key) => {
     acc[key] = headers.includes(key) ? key : '';
@@ -195,12 +243,53 @@ const downloadTextFile = ({ filename, content, mimeType }) => {
   URL.revokeObjectURL(url);
 };
 
+const readSavedProductViews = () => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(PRODUCT_SAVED_VIEWS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((view) => view && typeof view === 'object')
+      .map((view) => ({
+        id: String(view.id || '').trim(),
+        name: String(view.name || '').trim(),
+        filters: {
+          searchTerm: String(view?.filters?.searchTerm || ''),
+          skuFilter: String(view?.filters?.skuFilter || ''),
+          stockFilter: String(view?.filters?.stockFilter || 'all'),
+          sortKey: String(view?.filters?.sortKey || 'name'),
+          sortDirection: String(view?.filters?.sortDirection || 'asc')
+        }
+      }))
+      .filter((view) => view.id && view.name);
+  } catch {
+    return [];
+  }
+};
+
+const writeSavedProductViews = (views = []) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      PRODUCT_SAVED_VIEWS_STORAGE_KEY,
+      JSON.stringify(Array.isArray(views) ? views : [])
+    );
+  } catch {
+    // Ignore storage errors for non-critical UI preference data.
+  }
+};
+
 const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [skuFilter, setSkuFilter] = useState('');
   const [stockFilter, setStockFilter] = useState('all');
   const [sortKey, setSortKey] = useState('name');
   const [sortDirection, setSortDirection] = useState('asc');
+  const [savedViews, setSavedViews] = useState(() => readSavedProductViews());
+  const [savedViewName, setSavedViewName] = useState('');
+  const [selectedSavedViewId, setSelectedSavedViewId] = useState('');
   const [page, setPage] = useState(1);
   const [adjustProductId, setAdjustProductId] = useState('');
   const [adjustAmount, setAdjustAmount] = useState('');
@@ -212,6 +301,7 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
   const [bulkImportRows, setBulkImportRows] = useState([]);
   const [bulkImportRowErrors, setBulkImportRowErrors] = useState([]);
   const [bulkImportSummary, setBulkImportSummary] = useState(null);
+  const [bulkImportJob, setBulkImportJob] = useState(null);
   const [bulkImportOptions, setBulkImportOptions] = useState({
     duplicatePolicy: 'skip',
     atomic: false
@@ -223,10 +313,16 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
     name: '',
     sku: '',
     skuPrefix: '',
+    isVariant: false,
+    parentProduct: '',
+    variantAttributesText: '',
     barcode: '',
     barcodeType: '',
     price: '',
     category: '',
+    uomBase: 'pcs',
+    uomPurchase: 'pcs',
+    uomPurchaseToBaseFactor: '1',
     lowStockThreshold: '5',
     description: ''
   });
@@ -241,6 +337,16 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
   const canManageProducts = ROLES_WITH_PRODUCT_MANAGE.has(normalizedRole);
   const canReviewDeletedProducts =
     ROLES_WITH_DELETED_REVIEW.has(normalizedRole);
+  const canUseSensitiveAdjustmentReasons =
+    ROLES_WITH_SENSITIVE_ADJUSTMENTS.has(normalizedRole);
+  const availableAdjustReasons = useMemo(() => {
+    if (canUseSensitiveAdjustmentReasons) {
+      return STOCK_ADJUST_REASONS;
+    }
+    return STOCK_ADJUST_REASONS.filter(
+      (reason) => !SENSITIVE_STOCK_ADJUST_REASONS.has(reason)
+    );
+  }, [canUseSensitiveAdjustmentReasons]);
 
   const productsQueryKey = useMemo(
     () => [
@@ -344,10 +450,16 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
         name: '',
         sku: '',
         skuPrefix: '',
+        isVariant: false,
+        parentProduct: '',
+        variantAttributesText: '',
         barcode: '',
         barcodeType: '',
         price: '',
         category: '',
+        uomBase: 'pcs',
+        uomPurchase: 'pcs',
+        uomPurchaseToBaseFactor: '1',
         lowStockThreshold: '5',
         description: ''
       });
@@ -399,6 +511,132 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
       );
     }
   });
+
+  const bulkImportJobMutation = useMutation({
+    mutationFn: async ({ rows, fieldMap, options }) =>
+      createProductsBulkImportJobRequest({
+        accessToken,
+        products: rows,
+        fieldMap,
+        options
+      }),
+    onSuccess: (job) => {
+      setBulkImportJob(job || null);
+      setBulkImportSummary(null);
+      setBulkImportRowErrors([]);
+      setBulkImportNotice(
+        `Bulk import queued. Job ${String(job?.id || '').slice(-8)} is running in the background.`
+      );
+    },
+    onError: (mutationError) => {
+      setBulkImportJob(null);
+      setBulkImportSummary(null);
+      setBulkImportRowErrors([]);
+      setBulkImportNotice(
+        String(mutationError?.message || 'Unable to queue bulk import job')
+      );
+    }
+  });
+
+  useEffect(() => {
+    const jobId = String(bulkImportJob?.id || '').trim();
+    const status = String(bulkImportJob?.status || '')
+      .trim()
+      .toUpperCase();
+
+    if (
+      !accessToken ||
+      !jobId ||
+      BULK_IMPORT_JOB_TERMINAL_STATUSES.has(status)
+    ) {
+      return undefined;
+    }
+
+    let isCancelled = false;
+
+    const pollJobStatus = async () => {
+      try {
+        const nextJob = await getProductsBulkImportJobStatusRequest({
+          accessToken,
+          jobId
+        });
+        if (isCancelled) return;
+
+        setBulkImportJob(nextJob || null);
+
+        const nextStatus = String(nextJob?.status || '')
+          .trim()
+          .toUpperCase();
+        if (nextStatus === 'RUNNING' || nextStatus === 'QUEUED') {
+          const progress = Number(nextJob?.progress?.percent || 0);
+          setBulkImportNotice(
+            `Bulk import job running... ${Math.max(0, Math.min(100, Math.round(progress)))}%`
+          );
+          return;
+        }
+
+        if (nextStatus === 'COMPLETED') {
+          const result = nextJob?.result || null;
+          setBulkImportSummary(result);
+          setBulkImportRowErrors(
+            Array.isArray(result?.rowErrors) ? result.rowErrors : []
+          );
+          if (result?.dryRun) {
+            setBulkImportNotice(
+              `Background validation completed. Valid: ${Number(result?.validRows || 0)}, Invalid: ${Number(result?.invalidRows || 0)}.`
+            );
+          } else {
+            setBulkImportNotice(
+              `Background import completed. Created: ${Number(result?.createdCount || 0)}, Updated: ${Number(result?.updatedCount || 0)}, Skipped: ${Number(result?.skippedCount || 0)}, Failed: ${Number(result?.failedCount || 0)}.`
+            );
+            queryClient.invalidateQueries({ queryKey: ['products:index'] });
+            refetch();
+          }
+          return;
+        }
+
+        if (nextStatus === 'FAILED') {
+          setBulkImportSummary(null);
+          setBulkImportRowErrors([]);
+          setBulkImportNotice(
+            String(nextJob?.error?.message || 'Background import failed')
+          );
+        }
+      } catch (pollError) {
+        if (isCancelled) return;
+        setBulkImportNotice(
+          String(pollError?.message || 'Unable to fetch background job status')
+        );
+      }
+    };
+
+    void pollJobStatus();
+    const interval = setInterval(() => {
+      void pollJobStatus();
+    }, BULK_IMPORT_JOB_POLL_INTERVAL_MS);
+
+    return () => {
+      isCancelled = true;
+      clearInterval(interval);
+    };
+  }, [
+    accessToken,
+    bulkImportJob?.id,
+    bulkImportJob?.status,
+    queryClient,
+    refetch
+  ]);
+
+  useEffect(() => {
+    writeSavedProductViews(savedViews);
+  }, [savedViews]);
+
+  useEffect(() => {
+    if (availableAdjustReasons.includes(adjustReason)) {
+      return;
+    }
+    setAdjustReason(availableAdjustReasons[0] || 'adjustment');
+  }, [adjustReason, availableAdjustReasons]);
 
   const softDeleteProductMutation = useMutation({
     mutationFn: async (productId) =>
@@ -471,6 +709,16 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
   const errorMessage = String(error?.message || '').trim();
   const canAdjustStock = Boolean(accessToken);
   const normalizedWarehouseId = String(warehouseId || '').trim();
+  const bulkImportJobStatus = String(bulkImportJob?.status || '')
+    .trim()
+    .toUpperCase();
+  const isBulkImportJobActive =
+    Boolean(bulkImportJob?.id) &&
+    !BULK_IMPORT_JOB_TERMINAL_STATUSES.has(bulkImportJobStatus);
+  const isBulkImportBusy =
+    bulkImportMutation.isPending ||
+    bulkImportJobMutation.isPending ||
+    isBulkImportJobActive;
 
   const handleAdjustStockSubmit = async (event) => {
     event.preventDefault();
@@ -533,6 +781,7 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
     setBulkImportNotice('');
     setBulkImportRowErrors([]);
     setBulkImportSummary(null);
+    setBulkImportJob(null);
 
     try {
       const csvText = await file.text();
@@ -572,14 +821,9 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
     }
   };
 
-  const submitBulkImport = async ({ validateOnly }) => {
-    setBulkImportNotice('');
-    setBulkImportRowErrors([]);
-    setBulkImportSummary(null);
-
+  const buildBulkImportRequestPayload = () => {
     if (!bulkImportRows.length) {
-      setBulkImportNotice('Upload a CSV file first.');
-      return;
+      throw new Error('Upload a CSV file first.');
     }
 
     const normalizedFieldMap = BULK_FIELD_KEYS.reduce((acc, key) => {
@@ -591,19 +835,33 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
     }, {});
 
     if (!normalizedFieldMap.name || !normalizedFieldMap.price) {
-      setBulkImportNotice(
-        'Map at least Name and Price columns before importing.'
-      );
-      return;
+      throw new Error('Map at least Name and Price columns before importing.');
     }
 
-    await bulkImportMutation.mutateAsync({
+    return {
       rows: bulkImportRows,
       fieldMap: normalizedFieldMap,
       options: {
-        validateOnly: Boolean(validateOnly),
         duplicatePolicy: String(bulkImportOptions.duplicatePolicy || 'skip'),
         atomic: Boolean(bulkImportOptions.atomic)
+      }
+    };
+  };
+
+  const submitBulkImport = async ({ validateOnly }) => {
+    setBulkImportNotice('');
+    setBulkImportRowErrors([]);
+    setBulkImportSummary(null);
+    setBulkImportJob(null);
+
+    const payload = buildBulkImportRequestPayload();
+    await bulkImportMutation.mutateAsync({
+      rows: payload.rows,
+      fieldMap: payload.fieldMap,
+      options: {
+        validateOnly: Boolean(validateOnly),
+        duplicatePolicy: payload.options.duplicatePolicy,
+        atomic: payload.options.atomic
       }
     });
   };
@@ -615,6 +873,27 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
 
   const handleBulkValidate = async () => {
     await submitBulkImport({ validateOnly: true });
+  };
+
+  const handleBulkImportInBackground = async () => {
+    setBulkImportNotice('');
+    setBulkImportRowErrors([]);
+    setBulkImportSummary(null);
+
+    try {
+      const payload = buildBulkImportRequestPayload();
+      await bulkImportJobMutation.mutateAsync({
+        rows: payload.rows,
+        fieldMap: payload.fieldMap,
+        options: {
+          validateOnly: false,
+          duplicatePolicy: payload.options.duplicatePolicy,
+          atomic: payload.options.atomic
+        }
+      });
+    } catch (error) {
+      setBulkImportNotice(String(error?.message || 'Unable to queue import'));
+    }
   };
 
   const handleDownloadBulkImportErrors = () => {
@@ -673,6 +952,69 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
     });
   };
 
+  const handleSaveCurrentProductView = () => {
+    const normalizedName = String(savedViewName || '').trim();
+    if (!normalizedName) {
+      setManagementNotice('Enter a name before saving a product view.');
+      return;
+    }
+
+    const viewPayload = {
+      id: `view_${Date.now()}`,
+      name: normalizedName,
+      filters: {
+        searchTerm: String(searchTerm || ''),
+        skuFilter: String(skuFilter || ''),
+        stockFilter: String(stockFilter || 'all'),
+        sortKey: String(sortKey || 'name'),
+        sortDirection: String(sortDirection || 'asc')
+      }
+    };
+
+    setSavedViews((current) => {
+      const deduped = current.filter(
+        (view) =>
+          String(view.name || '').toLowerCase() !== normalizedName.toLowerCase()
+      );
+      return [viewPayload, ...deduped].slice(0, 25);
+    });
+    setSelectedSavedViewId(viewPayload.id);
+    setSavedViewName('');
+    setManagementNotice(`Saved product view: ${normalizedName}`);
+  };
+
+  const handleApplySavedProductView = (viewId) => {
+    const selectedId = String(viewId || '').trim();
+    setSelectedSavedViewId(selectedId);
+    const selectedView = savedViews.find((view) => view.id === selectedId);
+    if (!selectedView) return;
+
+    const filters = selectedView.filters || {};
+    setSearchTerm(String(filters.searchTerm || ''));
+    setSkuFilter(String(filters.skuFilter || ''));
+    setStockFilter(String(filters.stockFilter || 'all'));
+    setSortKey(String(filters.sortKey || 'name'));
+    setSortDirection(String(filters.sortDirection || 'asc'));
+    setPage(1);
+    setManagementNotice(`Applied product view: ${selectedView.name}`);
+  };
+
+  const handleDeleteSavedProductView = () => {
+    const selectedId = String(selectedSavedViewId || '').trim();
+    if (!selectedId) return;
+
+    const selectedView = savedViews.find((view) => view.id === selectedId);
+    setSavedViews((current) =>
+      current.filter((view) => view.id !== selectedId)
+    );
+    setSelectedSavedViewId('');
+    setManagementNotice(
+      selectedView
+        ? `Deleted product view: ${selectedView.name}`
+        : 'Saved product view deleted.'
+    );
+  };
+
   const handleCreateProductSubmit = async (event) => {
     event.preventDefault();
     setManagementNotice('');
@@ -684,6 +1026,16 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
     const barcodeType = String(createForm.barcodeType || '').trim();
     const category = String(createForm.category || '').trim();
     const description = String(createForm.description || '').trim();
+    const isVariant = createForm.isVariant === true;
+    const parentProduct = String(createForm.parentProduct || '').trim();
+    const variantAttributes = parseVariantAttributesText(
+      createForm.variantAttributesText
+    );
+    const uomBase = String(createForm.uomBase || '').trim();
+    const uomPurchase = String(createForm.uomPurchase || '').trim();
+    const uomPurchaseToBaseFactor = Number(
+      createForm.uomPurchaseToBaseFactor || 1
+    );
     const price = Number(createForm.price);
     const lowStockThreshold = Number(createForm.lowStockThreshold);
 
@@ -704,6 +1056,21 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
       return;
     }
 
+    if (isVariant && !parentProduct) {
+      setManagementNotice(
+        'Parent product is required when variant is enabled.'
+      );
+      return;
+    }
+
+    if (
+      !Number.isInteger(uomPurchaseToBaseFactor) ||
+      uomPurchaseToBaseFactor < 1
+    ) {
+      setManagementNotice('UOM conversion factor must be an integer >= 1.');
+      return;
+    }
+
     await createProductMutation.mutateAsync({
       name,
       sku,
@@ -713,7 +1080,15 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
       price,
       category,
       description,
-      lowStockThreshold
+      lowStockThreshold,
+      isVariant,
+      parentProduct,
+      variantAttributes,
+      uom: {
+        base: uomBase || 'pcs',
+        purchase: uomPurchase || uomBase || 'pcs',
+        purchaseToBaseFactor: uomPurchaseToBaseFactor
+      }
     });
   };
 
@@ -931,9 +1306,9 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
               onChange={(event) => setAdjustReason(event.target.value)}
               disabled={!canAdjustStock || stockAdjustMutation.isPending}
             >
-              {STOCK_ADJUST_REASONS.map((reason) => (
+              {availableAdjustReasons.map((reason) => (
                 <option key={reason} value={reason}>
-                  {reason}
+                  {STOCK_ADJUST_REASON_LABELS[reason] || reason}
                 </option>
               ))}
             </select>
@@ -1025,6 +1400,55 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
               />
             </label>
             <label className="control-field">
+              <span>Is variant</span>
+              <input
+                type="checkbox"
+                checked={createForm.isVariant}
+                onChange={(event) =>
+                  setCreateForm((current) => ({
+                    ...current,
+                    isVariant: event.target.checked
+                  }))
+                }
+                disabled={createProductMutation.isPending}
+              />
+            </label>
+            <label className="control-field">
+              <span>Parent product</span>
+              <select
+                value={createForm.parentProduct}
+                onChange={handleCreateInputChange('parentProduct')}
+                disabled={
+                  createProductMutation.isPending || !createForm.isVariant
+                }
+              >
+                <option value="">None</option>
+                {products.map((product) => {
+                  const productId = resolveProductId(product);
+                  return (
+                    <option
+                      key={`parent-product-${productId}`}
+                      value={productId}
+                    >
+                      {product.name || product.sku || productId}
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+            <label className="control-field">
+              <span>Variant attributes</span>
+              <input
+                type="text"
+                value={createForm.variantAttributesText}
+                onChange={handleCreateInputChange('variantAttributesText')}
+                placeholder="e.g. color=black,size=M"
+                disabled={
+                  createProductMutation.isPending || !createForm.isVariant
+                }
+              />
+            </label>
+            <label className="control-field">
               <span>Barcode</span>
               <input
                 type="text"
@@ -1048,6 +1472,38 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
                 <option value="QR">QR</option>
                 <option value="OTHER">OTHER</option>
               </select>
+            </label>
+            <label className="control-field">
+              <span>Base UOM</span>
+              <input
+                type="text"
+                value={createForm.uomBase}
+                onChange={handleCreateInputChange('uomBase')}
+                placeholder="pcs"
+                disabled={createProductMutation.isPending}
+              />
+            </label>
+            <label className="control-field">
+              <span>Purchase UOM</span>
+              <input
+                type="text"
+                value={createForm.uomPurchase}
+                onChange={handleCreateInputChange('uomPurchase')}
+                placeholder="box"
+                disabled={createProductMutation.isPending}
+              />
+            </label>
+            <label className="control-field">
+              <span>Purchase to base factor</span>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={createForm.uomPurchaseToBaseFactor}
+                onChange={handleCreateInputChange('uomPurchaseToBaseFactor')}
+                placeholder="1"
+                disabled={createProductMutation.isPending}
+              />
             </label>
             <label className="control-field">
               <span>Low-stock threshold</span>
@@ -1107,7 +1563,7 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
                 type="file"
                 accept=".csv,text/csv"
                 onChange={handleBulkImportFileChange}
-                disabled={bulkImportMutation.isPending}
+                disabled={isBulkImportBusy}
               />
             </label>
             <label className="control-field">
@@ -1115,7 +1571,7 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
               <select
                 value={bulkImportOptions.duplicatePolicy}
                 onChange={handleBulkImportOptionChange('duplicatePolicy')}
-                disabled={bulkImportMutation.isPending}
+                disabled={isBulkImportBusy}
               >
                 {BULK_IMPORT_DUPLICATE_POLICIES.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -1130,28 +1586,47 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
                 type="checkbox"
                 checked={bulkImportOptions.atomic}
                 onChange={handleBulkImportOptionChange('atomic')}
-                disabled={bulkImportMutation.isPending}
+                disabled={isBulkImportBusy}
               />
             </label>
             <button
               type="button"
               className="btn-ghost"
               onClick={handleBulkValidate}
-              disabled={bulkImportMutation.isPending || !bulkImportRows.length}
+              disabled={isBulkImportBusy || !bulkImportRows.length}
             >
               {bulkImportMutation.isPending ? 'Validating...' : 'Validate CSV'}
             </button>
             <button
               type="submit"
               className="btn-ghost"
-              disabled={bulkImportMutation.isPending || !bulkImportRows.length}
+              disabled={isBulkImportBusy || !bulkImportRows.length}
             >
               {bulkImportMutation.isPending ? 'Importing...' : 'Import CSV'}
+            </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={handleBulkImportInBackground}
+              disabled={isBulkImportBusy || !bulkImportRows.length}
+            >
+              {bulkImportJobMutation.isPending
+                ? 'Queuing...'
+                : isBulkImportJobActive
+                  ? 'Background job running...'
+                  : 'Run in background'}
             </button>
           </form>
 
           {bulkImportNotice ? (
             <p className="section-note">{bulkImportNotice}</p>
+          ) : null}
+          {bulkImportJob?.id ? (
+            <p className="muted">
+              Job ID: {bulkImportJob.id} | Status: {bulkImportJob.status} |
+              Progress:{' '}
+              {Math.round(Number(bulkImportJob?.progress?.percent || 0))}%
+            </p>
           ) : null}
           {bulkImportSummary ? (
             <div className="metric-grid">
@@ -1207,7 +1682,7 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
                     <select
                       value={bulkImportFieldMap[field] || ''}
                       onChange={handleBulkImportFieldMapChange(field)}
-                      disabled={bulkImportMutation.isPending}
+                      disabled={isBulkImportBusy}
                     >
                       <option value="">Skip</option>
                       {bulkImportHeaders.map((header) => (
@@ -1327,6 +1802,49 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
           </label>
         </div>
 
+        <div className="control-row compact">
+          <label className="control-field">
+            <span>Save current view</span>
+            <input
+              type="text"
+              value={savedViewName}
+              onChange={(event) => setSavedViewName(event.target.value)}
+              placeholder="e.g. Low stock electronics"
+            />
+          </label>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={handleSaveCurrentProductView}
+          >
+            Save view
+          </button>
+          <label className="control-field">
+            <span>Saved views</span>
+            <select
+              value={selectedSavedViewId}
+              onChange={(event) =>
+                handleApplySavedProductView(event.target.value)
+              }
+            >
+              <option value="">Select a saved view</option>
+              {savedViews.map((view) => (
+                <option key={view.id} value={view.id}>
+                  {view.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={handleDeleteSavedProductView}
+            disabled={!selectedSavedViewId}
+          >
+            Delete view
+          </button>
+        </div>
+
         {filteredProducts.length ? (
           <div className="table-wrap">
             <table className="data-table">
@@ -1336,6 +1854,8 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
                   <th>SKU</th>
                   <th>Barcode</th>
                   <th>Category</th>
+                  <th>Variant</th>
+                  <th>UOM</th>
                   <th>Stock</th>
                   <th>Threshold</th>
                   <th>Price</th>
@@ -1351,6 +1871,12 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
                       <td>{product.sku || '-'}</td>
                       <td>{product.barcode || '-'}</td>
                       <td>{product.category || '-'}</td>
+                      <td>{product.isVariant ? 'Yes' : 'No'}</td>
+                      <td>
+                        {String(product?.uom?.purchase || 'pcs')}:{' '}
+                        {Number(product?.uom?.purchaseToBaseFactor || 1)}{' '}
+                        {String(product?.uom?.base || 'pcs')}
+                      </td>
                       <td>{Number(product.stock || 0)}</td>
                       <td>{Number(product.lowStockThreshold || 0)}</td>
                       <td>{formatCurrency(product.price)}</td>

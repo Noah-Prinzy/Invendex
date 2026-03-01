@@ -25,6 +25,15 @@ const organizationSchema = new mongoose.Schema(
     smsLowStockRecipients: {
       type: [String],
       default: []
+    },
+    onboardingSampleSeededAt: {
+      type: Date,
+      default: null
+    },
+    onboardingSampleSeedVersion: {
+      type: String,
+      default: null,
+      trim: true
     }
   },
   { timestamps: true }

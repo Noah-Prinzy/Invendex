@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getFinanceRealtimeStatsRequest,
   getObservabilityPingRequest,
+  seedOnboardingSampleDataRequest,
   getSettingsRequest,
   patchSettingsRequest
 } from '../../api/client.js';
@@ -17,6 +18,7 @@ import {
   RealtimeOfflineSection,
   AuditBackupSection,
   ObservabilityPipelineSection,
+  OnboardingSampleDataSection,
   SettingsSaveFooter
 } from './components/SettingsSections.js';
 import {
@@ -91,6 +93,12 @@ const SETTINGS_PAGES = [
     scope: 'Compliance'
   },
   {
+    id: 'onboarding-sample',
+    title: 'Onboarding Sample Data',
+    description: 'Seed demo-ready sample warehouse, suppliers, and products.',
+    scope: 'Launch'
+  },
+  {
     id: 'observability',
     title: 'Observability Pipeline',
     description: 'Trace IDs, runtime health, and realtime diagnostics.',
@@ -156,6 +164,9 @@ const Settings = ({
   const [isDirty, setIsDirty] = useState(false);
   const [lastCheckedAt, setLastCheckedAt] = useState(null);
   const [copyTraceState, setCopyTraceState] = useState('idle');
+  const [onboardingSeedResult, setOnboardingSeedResult] = useState(null);
+  const [onboardingSeedError, setOnboardingSeedError] = useState('');
+  const [onboardingSeeding, setOnboardingSeeding] = useState(false);
 
   const normalizedRole = String(userRole || '')
     .trim()
@@ -357,6 +368,29 @@ const Settings = ({
     observabilityQuery.data?.trace?.requestId
   ]);
 
+  const handleSeedSampleData = useCallback(
+    async (force = false) => {
+      if (!accessToken) return;
+      setOnboardingSeeding(true);
+      setOnboardingSeedError('');
+
+      try {
+        const result = await seedOnboardingSampleDataRequest({
+          accessToken,
+          force
+        });
+        setOnboardingSeedResult(result || null);
+      } catch (error) {
+        setOnboardingSeedError(
+          String(error?.message || 'Failed to seed onboarding sample data')
+        );
+      } finally {
+        setOnboardingSeeding(false);
+      }
+    },
+    [accessToken]
+  );
+
   const observabilityStatus = useMemo(() => {
     if (observabilityQuery.isError) return 'error';
     if (observabilityQuery.data) return 'ok';
@@ -533,6 +567,18 @@ const Settings = ({
           observabilitySummary={observabilitySummary}
           observabilityError={observabilityError}
           accessToken={accessToken}
+        />
+      );
+    }
+
+    if (activePageId === 'onboarding-sample') {
+      return (
+        <OnboardingSampleDataSection
+          canManageSettings={canManageSettings}
+          isSeeding={onboardingSeeding}
+          seedResult={onboardingSeedResult}
+          seedError={onboardingSeedError}
+          onSeed={handleSeedSampleData}
         />
       );
     }

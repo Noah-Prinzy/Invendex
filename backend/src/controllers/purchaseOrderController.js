@@ -19,6 +19,7 @@ import {
   publishPurchaseOrderReceived,
   publishPurchaseOrderUpdated
 } from '../realtime/publisher.js';
+import { createInAppNotification } from '../services/notifications/inAppNotificationService.js';
 import {
   extractIdempotencyKeyFromRequest,
   IDEMPOTENCY_SCOPE,
@@ -87,6 +88,22 @@ export const createPurchaseOrder = async (req, res, next) => {
       organizationId,
       actorUserId: req.user?._id || null,
       purchaseOrder
+    });
+
+    await createInAppNotification({
+      organizationId,
+      actorUserId: req.user?._id || null,
+      type: 'purchase_order_created',
+      title: `PO ${purchaseOrder.poNumber || purchaseOrder._id} created`,
+      message: `Purchase order created with ${purchaseOrder.items?.length || 0} item(s).`,
+      severity: 'info',
+      entityType: 'PURCHASE_ORDER',
+      entityId: purchaseOrder._id,
+      metadata: {
+        status: purchaseOrder.status,
+        supplierId: purchaseOrder.supplier,
+        warehouseId: purchaseOrder.warehouse
+      }
     });
 
     return successResponse(
@@ -172,6 +189,21 @@ export const receivePurchaseOrder = async (req, res, next) => {
           purchaseOrder
         });
 
+        await createInAppNotification({
+          organizationId: req.organizationId,
+          actorUserId: req.user?._id || null,
+          type: 'purchase_order_received',
+          title: `PO ${purchaseOrder.poNumber || purchaseOrder._id} received`,
+          message: 'Inventory has been updated from this receipt.',
+          severity: 'info',
+          entityType: 'PURCHASE_ORDER',
+          entityId: purchaseOrder._id,
+          metadata: {
+            status: purchaseOrder.status,
+            warehouseId: purchaseOrder.warehouse
+          }
+        });
+
         return purchaseOrder;
       }
     });
@@ -212,6 +244,21 @@ export const sendPurchaseOrder = async (req, res, next) => {
       purchaseOrder
     });
 
+    await createInAppNotification({
+      organizationId: req.organizationId,
+      actorUserId: req.user?._id || null,
+      type: 'purchase_order_updated',
+      title: `PO ${purchaseOrder.poNumber || purchaseOrder._id} sent`,
+      message: 'Purchase order status moved to SENT.',
+      severity: 'info',
+      entityType: 'PURCHASE_ORDER',
+      entityId: purchaseOrder._id,
+      metadata: {
+        status: purchaseOrder.status,
+        warehouseId: purchaseOrder.warehouse
+      }
+    });
+
     return successResponse(
       res,
       purchaseOrder,
@@ -240,6 +287,21 @@ export const closePurchaseOrder = async (req, res, next) => {
       purchaseOrder
     });
 
+    await createInAppNotification({
+      organizationId: req.organizationId,
+      actorUserId: req.user?._id || null,
+      type: 'purchase_order_updated',
+      title: `PO ${purchaseOrder.poNumber || purchaseOrder._id} closed`,
+      message: 'Purchase order status moved to CLOSED.',
+      severity: 'info',
+      entityType: 'PURCHASE_ORDER',
+      entityId: purchaseOrder._id,
+      metadata: {
+        status: purchaseOrder.status,
+        warehouseId: purchaseOrder.warehouse
+      }
+    });
+
     return successResponse(
       res,
       purchaseOrder,
@@ -266,6 +328,21 @@ export const generatePurchaseOrdersFromAlerts = async (req, res, next) => {
         organizationId: req.organizationId,
         actorUserId: req.user?._id || null,
         purchaseOrder: order
+      });
+
+      await createInAppNotification({
+        organizationId: req.organizationId,
+        actorUserId: req.user?._id || null,
+        type: 'purchase_order_created',
+        title: `PO ${order.poNumber || order._id} auto-generated`,
+        message: 'Reorder engine generated a purchase order draft.',
+        severity: 'warning',
+        entityType: 'PURCHASE_ORDER',
+        entityId: order._id,
+        metadata: {
+          status: order.status,
+          source: order.source
+        }
       });
     }
 

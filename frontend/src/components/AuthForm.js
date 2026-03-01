@@ -20,7 +20,9 @@ const INITIAL_FORM_VALUES = Object.freeze({
   password: '',
   confirmPassword: '',
   organizationName: '',
-  token: ''
+  token: '',
+  twoFactorCode: '',
+  twoFactorRecoveryCode: ''
 });
 
 const AuthForm = ({
@@ -31,6 +33,8 @@ const AuthForm = ({
   onResetPassword,
   onRequestEmailVerification,
   onVerifyEmail,
+  pendingTwoFactorLogin = null,
+  onVerifyTwoFactorLogin,
   isLoading = false,
   error = '',
   notice = ''
@@ -45,6 +49,9 @@ const AuthForm = ({
   const isAdminForgot = adminMode === ADMIN_MODES.FORGOT_PASSWORD;
   const isAdminReset = adminMode === ADMIN_MODES.RESET_PASSWORD;
   const isAdminVerify = adminMode === ADMIN_MODES.VERIFY_EMAIL;
+  const isTwoFactorChallengeActive = Boolean(
+    pendingTwoFactorLogin?.twoFactorToken
+  );
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -61,7 +68,9 @@ const AuthForm = ({
       ...current,
       password: '',
       confirmPassword: '',
-      token: ''
+      token: '',
+      twoFactorCode: '',
+      twoFactorRecoveryCode: ''
     }));
   };
 
@@ -71,7 +80,9 @@ const AuthForm = ({
       ...current,
       password: '',
       confirmPassword: '',
-      token: ''
+      token: '',
+      twoFactorCode: '',
+      twoFactorRecoveryCode: ''
     }));
   };
 
@@ -83,6 +94,15 @@ const AuthForm = ({
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (isTwoFactorChallengeActive) {
+      if (typeof onVerifyTwoFactorLogin !== 'function') return;
+      await onVerifyTwoFactorLogin({
+        code: formValues.twoFactorCode,
+        recoveryCode: formValues.twoFactorRecoveryCode
+      });
+      return;
+    }
+
     if (!portal) return;
 
     if (!isAdminPortal) {
@@ -124,9 +144,21 @@ const AuthForm = ({
             : 'Admin Sign In'
     : 'Employee Sign In';
 
-  const copy = isAdminPortal
-    ? 'Admin access includes full workspace controls, user management, and inventory governance.'
-    : 'Employee access includes stock visibility and day-to-day operations under your company account.';
+  const challengePortal = String(pendingTwoFactorLogin?.portal || '')
+    .trim()
+    .toLowerCase();
+  const challengePortalLabel =
+    challengePortal === 'admin'
+      ? 'admin'
+      : challengePortal === 'employee'
+        ? 'employee'
+        : 'account';
+
+  const copy = isTwoFactorChallengeActive
+    ? `Two-factor verification required for your ${challengePortalLabel} login.`
+    : isAdminPortal
+      ? 'Admin access includes full workspace controls, user management, and inventory governance.'
+      : 'Employee access includes stock visibility and day-to-day operations under your company account.';
 
   if (!portal) {
     return (
@@ -175,24 +207,26 @@ const AuthForm = ({
         </div>
       </div>
 
-      <div className="auth-mode-actions">
-        <button
-          type="button"
-          className={`btn-ghost auth-mode-btn ${isAdminPortal ? 'active' : ''}`}
-          onClick={() => setPortalMode(AUTH_PORTALS.ADMIN)}
-        >
-          Admin portal
-        </button>
-        <button
-          type="button"
-          className={`btn-ghost auth-mode-btn ${!isAdminPortal ? 'active' : ''}`}
-          onClick={() => setPortalMode(AUTH_PORTALS.EMPLOYEE)}
-        >
-          Employee portal
-        </button>
-      </div>
+      {!isTwoFactorChallengeActive ? (
+        <div className="auth-mode-actions">
+          <button
+            type="button"
+            className={`btn-ghost auth-mode-btn ${isAdminPortal ? 'active' : ''}`}
+            onClick={() => setPortalMode(AUTH_PORTALS.ADMIN)}
+          >
+            Admin portal
+          </button>
+          <button
+            type="button"
+            className={`btn-ghost auth-mode-btn ${!isAdminPortal ? 'active' : ''}`}
+            onClick={() => setPortalMode(AUTH_PORTALS.EMPLOYEE)}
+          >
+            Employee portal
+          </button>
+        </div>
+      ) : null}
 
-      {!isAdminPortal ? (
+      {!isTwoFactorChallengeActive && !isAdminPortal ? (
         <>
           <label htmlFor="companyName">Company Name</label>
           <input
@@ -221,19 +255,23 @@ const AuthForm = ({
         </>
       ) : null}
 
-      <label htmlFor="email">Email</label>
-      <input
-        id="email"
-        name="email"
-        type="email"
-        placeholder="you@company.com"
-        value={formValues.email}
-        onChange={handleChange}
-        autoComplete="username"
-        required
-      />
+      {!isTwoFactorChallengeActive ? (
+        <>
+          <label htmlFor="email">Email</label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            placeholder="you@company.com"
+            value={formValues.email}
+            onChange={handleChange}
+            autoComplete="username"
+            required
+          />
+        </>
+      ) : null}
 
-      {isAdminPortal && isAdminSignUp ? (
+      {!isTwoFactorChallengeActive && isAdminPortal && isAdminSignUp ? (
         <>
           <label htmlFor="organizationName">Organization</label>
           <input
@@ -249,7 +287,9 @@ const AuthForm = ({
         </>
       ) : null}
 
-      {isAdminPortal && (isAdminReset || isAdminVerify) ? (
+      {!isTwoFactorChallengeActive &&
+      isAdminPortal &&
+      (isAdminReset || isAdminVerify) ? (
         <>
           <label htmlFor="token">Token</label>
           <input
@@ -264,7 +304,8 @@ const AuthForm = ({
         </>
       ) : null}
 
-      {!isAdminPortal || isAdminSignIn || isAdminSignUp || isAdminReset ? (
+      {!isTwoFactorChallengeActive &&
+      (!isAdminPortal || isAdminSignIn || isAdminSignUp || isAdminReset) ? (
         <>
           <label htmlFor="password">Password</label>
           <input
@@ -280,7 +321,9 @@ const AuthForm = ({
         </>
       ) : null}
 
-      {isAdminPortal && (isAdminSignUp || isAdminReset) ? (
+      {!isTwoFactorChallengeActive &&
+      isAdminPortal &&
+      (isAdminSignUp || isAdminReset) ? (
         <>
           <label htmlFor="confirmPassword">Confirm Password</label>
           <input
@@ -296,29 +339,60 @@ const AuthForm = ({
         </>
       ) : null}
 
+      {isTwoFactorChallengeActive ? (
+        <>
+          <p className="form-copy">
+            Account: {pendingTwoFactorLogin?.email || formValues.email}
+          </p>
+          <label htmlFor="twoFactorCode">Authenticator Code</label>
+          <input
+            id="twoFactorCode"
+            name="twoFactorCode"
+            type="text"
+            placeholder="123456"
+            value={formValues.twoFactorCode}
+            onChange={handleChange}
+            autoComplete="one-time-code"
+          />
+          <label htmlFor="twoFactorRecoveryCode">
+            Recovery Code (optional)
+          </label>
+          <input
+            id="twoFactorRecoveryCode"
+            name="twoFactorRecoveryCode"
+            type="text"
+            placeholder="AB12C-34D5E"
+            value={formValues.twoFactorRecoveryCode}
+            onChange={handleChange}
+          />
+        </>
+      ) : null}
+
       {error ? <p className="form-error">{error}</p> : null}
       {notice ? <p className="form-copy">{notice}</p> : null}
 
       <button type="submit" className="btn-primary" disabled={isLoading}>
         {isLoading
           ? 'Submitting...'
-          : isAdminPortal
-            ? isAdminSignUp
-              ? 'Create admin account'
-              : isAdminForgot
-                ? 'Send reset token'
-                : isAdminReset
-                  ? 'Apply password reset'
-                  : isAdminVerify
-                    ? 'Verify email'
-                    : 'Sign in as admin'
-            : 'Sign in as employee'}
+          : isTwoFactorChallengeActive
+            ? 'Verify code'
+            : isAdminPortal
+              ? isAdminSignUp
+                ? 'Create admin account'
+                : isAdminForgot
+                  ? 'Send reset token'
+                  : isAdminReset
+                    ? 'Apply password reset'
+                    : isAdminVerify
+                      ? 'Verify email'
+                      : 'Sign in as admin'
+              : 'Sign in as employee'}
       </button>
       <button type="button" className="btn-ghost" onClick={resetToRoleSelector}>
         Choose role again
       </button>
 
-      {isAdminPortal ? (
+      {isAdminPortal && !isTwoFactorChallengeActive ? (
         <div className="auth-secondary-actions">
           {isAdminSignIn ? (
             <>

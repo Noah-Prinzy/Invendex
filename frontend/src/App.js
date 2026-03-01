@@ -12,9 +12,15 @@ import Products from './pages/Products.js';
 import Suppliers from './pages/Suppliers.js';
 import Reports from './pages/Reports.js';
 import Users from './pages/Users.js';
+import Stocktakes from './pages/Stocktakes.js';
 import Account from './pages/Account.js';
 import Settings from './pages/Settings.js';
 import { useAppActions, useAppState } from './state/appState.js';
+import {
+  getNotificationsRequest,
+  markAllNotificationsReadRequest,
+  markNotificationReadRequest
+} from './api/client.js';
 import { isKnownThemeId } from './themes/themeCatalog.js';
 import {
   applyThemePreference,
@@ -151,7 +157,20 @@ const App = () => {
     verifyEmail,
     requestPasswordReset,
     resetPassword,
+    pendingTwoFactorLogin,
+    verifyTwoFactorLogin,
     updatePreferences,
+    getTwoFactorStatus,
+    setupTwoFactor,
+    enableTwoFactor,
+    disableTwoFactor,
+    regenerateTwoFactorRecoveryCodes,
+    exportComplianceData,
+    deleteMyAccount,
+    deleteOrganization,
+    listSessions,
+    revokeSession,
+    logoutOtherSessions,
     logout
   } = useAuth();
   const { activeWarehouseId, isOnline, offlineQueueSize } = useAppState();
@@ -160,6 +179,8 @@ const App = () => {
   const { tabs, activeTab, setActiveTab } = useTabs(user?.role || null);
   const hasResolvedInitialTabRef = useRef(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [inventoryEvents, setInventoryEvents] = useState([]);
   const [financeEvents, setFinanceEvents] = useState([]);
   const [authEvents, setAuthEvents] = useState([]);
@@ -178,11 +199,60 @@ const App = () => {
     return 'Organization';
   }, [user]);
 
+  const refreshNotifications = useCallback(async () => {
+    if (!accessToken || !isAuthenticated) return;
+    setNotificationsLoading(true);
+
+    try {
+      const response = await getNotificationsRequest({
+        accessToken,
+        limit: 20
+      });
+      const items = Array.isArray(response?.items) ? response.items : [];
+      setNotifications(items);
+      setUnreadCount(Number(response?.unreadCount || 0));
+    } catch {
+      // no-op: keep existing notification state when refresh fails
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, [accessToken, isAuthenticated]);
+
+  const handleMarkNotificationRead = useCallback(
+    async (notificationId) => {
+      if (!accessToken) return;
+      const normalizedId = String(notificationId || '').trim();
+      if (!normalizedId) return;
+
+      try {
+        await markNotificationReadRequest({
+          accessToken,
+          notificationId: normalizedId
+        });
+        await refreshNotifications();
+      } catch {
+        // no-op
+      }
+    },
+    [accessToken, refreshNotifications]
+  );
+
+  const handleMarkAllNotificationsRead = useCallback(async () => {
+    if (!accessToken) return;
+    try {
+      await markAllNotificationsReadRequest({
+        accessToken
+      });
+      await refreshNotifications();
+    } catch {
+      // no-op
+    }
+  }, [accessToken, refreshNotifications]);
+
   const handleInventoryUpdated = useCallback((payload) => {
     setInventoryEvents((current) =>
       prependEvent(current, buildInventoryEvent(payload, 'inventory.updated'))
     );
-    setUnreadCount((count) => count + 1);
   }, []);
 
   const handleValuationUpdated = useCallback((payload) => {
@@ -192,36 +262,43 @@ const App = () => {
         buildFinanceEvent(payload, 'finance.valuation_updated')
       )
     );
-    setUnreadCount((count) => count + 1);
   }, []);
 
   const handleCogsRecorded = useCallback((payload) => {
     setFinanceEvents((current) =>
       prependEvent(current, buildFinanceEvent(payload, 'finance.cogs_recorded'))
     );
-    setUnreadCount((count) => count + 1);
   }, []);
 
-  const handlePoCreated = useCallback((payload) => {
-    setPoEvents((current) =>
-      prependEvent(current, buildPurchaseOrderEvent(payload, 'created'))
-    );
-    setUnreadCount((count) => count + 1);
-  }, []);
+  const handlePoCreated = useCallback(
+    (payload) => {
+      setPoEvents((current) =>
+        prependEvent(current, buildPurchaseOrderEvent(payload, 'created'))
+      );
+      refreshNotifications();
+    },
+    [refreshNotifications]
+  );
 
-  const handlePoUpdated = useCallback((payload) => {
-    setPoEvents((current) =>
-      prependEvent(current, buildPurchaseOrderEvent(payload, 'updated'))
-    );
-    setUnreadCount((count) => count + 1);
-  }, []);
+  const handlePoUpdated = useCallback(
+    (payload) => {
+      setPoEvents((current) =>
+        prependEvent(current, buildPurchaseOrderEvent(payload, 'updated'))
+      );
+      refreshNotifications();
+    },
+    [refreshNotifications]
+  );
 
-  const handlePoReceived = useCallback((payload) => {
-    setPoEvents((current) =>
-      prependEvent(current, buildPurchaseOrderEvent(payload, 'received'))
-    );
-    setUnreadCount((count) => count + 1);
-  }, []);
+  const handlePoReceived = useCallback(
+    (payload) => {
+      setPoEvents((current) =>
+        prependEvent(current, buildPurchaseOrderEvent(payload, 'received'))
+      );
+      refreshNotifications();
+    },
+    [refreshNotifications]
+  );
 
   const handleEmployeeSignedIn = useCallback(
     (payload) => {
@@ -231,10 +308,14 @@ const App = () => {
       setAuthEvents((current) =>
         prependEvent(current, buildAuthEvent(payload))
       );
-      setUnreadCount((count) => count + 1);
+      refreshNotifications();
     },
-    [user?.role]
+    [user?.role, refreshNotifications]
   );
+
+  const handleNotificationCreated = useCallback(() => {
+    refreshNotifications();
+  }, [refreshNotifications]);
 
   useLedgerlyRealtime({
     baseUrl: realtimeBaseUrl,
@@ -246,7 +327,8 @@ const App = () => {
     onPurchaseOrderReceived: handlePoReceived,
     onCogsRecorded: handleCogsRecorded,
     onValuationUpdated: handleValuationUpdated,
-    onEmployeeSignedIn: handleEmployeeSignedIn
+    onEmployeeSignedIn: handleEmployeeSignedIn,
+    onNotificationCreated: handleNotificationCreated
   });
 
   useOfflineSync({
@@ -256,8 +338,6 @@ const App = () => {
     setIsOnline,
     setOfflineQueueSize
   });
-
-  const clearUnread = useCallback(() => setUnreadCount(0), []);
 
   const handleThemeChange = useCallback(
     async (nextThemeId) => {
@@ -292,6 +372,17 @@ const App = () => {
   }, [themeId]);
 
   useEffect(() => {
+    if (!isAuthenticated || !accessToken) {
+      setNotifications([]);
+      setUnreadCount(0);
+      setNotificationsLoading(false);
+      return;
+    }
+
+    refreshNotifications();
+  }, [isAuthenticated, accessToken, refreshNotifications]);
+
+  useEffect(() => {
     if (!isAuthenticated) {
       hasResolvedInitialTabRef.current = false;
       return;
@@ -316,6 +407,7 @@ const App = () => {
     setFinanceEvents([]);
     setAuthEvents([]);
     setPoEvents([]);
+    setNotifications([]);
     setUnreadCount(0);
   }, [isAuthenticated]);
 
@@ -351,6 +443,14 @@ const App = () => {
         />
       );
     }
+    if (activeTab === 'stocktakes') {
+      return (
+        <Stocktakes
+          accessToken={accessToken}
+          warehouseId={activeWarehouseId || null}
+        />
+      );
+    }
     if (activeTab === 'suppliers') {
       return (
         <Suppliers accessToken={accessToken} userRole={user?.role || null} />
@@ -370,7 +470,24 @@ const App = () => {
         />
       );
     }
-    if (activeTab === 'account') return <Account user={user} />;
+    if (activeTab === 'account') {
+      return (
+        <Account
+          user={user}
+          onLoadSessions={listSessions}
+          onRevokeSession={revokeSession}
+          onLogoutOtherSessions={logoutOtherSessions}
+          onGetTwoFactorStatus={getTwoFactorStatus}
+          onSetupTwoFactor={setupTwoFactor}
+          onEnableTwoFactor={enableTwoFactor}
+          onDisableTwoFactor={disableTwoFactor}
+          onRegenerateTwoFactorRecoveryCodes={regenerateTwoFactorRecoveryCodes}
+          onExportComplianceData={exportComplianceData}
+          onDeleteMyAccount={deleteMyAccount}
+          onDeleteOrganization={deleteOrganization}
+        />
+      );
+    }
     if (activeTab === 'settings') {
       return (
         <Settings
@@ -400,7 +517,18 @@ const App = () => {
     authEvents,
     poEvents,
     themeId,
-    handleThemeChange
+    handleThemeChange,
+    getTwoFactorStatus,
+    setupTwoFactor,
+    enableTwoFactor,
+    disableTwoFactor,
+    regenerateTwoFactorRecoveryCodes,
+    exportComplianceData,
+    deleteMyAccount,
+    deleteOrganization,
+    listSessions,
+    revokeSession,
+    logoutOtherSessions
   ]);
 
   if (isInitializing) {
@@ -439,6 +567,8 @@ const App = () => {
           onVerifyEmail={verifyEmail}
           onRequestPasswordReset={requestPasswordReset}
           onResetPassword={resetPassword}
+          pendingTwoFactorLogin={pendingTwoFactorLogin}
+          onVerifyTwoFactorLogin={verifyTwoFactorLogin}
           isLoading={isLoading}
           error={error}
           notice={notice}
@@ -473,7 +603,14 @@ const App = () => {
           >
             {isOnline ? 'Online' : 'Offline'} | Queue {offlineQueueSize}
           </p>
-          <NotificationBell count={unreadCount} onClick={clearUnread} />
+          <NotificationBell
+            count={unreadCount}
+            items={notifications}
+            isLoading={notificationsLoading}
+            onRefresh={refreshNotifications}
+            onMarkAllRead={handleMarkAllNotificationsRead}
+            onMarkRead={handleMarkNotificationRead}
+          />
           <button type="button" className="btn-ghost" onClick={logout}>
             Sign out
           </button>

@@ -14,7 +14,8 @@ export const useLedgerlyRealtime = ({
   onPurchaseOrderReceived = null,
   onCogsRecorded = null,
   onValuationUpdated = null,
-  onEmployeeSignedIn = null
+  onEmployeeSignedIn = null,
+  onNotificationCreated = null
 }) => {
   const queryClient = useQueryClient();
   const tokenRef = useRef(accessToken || null);
@@ -91,6 +92,11 @@ export const useLedgerlyRealtime = ({
       REALTIME_EVENTS.AUTH_EMPLOYEE_SIGNED_IN,
       onEmployeeSignedIn
     );
+    subscribeWithInvalidation(
+      client.onNotificationCreated.bind(client),
+      REALTIME_EVENTS.NOTIFICATION_CREATED,
+      onNotificationCreated
+    );
 
     return () => {
       if (warehouseId) {
@@ -114,6 +120,7 @@ export const useLedgerlyRealtime = ({
     onCogsRecorded,
     onValuationUpdated,
     onEmployeeSignedIn,
+    onNotificationCreated,
     queryClient
   ]);
 

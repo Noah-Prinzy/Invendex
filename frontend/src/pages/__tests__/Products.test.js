@@ -58,7 +58,23 @@ describe('Products page', () => {
   });
 
   it('supports filtering and pagination after data load', async () => {
-    getProductsRequest.mockResolvedValueOnce(buildProducts(10));
+    getProductsRequest.mockImplementation((_token, filters = {}) => {
+      const normalizedSearch = String(filters?.q || '').toLowerCase();
+      if (normalizedSearch.includes('product 10')) {
+        return Promise.resolve([
+          {
+            _id: 'p-10',
+            name: 'Product 10',
+            sku: 'SKU-10',
+            category: 'B',
+            stock: 10,
+            lowStockThreshold: 2,
+            price: 20
+          }
+        ]);
+      }
+      return Promise.resolve(buildProducts(10));
+    });
     getProductsLowStockSummaryRequest.mockResolvedValueOnce([
       { sku: 'SKU-1' },
       { sku: 'SKU-2' }
@@ -70,14 +86,24 @@ describe('Products page', () => {
     expect(within(table).getByText('Product 1')).toBeInTheDocument();
     expect(screen.getByText('Page 1 / 2')).toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText('Name, SKU, category'), {
-      target: { value: 'Product 10' }
+    fireEvent.change(
+      screen.getByPlaceholderText('Name, SKU, category, barcode'),
+      {
+        target: { value: 'Product 10' }
+      }
+    );
+    fireEvent.change(screen.getByLabelText('Stock'), {
+      target: { value: 'all' }
     });
 
     await waitFor(() => {
-      expect(within(table).getByText('Product 10')).toBeInTheDocument();
-      expect(within(table).queryByText('Product 1')).not.toBeInTheDocument();
+      expect(
+        screen.getByText('Showing 1 of 1 filtered products (1 total)')
+      ).toBeInTheDocument();
       expect(screen.getByText('Page 1 / 1')).toBeInTheDocument();
+      expect(
+        screen.queryByText('No products match your filter.')
+      ).not.toBeInTheDocument();
     });
   });
 });

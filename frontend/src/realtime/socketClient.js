@@ -114,6 +114,10 @@ export class LedgerlyRealtimeClient {
   onEmployeeSignedIn(callback) {
     return this.on(REALTIME_EVENTS.AUTH_EMPLOYEE_SIGNED_IN, callback);
   }
+
+  onNotificationCreated(callback) {
+    return this.on(REALTIME_EVENTS.NOTIFICATION_CREATED, callback);
+  }
 }
 
 export const createLedgerlyRealtimeClient = (options) =>

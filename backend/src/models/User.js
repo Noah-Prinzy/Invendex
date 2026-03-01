@@ -1,6 +1,25 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
+const recoveryCodeSchema = new mongoose.Schema(
+  {
+    codeHash: {
+      type: String,
+      required: true,
+      select: false
+    },
+    usedAt: {
+      type: Date,
+      default: null
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  },
+  { _id: false }
+);
+
 const userSchema = new mongoose.Schema(
   {
     email: {
@@ -60,10 +79,65 @@ const userSchema = new mongoose.Schema(
       default: null,
       select: false
     },
+    twoFactor: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      secret: {
+        type: String,
+        default: null,
+        select: false
+      },
+      pendingSecret: {
+        type: String,
+        default: null,
+        select: false
+      },
+      recoveryCodes: {
+        type: [recoveryCodeSchema],
+        default: [],
+        select: false
+      },
+      pendingRecoveryCodeHashes: {
+        type: [String],
+        default: [],
+        select: false
+      },
+      enabledAt: {
+        type: Date,
+        default: null
+      },
+      lastVerifiedAt: {
+        type: Date,
+        default: null
+      }
+    },
 
     refreshTokens: [
       {
         token: { type: String, required: true },
+        sessionId: {
+          type: String,
+          trim: true,
+          default: null
+        },
+        deviceId: {
+          type: String,
+          trim: true,
+          default: null
+        },
+        userAgent: {
+          type: String,
+          trim: true,
+          default: null
+        },
+        ipAddress: {
+          type: String,
+          trim: true,
+          default: null
+        },
+        lastUsedAt: { type: Date, default: Date.now },
         createdAt: { type: Date, default: Date.now }
       }
     ]

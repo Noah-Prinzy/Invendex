@@ -31,6 +31,9 @@ import userRoutes from './routes/userRoutes.js';
 import observabilityRoutes from './routes/observabilityRoutes.js';
 import mobileSyncRoutes from './routes/mobileSyncRoutes.js';
 import settingsRoutes from './routes/settingsRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
+import onboardingRoutes from './routes/onboardingRoutes.js';
+import complianceRoutes from './routes/complianceRoutes.js';
 
 import { rateLimiter } from './middlewares/rateLimiter.js';
 import { errorHandler } from './middlewares/errorHandler.js';
@@ -134,6 +137,9 @@ app.use('/api/users', userRoutes);
 app.use('/api/observability', observabilityRoutes);
 app.use('/api/mobile-sync', mobileSyncRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/onboarding', onboardingRoutes);
+app.use('/api/compliance', complianceRoutes);
 
 app.get('/health', async (req, res, next) => {
   try {

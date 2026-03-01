@@ -34,6 +34,13 @@ npm --prefix frontend ci
 cp backend/.env.example backend/.env
 ```
 
+Optional env splits:
+
+- `backend/.env.development.example`
+- `backend/.env.production.example`
+- `frontend/.env.development.example`
+- `frontend/.env.production.example`
+
 3. Start backend:
 
 ```bash
@@ -74,6 +81,12 @@ npm --prefix frontend run build
 - Do not ship `node_modules/` in git or release artifacts.
 - Do not ship `.git/` history in release artifacts.
 - Build from source in deploy environments (`npm ci` + build/test).
+
+Create a clean release bundle (excludes `.git`, `node_modules`, local build/cache):
+
+```bash
+npm run release:bundle
+```
 
 ## CI
 

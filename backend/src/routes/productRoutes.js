@@ -16,6 +16,10 @@ import {
   getReorderRecommendations,
   getProductStockHistory
 } from '../controllers/productController.js';
+import {
+  createProductBulkImportJob,
+  getProductBulkImportJobStatus
+} from '../controllers/backgroundJobController.js';
 
 import { protect } from '../middlewares/authMiddleware.js';
 import requirePermission from '../middlewares/requirePermission.js';
@@ -27,6 +31,7 @@ import { PERMISSIONS } from '../authorization/permissions.js';
 import {
   createProductValidator,
   createProductsBulkValidator,
+  bulkImportJobIdValidator,
   updateProductValidator,
   adjustStockValidator
 } from '../validations/productValidators.js';
@@ -124,6 +129,27 @@ router.post(
     resource: 'PRODUCT'
   }),
   createProductsBulk
+);
+
+router.post(
+  '/bulk-import/jobs',
+  requirePermission(PERMISSIONS.PRODUCTS_EDIT),
+  createProductLimiter,
+  createProductsBulkValidator,
+  validateRequest,
+  auditMiddleware({
+    action: 'QUEUE_BULK_CREATE_PRODUCTS',
+    resource: 'PRODUCT'
+  }),
+  createProductBulkImportJob
+);
+
+router.get(
+  '/bulk-import/jobs/:jobId',
+  requirePermission(PERMISSIONS.PRODUCTS_VIEW),
+  bulkImportJobIdValidator,
+  validateRequest,
+  getProductBulkImportJobStatus
 );
 
 /**

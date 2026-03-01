@@ -94,6 +94,62 @@ describe('auth e2e', () => {
     expect(logoutResponse.body?.message).toBe('Logged out successfully');
   });
 
+  it('lists sessions and supports revoking a specific session', async () => {
+    const email = 'session-auth@example.com';
+    const password = 'Password123!';
+
+    const registerResponse = await request(app).post('/auth/register').send({
+      email,
+      password,
+      confirmPassword: password,
+      organizationName: 'Session Org'
+    });
+    expect(registerResponse.status).toBe(201);
+
+    const firstLogin = await request(app).post('/auth/login').send({
+      email,
+      password
+    });
+    expect(firstLogin.status).toBe(200);
+
+    const secondLogin = await request(app)
+      .post('/auth/login')
+      .set('x-device-id', 'device_two')
+      .send({
+        email,
+        password
+      });
+    expect(secondLogin.status).toBe(200);
+
+    const accessToken = secondLogin.body?.data?.accessToken;
+    const loginCookies = secondLogin.headers['set-cookie'] || [];
+    expect(typeof accessToken).toBe('string');
+    expect(loginCookies.length).toBeGreaterThan(0);
+
+    const sessionsResponse = await request(app)
+      .get('/auth/sessions')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Cookie', loginCookies);
+
+    expect(sessionsResponse.status).toBe(200);
+    expect(Array.isArray(sessionsResponse.body?.data?.sessions)).toBe(true);
+    expect(Number(sessionsResponse.body?.data?.total || 0)).toBeGreaterThan(0);
+
+    const nonCurrentSession = sessionsResponse.body.data.sessions.find(
+      (session) => !session.current
+    );
+    expect(nonCurrentSession?.sessionId).toBeTruthy();
+
+    const revokeResponse = await request(app)
+      .delete(`/auth/sessions/${nonCurrentSession.sessionId}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Cookie', loginCookies);
+
+    expect(revokeResponse.status).toBe(200);
+    expect(revokeResponse.body?.success).toBe(true);
+    expect(revokeResponse.body?.data?.currentSessionTerminated).toBe(false);
+  });
+
   it('persists uiTheme preference updates on the authenticated profile', async () => {
     const registerResponse = await request(app).post('/auth/register').send({
       email: 'theme-auth@example.com',

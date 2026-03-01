@@ -12,6 +12,20 @@ import {
 } from '../../realtime/publisher.js';
 import { logInventoryMutation } from '../../observability/inventoryMutationLogger.js';
 
+const resolvePurchaseToBaseFactor = ({ item, product }) => {
+  const itemFactor = Number(item?.purchaseToBaseFactor);
+  if (Number.isFinite(itemFactor) && itemFactor >= 1) {
+    return itemFactor;
+  }
+
+  const productFactor = Number(product?.uom?.purchaseToBaseFactor);
+  if (Number.isFinite(productFactor) && productFactor >= 1) {
+    return productFactor;
+  }
+
+  return 1;
+};
+
 /**
  * Applies inventory updates when a Purchase Order is received.
  * Idempotent per purchaseOrder + product
@@ -52,7 +66,7 @@ export const applyPurchaseOrderToInventory = async ({
       const productQuery = Product.findOne({
         _id: productId,
         organization: purchaseOrder.organization
-      }).select('sku price stock');
+      }).select('sku price stock uom');
       if (session) {
         productQuery.session(session);
       }
@@ -70,6 +84,23 @@ export const applyPurchaseOrderToInventory = async ({
           400
         );
       }
+
+      const purchaseToBaseFactor = resolvePurchaseToBaseFactor({
+        item,
+        product
+      });
+      const quantityInBaseUnits = Number(
+        (Number(quantity) * purchaseToBaseFactor).toFixed(6)
+      );
+      if (!Number.isFinite(quantityInBaseUnits) || quantityInBaseUnits <= 0) {
+        throw new AppError(
+          `Invalid converted quantity for inventory update (${productId})`,
+          400
+        );
+      }
+      const unitCostPerBaseUnit = Number(
+        (Number(item.unitCost || 0) / purchaseToBaseFactor).toFixed(6)
+      );
 
       const now = new Date();
 
@@ -121,7 +152,7 @@ export const applyPurchaseOrderToInventory = async ({
           warehouse: purchaseOrder.warehouse
         },
         {
-          $inc: { quantityOnHand: quantity },
+          $inc: { quantityOnHand: quantityInBaseUnits },
           $set: { lastMovementAt: now },
           $setOnInsert: {
             quantityReserved: 0,
@@ -159,8 +190,8 @@ export const applyPurchaseOrderToInventory = async ({
         warehouseId: purchaseOrder.warehouse,
         sourceType: 'PURCHASE_ORDER',
         sourceId: purchaseOrder._id,
-        unitCost: item.unitCost,
-        quantity,
+        unitCost: unitCostPerBaseUnit,
+        quantity: quantityInBaseUnits,
         receivedAt: now,
         session
       });
@@ -174,6 +205,7 @@ export const applyPurchaseOrderToInventory = async ({
         lotNumber,
         expiryDate,
         serialNumbers,
+        purchaseToBaseFactor,
         sourceType: 'PURCHASE_ORDER',
         sourceId: purchaseOrder._id,
         movedBy: actorUserId,
@@ -200,7 +232,7 @@ export const applyPurchaseOrderToInventory = async ({
         organizationId: purchaseOrder.organization,
         warehouseId: purchaseOrder.warehouse,
         productId,
-        quantityDelta: quantity,
+        quantityDelta: quantityInBaseUnits,
         quantityOnHand: inventory.quantityOnHand,
         quantityReserved: inventory.quantityReserved,
         sourceType: 'PURCHASE_ORDER',
@@ -216,7 +248,9 @@ export const applyPurchaseOrderToInventory = async ({
         data: {
           source: 'purchase_order_receive',
           purchaseOrderId: purchaseOrder._id,
-          quantityDelta: quantity,
+          quantityDelta: quantityInBaseUnits,
+          purchaseQuantity: Number(quantity),
+          purchaseToBaseFactor,
           quantityOnHand: inventory.quantityOnHand,
           previousStock,
           newStock

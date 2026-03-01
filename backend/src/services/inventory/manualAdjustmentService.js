@@ -1,8 +1,13 @@
 import Inventory from '../../models/Inventory.js';
 import InventorySnapshot from '../../models/InventorySnapshot.js';
-import Product, { STOCK_REASONS } from '../../models/Product.js';
+import Product, {
+  STOCK_REASONS,
+  STOCK_REASON_POLICIES,
+  SENSITIVE_STOCK_REASONS
+} from '../../models/Product.js';
 import Warehouse from '../../models/Warehouse.js';
 import OrganizationSettings from '../../models/OrganizationSettings.js';
+import { isRoleAllowed } from '../../authorization/permissions.js';
 import { AppError } from '../../errors/AppError.js';
 import { runWithMongoTransactionFallback } from '../../utils/runWithMongoTransactionFallback.js';
 import { syncProductStockFromInventory } from './stockSyncService.js';
@@ -11,10 +16,27 @@ import { logInventoryMutation } from '../../observability/inventoryMutationLogge
 import { logger } from '../../observability/logger.js';
 import { publishInventoryUpdated } from '../../realtime/publisher.js';
 
+const ORGANIZATION_ROLES = ['staff', 'manager', 'admin', 'owner'];
+
+const normalizeRole = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase();
+
 const getWarehouseStrictModeDefault = () =>
   String(process.env.INVENTORY_ADJUST_REQUIRE_WAREHOUSE_ID || 'true')
     .trim()
     .toLowerCase() === 'true';
+
+const getSensitiveAdjustmentMinRoleDefault = () => {
+  const configured = normalizeRole(
+    process.env.INVENTORY_SENSITIVE_REASON_MIN_ROLE
+  );
+  if (ORGANIZATION_ROLES.includes(configured)) {
+    return configured;
+  }
+  return 'manager';
+};
 
 const isWarehouseStrictMode = async ({ organizationId, session = null }) => {
   const fallbackValue = getWarehouseStrictModeDefault();
@@ -31,6 +53,94 @@ const isWarehouseStrictMode = async ({ organizationId, session = null }) => {
     return settings.inventory.enforceWarehouseForAdjustments;
   }
   return fallbackValue;
+};
+
+const getSensitiveAdjustmentMinRole = async ({
+  organizationId,
+  session = null
+}) => {
+  const fallbackValue = getSensitiveAdjustmentMinRoleDefault();
+  const settingsQuery = OrganizationSettings.findOne({
+    organization: organizationId
+  }).select('inventory.sensitiveAdjustmentMinRole');
+  if (session) {
+    settingsQuery.session(session);
+  }
+  const settings = await settingsQuery.lean();
+  const configured = normalizeRole(
+    settings?.inventory?.sensitiveAdjustmentMinRole
+  );
+  if (ORGANIZATION_ROLES.includes(configured)) {
+    return configured;
+  }
+  return fallbackValue;
+};
+
+const assertReasonDirection = ({ reason, amount }) => {
+  const policy = STOCK_REASON_POLICIES[reason];
+  if (!policy) {
+    throw new AppError(
+      `Reason must be one of: ${STOCK_REASONS.join(', ')}`,
+      400
+    );
+  }
+
+  if (policy.direction === 'increase' && amount < 0) {
+    throw new AppError(
+      `Reason "${reason}" only allows positive stock adjustments`,
+      400
+    );
+  }
+
+  if (policy.direction === 'decrease' && amount > 0) {
+    throw new AppError(
+      `Reason "${reason}" only allows negative stock adjustments`,
+      400
+    );
+  }
+
+  return policy;
+};
+
+const assertSensitiveReasonAccess = async ({
+  organizationId,
+  reason,
+  actorRole = null,
+  actorUserId = null,
+  session = null
+}) => {
+  const isSensitiveReason = SENSITIVE_STOCK_REASONS.includes(reason);
+  if (!isSensitiveReason) {
+    return {
+      isSensitiveReason: false,
+      requiredRole: null
+    };
+  }
+
+  const requiredRole = await getSensitiveAdjustmentMinRole({
+    organizationId,
+    session
+  });
+
+  const normalizedActorRole = normalizeRole(actorRole);
+  if (!actorUserId && !normalizedActorRole) {
+    return {
+      isSensitiveReason: true,
+      requiredRole
+    };
+  }
+
+  if (!isRoleAllowed(normalizedActorRole, [requiredRole])) {
+    throw new AppError(
+      `Reason "${reason}" requires role ${requiredRole} or higher`,
+      403
+    );
+  }
+
+  return {
+    isSensitiveReason: true,
+    requiredRole
+  };
 };
 
 const calculateAverageDailyUsage = (stockHistory = []) => {
@@ -173,6 +283,10 @@ export const adjustInventoryFromManualInput = async ({
       400
     );
   }
+  const reasonPolicy = assertReasonDirection({
+    reason: normalizedReason,
+    amount: parsedAmount
+  });
 
   const result = await runWithMongoTransactionFallback({
     operationName: 'manual_inventory_adjustment',
@@ -181,9 +295,18 @@ export const adjustInventoryFromManualInput = async ({
       productId: String(productId),
       amount: parsedAmount,
       reason: normalizedReason,
+      isSensitiveReason: reasonPolicy.sensitive === true,
       hasWarehouseId: Boolean(warehouseId)
     },
     runWithSession: async (session) => {
+      const sensitiveAccess = await assertSensitiveReasonAccess({
+        organizationId,
+        reason: normalizedReason,
+        actorRole,
+        actorUserId,
+        session
+      });
+
       const productQuery = Product.findOne({
         _id: productId,
         organization: organizationId
@@ -321,6 +444,8 @@ export const adjustInventoryFromManualInput = async ({
           warehouseId: String(resolvedWarehouse.warehouseId),
           amount: parsedAmount,
           reason: normalizedReason,
+          isSensitiveReason: sensitiveAccess.isSensitiveReason,
+          sensitiveAdjustmentMinRole: sensitiveAccess.requiredRole,
           usedWarehouseFallback: resolvedWarehouse.usedFallback,
           actorUserId: actorUserId ? String(actorUserId) : null
         },
@@ -351,6 +476,8 @@ export const adjustInventoryFromManualInput = async ({
         usedWarehouseFallback: resolvedWarehouse.usedFallback,
         amount: parsedAmount,
         reason: normalizedReason,
+        isSensitiveReason: sensitiveAccess.isSensitiveReason,
+        sensitiveAdjustmentMinRole: sensitiveAccess.requiredRole,
         productStock: newProductStock
       };
     }
@@ -365,6 +492,8 @@ export const adjustInventoryFromManualInput = async ({
       source: 'manual_stock_adjustment',
       amount: result.amount,
       reason: result.reason,
+      isSensitiveReason: result.isSensitiveReason,
+      sensitiveAdjustmentMinRole: result.sensitiveAdjustmentMinRole,
       warehouseId: String(result.warehouseId),
       usedWarehouseFallback: result.usedWarehouseFallback,
       productStock: result.productStock

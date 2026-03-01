@@ -104,6 +104,17 @@ export const createPurchaseOrderValidator = [
     .isFloat({ min: 0 })
     .withMessage('Each item unitCost must be a non-negative number'),
 
+  body('items.*.purchaseUom')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isLength({ min: 1, max: 32 })
+    .withMessage('purchaseUom must be 1 to 32 characters'),
+
+  body('items.*.purchaseToBaseFactor')
+    .optional({ values: 'falsy' })
+    .isInt({ min: 1 })
+    .withMessage('purchaseToBaseFactor must be an integer >= 1'),
+
   body('items.*.trackingType')
     .optional({ values: 'falsy' })
     .isIn(['NONE', 'BATCH', 'SERIAL'])

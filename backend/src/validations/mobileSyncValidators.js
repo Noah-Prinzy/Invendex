@@ -1,6 +1,7 @@
 import { body, query } from 'express-validator';
 import Product from '../models/Product.js';
 import Warehouse from '../models/Warehouse.js';
+import { STOCK_REASONS, STOCK_REASON_POLICIES } from '../models/Product.js';
 
 const ensureOrganizationContext = (req) => {
   if (!req.organizationId) {
@@ -92,9 +93,20 @@ export const mobileSyncMutationsValidator = [
           'inventory.adjust payload.amount must be a non-zero integer'
         );
       }
-      if (!['sale', 'restock', 'adjustment', 'return'].includes(reason)) {
+      if (!STOCK_REASONS.includes(reason)) {
         throw new Error(
-          'inventory.adjust payload.reason must be sale|restock|adjustment|return'
+          `inventory.adjust payload.reason must be one of: ${STOCK_REASONS.join(', ')}`
+        );
+      }
+      const reasonPolicy = STOCK_REASON_POLICIES[reason];
+      if (reasonPolicy?.direction === 'increase' && amount < 0) {
+        throw new Error(
+          `inventory.adjust payload.reason "${reason}" only allows positive amount`
+        );
+      }
+      if (reasonPolicy?.direction === 'decrease' && amount > 0) {
+        throw new Error(
+          `inventory.adjust payload.reason "${reason}" only allows negative amount`
         );
       }
 

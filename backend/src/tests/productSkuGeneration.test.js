@@ -126,4 +126,38 @@ describe('product sku generation', () => {
     expect(String(autoSkuProduct?.sku || '')).toMatch(/^ACCESS-\d{6}$/);
     expect(manualSkuProduct?.sku).toBe('MP-001');
   });
+
+  it('creates a variant product with parent reference and UOM config', async () => {
+    const parent = await request(app).post('/api/products').send({
+      name: 'Parent Shirt',
+      category: 'Apparel',
+      price: 30
+    });
+    expect(parent.status).toBe(201);
+
+    const child = await request(app)
+      .post('/api/products')
+      .send({
+        name: 'Parent Shirt - Black M',
+        sku: 'shirt-blk-m',
+        price: 30,
+        isVariant: true,
+        parentProduct: parent.body?.data?.id || parent.body?.data?._id,
+        variantAttributes: {
+          color: 'Black',
+          size: 'M'
+        },
+        uom: {
+          base: 'pcs',
+          purchase: 'box',
+          purchaseToBaseFactor: 12
+        }
+      });
+
+    expect(child.status).toBe(201);
+    expect(child.body?.data?.isVariant).toBe(true);
+    expect(String(child.body?.data?.parentProduct || '')).toBeTruthy();
+    expect(child.body?.data?.variantAttributes?.color).toBe('Black');
+    expect(Number(child.body?.data?.uom?.purchaseToBaseFactor || 0)).toBe(12);
+  });
 });

@@ -9,11 +9,23 @@ import {
   authVerifyEmailConfirmRequest,
   authForgotPasswordRequest,
   authResetPasswordRequest,
+  authTwoFactorVerifyLoginRequest,
+  authTwoFactorStatusRequest,
+  authTwoFactorSetupRequest,
+  authTwoFactorEnableRequest,
+  authTwoFactorDisableRequest,
+  authTwoFactorRegenerateRecoveryCodesRequest,
   authCsrfTokenRequest,
   authLogoutRequest,
   authMeRequest,
+  authListSessionsRequest,
+  authRevokeSessionRequest,
+  authLogoutOtherSessionsRequest,
   authRefreshRequest,
-  authUpdatePreferencesRequest
+  authUpdatePreferencesRequest,
+  complianceExportRequest,
+  complianceDeleteMyAccountRequest,
+  complianceDeleteOrganizationRequest
 } from '../../api/client.js';
 
 const ACCESS_TOKEN_KEY = 'ledgerly_access_token';
@@ -75,6 +87,7 @@ export const useAuth = () => {
   const [notice, setNotice] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [pendingTwoFactorLogin, setPendingTwoFactorLogin] = useState(null);
 
   const applyAuthState = useCallback(
     ({ token, resolvedUser, organization }) => {
@@ -89,6 +102,7 @@ export const useAuth = () => {
     saveAccessToken('');
     setAccessToken(null);
     setUser(null);
+    setPendingTwoFactorLogin(null);
   }, []);
 
   useEffect(() => {
@@ -193,6 +207,29 @@ export const useAuth = () => {
                 password: normalizedPassword
               });
 
+        const requiresTwoFactor =
+          Boolean(loginResponse?.data?.requiresTwoFactor) &&
+          String(loginResponse?.data?.twoFactorToken || '').trim().length > 0;
+
+        if (requiresTwoFactor) {
+          setPendingTwoFactorLogin({
+            portal:
+              loginRequest === authAdminLoginRequest
+                ? 'admin'
+                : loginRequest === authEmployeeLoginRequest
+                  ? 'employee'
+                  : 'generic',
+            twoFactorToken: String(loginResponse?.data?.twoFactorToken || ''),
+            expiresInSeconds: Number(
+              loginResponse?.data?.expiresInSeconds || 600
+            ),
+            email: normalizedEmail,
+            companyName: normalizedCompanyName || ''
+          });
+          setNotice('Two-factor authentication required. Enter your code.');
+          return { success: false, requiresTwoFactor: true };
+        }
+
         const token = loginResponse?.data?.accessToken || '';
         const resolvedUser = loginResponse?.data?.user || null;
 
@@ -205,6 +242,7 @@ export const useAuth = () => {
           resolvedUser,
           organization: loginResponse?.data?.organization || null
         });
+        setPendingTwoFactorLogin(null);
 
         return { success: true, accessToken: token };
       } catch (loginError) {
@@ -265,6 +303,56 @@ export const useAuth = () => {
       clearAuthState();
     }
   }, [accessToken, clearAuthState]);
+
+  const verifyTwoFactorLogin = useCallback(
+    async ({ code = '', recoveryCode = '' }) => {
+      const twoFactorToken = String(
+        pendingTwoFactorLogin?.twoFactorToken || ''
+      ).trim();
+      if (!twoFactorToken) {
+        return {
+          success: false,
+          message: 'No active two-factor login challenge'
+        };
+      }
+
+      setError('');
+      setNotice('');
+      setIsLoading(true);
+
+      try {
+        const response = await authTwoFactorVerifyLoginRequest({
+          twoFactorToken,
+          code: String(code || '').trim(),
+          recoveryCode: String(recoveryCode || '').trim()
+        });
+
+        const token = response?.data?.accessToken || '';
+        const resolvedUser = response?.data?.user || null;
+        if (!token || !resolvedUser) {
+          throw new Error(
+            'Two-factor verification response missing auth data.'
+          );
+        }
+
+        applyAuthState({
+          token,
+          resolvedUser,
+          organization: response?.data?.organization || null
+        });
+        setPendingTwoFactorLogin(null);
+        setNotice('Two-factor verification complete.');
+        return { success: true };
+      } catch (verificationError) {
+        const message = getMessage(verificationError);
+        setError(message);
+        return { success: false, message };
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [applyAuthState, pendingTwoFactorLogin]
+  );
 
   const signup = useCallback(
     async ({ email, password, confirmPassword, organizationName }) => {
@@ -475,6 +563,301 @@ export const useAuth = () => {
     [accessToken]
   );
 
+  const listSessions = useCallback(async () => {
+    if (!accessToken) {
+      return {
+        success: false,
+        sessions: [],
+        message: 'Not authenticated'
+      };
+    }
+
+    try {
+      const response = await authListSessionsRequest(accessToken);
+      const sessions = Array.isArray(response?.data?.sessions)
+        ? response.data.sessions
+        : [];
+      return {
+        success: true,
+        sessions,
+        total: Number(response?.data?.total || sessions.length)
+      };
+    } catch (sessionError) {
+      return {
+        success: false,
+        sessions: [],
+        message: getMessage(sessionError)
+      };
+    }
+  }, [accessToken]);
+
+  const revokeSession = useCallback(
+    async (sessionId) => {
+      if (!accessToken) {
+        return {
+          success: false,
+          message: 'Not authenticated'
+        };
+      }
+
+      const normalizedSessionId = String(sessionId || '').trim();
+      if (!normalizedSessionId) {
+        return {
+          success: false,
+          message: 'sessionId is required'
+        };
+      }
+
+      try {
+        await authCsrfTokenRequest();
+        const response = await authRevokeSessionRequest({
+          accessToken,
+          sessionId: normalizedSessionId
+        });
+
+        if (response?.data?.currentSessionTerminated) {
+          clearAuthState();
+        }
+
+        return {
+          success: true,
+          currentSessionTerminated: Boolean(
+            response?.data?.currentSessionTerminated
+          ),
+          message: String(response?.message || 'Session revoked')
+        };
+      } catch (sessionError) {
+        return {
+          success: false,
+          message: getMessage(sessionError)
+        };
+      }
+    },
+    [accessToken, clearAuthState]
+  );
+
+  const logoutOtherSessions = useCallback(async () => {
+    if (!accessToken) {
+      return {
+        success: false,
+        message: 'Not authenticated'
+      };
+    }
+
+    try {
+      await authCsrfTokenRequest();
+      const response = await authLogoutOtherSessionsRequest(accessToken);
+      return {
+        success: true,
+        removedCount: Number(response?.data?.removedCount || 0),
+        message: String(response?.message || 'Other sessions logged out')
+      };
+    } catch (sessionError) {
+      return {
+        success: false,
+        message: getMessage(sessionError)
+      };
+    }
+  }, [accessToken]);
+
+  const getTwoFactorStatus = useCallback(async () => {
+    if (!accessToken) return { success: false, message: 'Not authenticated' };
+    try {
+      const response = await authTwoFactorStatusRequest(accessToken);
+      return {
+        success: true,
+        data: response?.data || {}
+      };
+    } catch (twoFactorError) {
+      return {
+        success: false,
+        message: getMessage(twoFactorError)
+      };
+    }
+  }, [accessToken]);
+
+  const setupTwoFactor = useCallback(
+    async ({ currentPassword }) => {
+      if (!accessToken) {
+        return { success: false, message: 'Not authenticated' };
+      }
+
+      try {
+        await authCsrfTokenRequest();
+        const response = await authTwoFactorSetupRequest({
+          accessToken,
+          currentPassword: String(currentPassword || '').trim()
+        });
+        return {
+          success: true,
+          data: response?.data || {}
+        };
+      } catch (twoFactorError) {
+        return {
+          success: false,
+          message: getMessage(twoFactorError)
+        };
+      }
+    },
+    [accessToken]
+  );
+
+  const enableTwoFactor = useCallback(
+    async ({ currentPassword, code }) => {
+      if (!accessToken) {
+        return { success: false, message: 'Not authenticated' };
+      }
+
+      try {
+        await authCsrfTokenRequest();
+        const response = await authTwoFactorEnableRequest({
+          accessToken,
+          currentPassword: String(currentPassword || '').trim(),
+          code: String(code || '').trim()
+        });
+        return {
+          success: true,
+          data: response?.data || {}
+        };
+      } catch (twoFactorError) {
+        return {
+          success: false,
+          message: getMessage(twoFactorError)
+        };
+      }
+    },
+    [accessToken]
+  );
+
+  const disableTwoFactor = useCallback(
+    async ({ currentPassword, code = '', recoveryCode = '' }) => {
+      if (!accessToken) {
+        return { success: false, message: 'Not authenticated' };
+      }
+
+      try {
+        await authCsrfTokenRequest();
+        const response = await authTwoFactorDisableRequest({
+          accessToken,
+          currentPassword: String(currentPassword || '').trim(),
+          code: String(code || '').trim(),
+          recoveryCode: String(recoveryCode || '').trim()
+        });
+        return {
+          success: true,
+          data: response?.data || {}
+        };
+      } catch (twoFactorError) {
+        return {
+          success: false,
+          message: getMessage(twoFactorError)
+        };
+      }
+    },
+    [accessToken]
+  );
+
+  const regenerateTwoFactorRecoveryCodes = useCallback(
+    async ({ currentPassword, code = '', recoveryCode = '' }) => {
+      if (!accessToken) {
+        return { success: false, message: 'Not authenticated' };
+      }
+
+      try {
+        await authCsrfTokenRequest();
+        const response = await authTwoFactorRegenerateRecoveryCodesRequest({
+          accessToken,
+          currentPassword: String(currentPassword || '').trim(),
+          code: String(code || '').trim(),
+          recoveryCode: String(recoveryCode || '').trim()
+        });
+        return {
+          success: true,
+          data: response?.data || {}
+        };
+      } catch (twoFactorError) {
+        return {
+          success: false,
+          message: getMessage(twoFactorError)
+        };
+      }
+    },
+    [accessToken]
+  );
+
+  const exportComplianceData = useCallback(
+    async ({ includeAudit = false, limit = 2000 } = {}) => {
+      if (!accessToken) {
+        return { success: false, message: 'Not authenticated' };
+      }
+
+      try {
+        const response = await complianceExportRequest({
+          accessToken,
+          includeAudit,
+          limit
+        });
+        return { success: true, data: response };
+      } catch (complianceError) {
+        return {
+          success: false,
+          message: getMessage(complianceError)
+        };
+      }
+    },
+    [accessToken]
+  );
+
+  const deleteMyAccount = useCallback(
+    async ({ currentPassword, confirmationText = 'DELETE MY ACCOUNT' }) => {
+      if (!accessToken) {
+        return { success: false, message: 'Not authenticated' };
+      }
+
+      try {
+        await authCsrfTokenRequest();
+        await complianceDeleteMyAccountRequest({
+          accessToken,
+          currentPassword: String(currentPassword || '').trim(),
+          confirmationText
+        });
+        clearAuthState();
+        return { success: true };
+      } catch (complianceError) {
+        return {
+          success: false,
+          message: getMessage(complianceError)
+        };
+      }
+    },
+    [accessToken, clearAuthState]
+  );
+
+  const deleteOrganization = useCallback(
+    async ({ currentPassword, confirmationText }) => {
+      if (!accessToken) {
+        return { success: false, message: 'Not authenticated' };
+      }
+
+      try {
+        await authCsrfTokenRequest();
+        await complianceDeleteOrganizationRequest({
+          accessToken,
+          currentPassword: String(currentPassword || '').trim(),
+          confirmationText: String(confirmationText || '').trim()
+        });
+        clearAuthState();
+        return { success: true };
+      } catch (complianceError) {
+        return {
+          success: false,
+          message: getMessage(complianceError)
+        };
+      }
+    },
+    [accessToken, clearAuthState]
+  );
+
   return {
     accessToken,
     user,
@@ -483,15 +866,28 @@ export const useAuth = () => {
     isInitializing,
     error,
     notice,
+    pendingTwoFactorLogin,
     login,
     adminLogin,
     employeeLogin,
+    verifyTwoFactorLogin,
     signup,
     requestEmailVerification,
     verifyEmail,
     requestPasswordReset,
     resetPassword,
     updatePreferences,
+    getTwoFactorStatus,
+    setupTwoFactor,
+    enableTwoFactor,
+    disableTwoFactor,
+    regenerateTwoFactorRecoveryCodes,
+    exportComplianceData,
+    deleteMyAccount,
+    deleteOrganization,
+    listSessions,
+    revokeSession,
+    logoutOtherSessions,
     logout
   };
 };

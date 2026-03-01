@@ -4,6 +4,7 @@ export const APP_TABS = Object.freeze([
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'purchaseOrders', label: 'Purchase Orders' },
   { key: 'products', label: 'Products' },
+  { key: 'stocktakes', label: 'Stocktakes' },
   { key: 'suppliers', label: 'Suppliers' },
   { key: 'reports', label: 'Reports' },
   { key: 'users', label: 'Users' },

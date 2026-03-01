@@ -39,6 +39,26 @@ const OFFLINE_QUEUE_ENABLED =
   String(process.env.REACT_APP_OFFLINE_QUEUE_ENABLED || 'true')
     .trim()
     .toLowerCase() === 'true';
+const CLIENT_DEVICE_ID_KEY = 'ledgerly_client_device_id_v1';
+
+const getClientDeviceId = () => {
+  if (typeof window === 'undefined') return 'device_server';
+
+  try {
+    const existing = String(
+      window.localStorage.getItem(CLIENT_DEVICE_ID_KEY) || ''
+    ).trim();
+    if (existing) return existing;
+
+    const generated = `device_${Date.now()}_${Math.random()
+      .toString(16)
+      .slice(2, 10)}`;
+    window.localStorage.setItem(CLIENT_DEVICE_ID_KEY, generated);
+    return generated;
+  } catch {
+    return 'device_browser';
+  }
+};
 
 const emitTraceLog = (message, meta = {}) => {
   if (process.env.NODE_ENV === 'production') return;
@@ -90,6 +110,7 @@ const request = async ({
         'content-type': 'application/json',
         'x-request-id': trace.requestId,
         'x-client-trace-id': trace.clientTraceId,
+        'x-device-id': getClientDeviceId(),
         ...(idempotencyKey
           ? { 'idempotency-key': String(idempotencyKey) }
           : {}),
@@ -245,6 +266,21 @@ export const authResetPasswordRequest = ({
     body: { email, token, password, confirmPassword }
   });
 
+export const authTwoFactorVerifyLoginRequest = ({
+  twoFactorToken,
+  code = '',
+  recoveryCode = ''
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.AUTH_2FA_VERIFY_LOGIN,
+    body: {
+      twoFactorToken,
+      ...(String(code || '').trim() ? { code } : {}),
+      ...(String(recoveryCode || '').trim() ? { recoveryCode } : {})
+    }
+  });
+
 export const authCsrfTokenRequest = async () => {
   const payload = await request({
     method: 'GET',
@@ -269,6 +305,93 @@ export const authMeRequest = (accessToken) =>
   request({
     method: 'GET',
     path: API_ENDPOINTS.AUTH_ME,
+    accessToken
+  });
+
+export const authTwoFactorStatusRequest = (accessToken) =>
+  request({
+    method: 'GET',
+    path: API_ENDPOINTS.AUTH_2FA_STATUS,
+    accessToken
+  });
+
+export const authTwoFactorSetupRequest = ({ accessToken, currentPassword }) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.AUTH_2FA_SETUP,
+    accessToken,
+    body: {
+      currentPassword
+    }
+  });
+
+export const authTwoFactorEnableRequest = ({
+  accessToken,
+  currentPassword,
+  code
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.AUTH_2FA_ENABLE,
+    accessToken,
+    body: {
+      currentPassword,
+      code
+    }
+  });
+
+export const authTwoFactorDisableRequest = ({
+  accessToken,
+  currentPassword,
+  code = '',
+  recoveryCode = ''
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.AUTH_2FA_DISABLE,
+    accessToken,
+    body: {
+      currentPassword,
+      ...(String(code || '').trim() ? { code } : {}),
+      ...(String(recoveryCode || '').trim() ? { recoveryCode } : {})
+    }
+  });
+
+export const authTwoFactorRegenerateRecoveryCodesRequest = ({
+  accessToken,
+  currentPassword,
+  code = '',
+  recoveryCode = ''
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.AUTH_2FA_RECOVERY_REGENERATE,
+    accessToken,
+    body: {
+      currentPassword,
+      ...(String(code || '').trim() ? { code } : {}),
+      ...(String(recoveryCode || '').trim() ? { recoveryCode } : {})
+    }
+  });
+
+export const authListSessionsRequest = (accessToken) =>
+  request({
+    method: 'GET',
+    path: API_ENDPOINTS.AUTH_SESSIONS,
+    accessToken
+  });
+
+export const authRevokeSessionRequest = ({ accessToken, sessionId }) =>
+  request({
+    method: 'DELETE',
+    path: `${API_ENDPOINTS.AUTH_SESSIONS}/${sessionId}`,
+    accessToken
+  });
+
+export const authLogoutOtherSessionsRequest = (accessToken) =>
+  request({
+    method: 'DELETE',
+    path: API_ENDPOINTS.AUTH_SESSIONS_OTHERS,
     accessToken
   });
 
@@ -318,6 +441,10 @@ export const createProductRequest = ({
   name,
   sku = '',
   skuPrefix = '',
+  isVariant = false,
+  parentProduct = '',
+  variantAttributes = {},
+  uom = null,
   price,
   category = '',
   description = '',
@@ -337,6 +464,16 @@ export const createProductRequest = ({
       category,
       description,
       lowStockThreshold,
+      isVariant: isVariant === true,
+      ...(String(parentProduct || '').trim()
+        ? { parentProduct: String(parentProduct || '').trim() }
+        : {}),
+      ...(variantAttributes &&
+      typeof variantAttributes === 'object' &&
+      Object.keys(variantAttributes).length
+        ? { variantAttributes }
+        : {}),
+      ...(uom && typeof uom === 'object' ? { uom } : {}),
       ...(String(barcode || '').trim() ? { barcode } : {}),
       ...(String(barcodeType || '').trim() ? { barcodeType } : {})
     }
@@ -357,6 +494,30 @@ export const createProductsBulkImportRequest = ({
       fieldMap,
       options
     }
+  }).then(readData);
+
+export const createProductsBulkImportJobRequest = ({
+  accessToken,
+  products,
+  fieldMap = {},
+  options = {}
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.PRODUCTS_BULK_IMPORT_JOBS,
+    accessToken,
+    body: {
+      products,
+      fieldMap,
+      options
+    }
+  }).then(readData);
+
+export const getProductsBulkImportJobStatusRequest = ({ accessToken, jobId }) =>
+  request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.PRODUCTS_BULK_IMPORT_JOBS}/${jobId}`,
+    accessToken
   }).then(readData);
 
 export const softDeleteProductRequest = ({ accessToken, productId }) =>
@@ -391,6 +552,40 @@ export const getUsersRequest = (accessToken) =>
   request({
     method: 'GET',
     path: API_ENDPOINTS.USERS,
+    accessToken
+  }).then(readData);
+
+export const getNotificationsRequest = ({
+  accessToken,
+  limit = 20,
+  unreadOnly = false
+}) => {
+  const query = new URLSearchParams();
+  query.set('limit', String(limit));
+  if (unreadOnly) {
+    query.set('unreadOnly', 'true');
+  }
+
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.NOTIFICATIONS}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const markNotificationReadRequest = ({ accessToken, notificationId }) =>
+  request({
+    method: 'PATCH',
+    path: `${API_ENDPOINTS.NOTIFICATIONS}/${notificationId}/read`,
+    accessToken
+  }).then(readData);
+
+export const markAllNotificationsReadRequest = ({ accessToken }) =>
+  request({
+    method: 'PATCH',
+    path: API_ENDPOINTS.NOTIFICATIONS_READ_ALL,
     accessToken
   }).then(readData);
 
@@ -470,6 +665,82 @@ export const getFinanceRealtimeStatsRequest = (accessToken) =>
     path: API_ENDPOINTS.FINANCE_REALTIME_STATS,
     accessToken
   }).then(readData);
+
+export const getFinanceInventoryValuationRequest = ({
+  accessToken,
+  warehouseId = null,
+  method = null
+}) => {
+  const query = new URLSearchParams();
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  if (method) query.set('method', String(method));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.FINANCE_VALUATION}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const getFinanceCogsEntriesRequest = ({
+  accessToken,
+  from = null,
+  to = null,
+  productId = null,
+  warehouseId = null
+}) => {
+  const query = new URLSearchParams();
+  if (from) query.set('from', String(from));
+  if (to) query.set('to', String(to));
+  if (productId) query.set('productId', String(productId));
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.FINANCE_COGS}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const getFinanceGrossMarginRequest = ({
+  accessToken,
+  from = null,
+  to = null,
+  groupBy = 'day'
+}) => {
+  const query = new URLSearchParams();
+  if (from) query.set('from', String(from));
+  if (to) query.set('to', String(to));
+  if (groupBy) query.set('groupBy', String(groupBy));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.FINANCE_GROSS_MARGIN}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const getFinanceDeadStockRequest = ({
+  accessToken,
+  days = null,
+  warehouseId = null
+}) => {
+  const query = new URLSearchParams();
+  if (days !== null && days !== undefined && days !== '') {
+    query.set('days', String(days));
+  }
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.FINANCE_DEAD_STOCK}${suffix}`,
+    accessToken
+  }).then(readData);
+};
 
 export const getOnlineUsersRequest = (accessToken) =>
   request({
@@ -572,6 +843,82 @@ export const adjustProductStockRequest = async ({
   }
 };
 
+export const listInventoryStocktakesRequest = ({
+  accessToken,
+  warehouseId = null,
+  status = '',
+  limit = 50
+}) => {
+  const query = new URLSearchParams();
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  if (status) query.set('status', String(status).toUpperCase());
+  query.set('limit', String(limit));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.INVENTORY_STOCKTAKES}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const getInventoryStocktakeSessionRequest = ({
+  accessToken,
+  sessionId
+}) =>
+  request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.INVENTORY_STOCKTAKES}/${sessionId}`,
+    accessToken
+  }).then(readData);
+
+export const createInventoryStocktakeSessionRequest = ({
+  accessToken,
+  warehouseId,
+  title = '',
+  notes = '',
+  productIds = []
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.INVENTORY_STOCKTAKES,
+    accessToken,
+    body: {
+      warehouseId,
+      ...(String(title || '').trim()
+        ? { title: String(title || '').trim() }
+        : {}),
+      ...(String(notes || '').trim()
+        ? { notes: String(notes || '').trim() }
+        : {}),
+      ...(Array.isArray(productIds) && productIds.length ? { productIds } : {})
+    }
+  }).then(readData);
+
+export const submitInventoryStocktakeCountsRequest = ({
+  accessToken,
+  sessionId,
+  counts
+}) =>
+  request({
+    method: 'PATCH',
+    path: `${API_ENDPOINTS.INVENTORY_STOCKTAKES}/${sessionId}/counts`,
+    accessToken,
+    body: {
+      counts
+    }
+  }).then(readData);
+
+export const approveInventoryStocktakeSessionRequest = ({
+  accessToken,
+  sessionId
+}) =>
+  request({
+    method: 'POST',
+    path: `${API_ENDPOINTS.INVENTORY_STOCKTAKES}/${sessionId}/approve`,
+    accessToken
+  }).then(readData);
+
 export const receivePurchaseOrderRequest = ({
   accessToken,
   purchaseOrderId,
@@ -633,6 +980,66 @@ export const getObservabilityRuntimeRequest = (accessToken) =>
     accessToken
   }).then(readData);
 
+export const seedOnboardingSampleDataRequest = ({
+  accessToken,
+  force = false
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.ONBOARDING_SEED_SAMPLE,
+    accessToken,
+    body: {
+      force: Boolean(force)
+    }
+  }).then(readData);
+
+export const complianceExportRequest = ({
+  accessToken,
+  includeAudit = false,
+  limit = 2000
+}) => {
+  const query = new URLSearchParams();
+  query.set('includeAudit', String(Boolean(includeAudit)));
+  query.set('limit', String(limit));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.COMPLIANCE_EXPORT}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const complianceDeleteMyAccountRequest = ({
+  accessToken,
+  currentPassword,
+  confirmationText = 'DELETE MY ACCOUNT'
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.COMPLIANCE_DELETE_ACCOUNT,
+    accessToken,
+    body: {
+      currentPassword,
+      confirmationText
+    }
+  }).then(readData);
+
+export const complianceDeleteOrganizationRequest = ({
+  accessToken,
+  currentPassword,
+  confirmationText
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.COMPLIANCE_DELETE_ORGANIZATION,
+    accessToken,
+    body: {
+      currentPassword,
+      confirmationText
+    }
+  }).then(readData);
+
 export const mobileSyncBootstrapRequest = ({
   accessToken,
   since = null,
@@ -679,12 +1086,24 @@ export default {
   authVerifyEmailConfirmRequest,
   authForgotPasswordRequest,
   authResetPasswordRequest,
+  authTwoFactorVerifyLoginRequest,
   authCsrfTokenRequest,
   authRefreshRequest,
   authMeRequest,
+  authTwoFactorStatusRequest,
+  authTwoFactorSetupRequest,
+  authTwoFactorEnableRequest,
+  authTwoFactorDisableRequest,
+  authTwoFactorRegenerateRecoveryCodesRequest,
+  authListSessionsRequest,
+  authRevokeSessionRequest,
+  authLogoutOtherSessionsRequest,
   authUpdatePreferencesRequest,
   authLogoutRequest,
   getUsersRequest,
+  getNotificationsRequest,
+  markNotificationReadRequest,
+  markAllNotificationsReadRequest,
   getSettingsRequest,
   patchSettingsRequest,
   getFinanceValuationConfigRequest,
@@ -694,6 +1113,10 @@ export default {
   getFinanceNotificationSettingsRequest,
   patchFinanceNotificationSettingsRequest,
   getFinanceRealtimeStatsRequest,
+  getFinanceInventoryValuationRequest,
+  getFinanceCogsEntriesRequest,
+  getFinanceGrossMarginRequest,
+  getFinanceDeadStockRequest,
   getOnlineUsersRequest,
   getUserInvitesRequest,
   createUserInviteRequest,
@@ -704,11 +1127,18 @@ export default {
   getDeletedProductsRequest,
   createProductRequest,
   createProductsBulkImportRequest,
+  createProductsBulkImportJobRequest,
+  getProductsBulkImportJobStatusRequest,
   softDeleteProductRequest,
   restoreDeletedProductRequest,
   permanentlyDeleteProductRequest,
   getProductsLowStockSummaryRequest,
   adjustProductStockRequest,
+  listInventoryStocktakesRequest,
+  getInventoryStocktakeSessionRequest,
+  createInventoryStocktakeSessionRequest,
+  submitInventoryStocktakeCountsRequest,
+  approveInventoryStocktakeSessionRequest,
   receivePurchaseOrderRequest,
   getSuppliersRequest,
   getSupplierRankingsRequest,
@@ -717,6 +1147,10 @@ export default {
   getReportSpendBySupplierRequest,
   getObservabilityPingRequest,
   getObservabilityRuntimeRequest,
+  seedOnboardingSampleDataRequest,
+  complianceExportRequest,
+  complianceDeleteMyAccountRequest,
+  complianceDeleteOrganizationRequest,
   mobileSyncBootstrapRequest,
   mobileSyncMutationsRequest
 };

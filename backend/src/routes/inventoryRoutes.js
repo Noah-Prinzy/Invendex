@@ -11,7 +11,12 @@ import {
   getReorderAlertTrend,
   createManualReorderAlert,
   resolveReorderAlert,
-  runAutomaticReorderAlerts
+  runAutomaticReorderAlerts,
+  createInventoryStocktakeSession,
+  listInventoryStocktakeSessions,
+  getInventoryStocktakeSession,
+  submitInventoryStocktakeCounts,
+  approveInventoryStocktakeSession
 } from '../controllers/inventoryController.js';
 
 import { protect } from '../middlewares/authMiddleware.js';
@@ -23,9 +28,13 @@ import { PERMISSIONS } from '../authorization/permissions.js';
 
 import {
   createManualReorderAlertValidator,
+  createStocktakeSessionValidator,
   inventoryProductParamValidator,
   reorderIntelligenceQueryValidator,
-  resolveReorderAlertParamValidator
+  resolveReorderAlertParamValidator,
+  stocktakeSessionIdParamValidator,
+  submitStocktakeCountsValidator,
+  stocktakeListQueryValidator
 } from '../validations/inventoryValidators.js';
 
 import {
@@ -181,6 +190,62 @@ router.post(
     resource: 'SYSTEM'
   }),
   runAutomaticReorderAlerts
+);
+
+/* ======================================================
+   STOCKTAKE / CYCLE COUNT
+====================================================== */
+
+router.post(
+  '/stocktakes',
+  requirePermission(PERMISSIONS.INVENTORY_MANAGE),
+  createStocktakeSessionValidator,
+  validateRequest,
+  auditMiddleware({
+    action: 'CREATE_STOCKTAKE_SESSION',
+    resource: 'INVENTORY'
+  }),
+  createInventoryStocktakeSession
+);
+
+router.get(
+  '/stocktakes',
+  requirePermission(PERMISSIONS.INVENTORY_MANAGE),
+  stocktakeListQueryValidator,
+  validateRequest,
+  listInventoryStocktakeSessions
+);
+
+router.get(
+  '/stocktakes/:sessionId',
+  requirePermission(PERMISSIONS.INVENTORY_MANAGE),
+  stocktakeSessionIdParamValidator,
+  validateRequest,
+  getInventoryStocktakeSession
+);
+
+router.patch(
+  '/stocktakes/:sessionId/counts',
+  requirePermission(PERMISSIONS.INVENTORY_MANAGE),
+  submitStocktakeCountsValidator,
+  validateRequest,
+  auditMiddleware({
+    action: 'SUBMIT_STOCKTAKE_COUNTS',
+    resource: 'INVENTORY'
+  }),
+  submitInventoryStocktakeCounts
+);
+
+router.post(
+  '/stocktakes/:sessionId/approve',
+  requirePermission(PERMISSIONS.INVENTORY_MANAGE),
+  stocktakeSessionIdParamValidator,
+  validateRequest,
+  auditMiddleware({
+    action: 'APPROVE_STOCKTAKE_SESSION',
+    resource: 'INVENTORY'
+  }),
+  approveInventoryStocktakeSession
 );
 
 export default router;

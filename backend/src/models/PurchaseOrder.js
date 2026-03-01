@@ -19,6 +19,19 @@ const purchaseOrderItemSchema = new mongoose.Schema(
       min: 1
     },
 
+    purchaseUom: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: null
+    },
+
+    purchaseToBaseFactor: {
+      type: Number,
+      min: 1,
+      default: null
+    },
+
     unitCost: {
       type: Number,
       required: true,

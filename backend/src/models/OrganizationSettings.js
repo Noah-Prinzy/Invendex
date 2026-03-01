@@ -79,6 +79,11 @@ const organizationSettingsSchema = new mongoose.Schema(
         type: Boolean,
         default: true
       },
+      sensitiveAdjustmentMinRole: {
+        type: String,
+        enum: ['staff', 'manager', 'admin', 'owner'],
+        default: 'manager'
+      },
       allowNegativeStock: {
         type: Boolean,
         default: false

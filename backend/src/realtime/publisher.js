@@ -214,6 +214,24 @@ export const publishEmployeeSignedIn = ({
   });
 };
 
+export const publishNotificationCreated = ({
+  organizationId,
+  actorUserId = null,
+  notification
+}) => {
+  emitToOrganization({
+    organizationId,
+    event: 'notification.created',
+    payload: buildBasePayload({
+      organizationId,
+      actorUserId,
+      entityId: notification?._id || null,
+      entityType: 'NOTIFICATION',
+      data: notification || {}
+    })
+  });
+};
+
 export default {
   publishInventoryUpdated,
   publishPurchaseOrderCreated,
@@ -222,5 +240,6 @@ export default {
   publishCogsRecorded,
   publishValuationUpdated,
   publishEmployeeSignedIn,
+  publishNotificationCreated,
   getRealtimeEmitStats
 };

@@ -4,6 +4,7 @@ import SupplierProduct from '../models/SupplierProduct.js';
 import Organization from '../models/Organization.js';
 import { getAverageDailyDemandPerSku } from './inventoryMetricsService.js';
 import { sendLowStockSmsNotification } from './notifications/notificationService.js';
+import { createInAppNotification } from './notifications/inAppNotificationService.js';
 
 const ENGINE_VERSION = 'v1.3';
 
@@ -137,6 +138,23 @@ export const runReorderEngine = async ({
     });
 
     alertsCreated.push(alert);
+
+    await createInAppNotification({
+      organizationId,
+      actorUserId: null,
+      type: 'low_stock_alert',
+      title: `Low stock: ${product.name}`,
+      message: `${product.name} (${product.sku}) dropped to ${product.stock}. Reorder target is ${reorderLevel}.`,
+      severity: 'warning',
+      entityType: 'REORDER_ALERT',
+      entityId: alert._id,
+      metadata: {
+        sku: product.sku,
+        currentStock: product.stock,
+        reorderLevel,
+        reorderQuantity
+      }
+    });
 
     // Non-blocking operational notification.
     sendLowStockSmsNotification({

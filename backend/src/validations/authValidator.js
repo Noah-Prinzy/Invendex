@@ -1,4 +1,4 @@
-import { body } from 'express-validator';
+import { body, param } from 'express-validator';
 
 const withNormalizedString = (value) => String(value || '').trim();
 
@@ -107,6 +107,115 @@ export const resetPasswordValidator = [
     .withMessage('Password and confirmPassword do not match')
 ];
 
+const optionalTwoFactorCode = body('code')
+  .optional({ nullable: true })
+  .isString()
+  .withMessage('code must be a string')
+  .bail()
+  .trim()
+  .isLength({ min: 6, max: 8 })
+  .withMessage('code must be between 6 and 8 characters')
+  .bail()
+  .matches(/^\d+$/)
+  .withMessage('code must contain only digits');
+
+const optionalRecoveryCode = body('recoveryCode')
+  .optional({ nullable: true })
+  .isString()
+  .withMessage('recoveryCode must be a string')
+  .bail()
+  .trim()
+  .isLength({ min: 4, max: 40 })
+  .withMessage('recoveryCode must be between 4 and 40 characters');
+
+const requireOneTwoFactorProof = body().custom((value, { req }) => {
+  const code = withNormalizedString(req.body?.code);
+  const recoveryCode = withNormalizedString(req.body?.recoveryCode);
+  if (!code && !recoveryCode) {
+    throw new Error('Either code or recoveryCode is required');
+  }
+  return true;
+});
+
+export const twoFactorVerifyLoginValidator = [
+  body('twoFactorToken')
+    .exists({ checkFalsy: true })
+    .withMessage('twoFactorToken is required')
+    .bail()
+    .isString()
+    .withMessage('twoFactorToken must be a string'),
+  optionalTwoFactorCode,
+  optionalRecoveryCode,
+  requireOneTwoFactorProof
+];
+
+export const twoFactorSetupValidator = [
+  body('currentPassword')
+    .exists({ checkFalsy: true })
+    .withMessage('currentPassword is required')
+    .bail()
+    .isString()
+    .withMessage('currentPassword must be a string')
+    .bail()
+    .isLength({ min: 8 })
+    .withMessage('currentPassword must be at least 8 characters long')
+];
+
+export const twoFactorEnableValidator = [
+  body('currentPassword')
+    .exists({ checkFalsy: true })
+    .withMessage('currentPassword is required')
+    .bail()
+    .isString()
+    .withMessage('currentPassword must be a string')
+    .bail()
+    .isLength({ min: 8 })
+    .withMessage('currentPassword must be at least 8 characters long'),
+  body('code')
+    .exists({ checkFalsy: true })
+    .withMessage('code is required')
+    .bail()
+    .isString()
+    .withMessage('code must be a string')
+    .bail()
+    .trim()
+    .isLength({ min: 6, max: 8 })
+    .withMessage('code must be between 6 and 8 characters')
+    .bail()
+    .matches(/^\d+$/)
+    .withMessage('code must contain only digits')
+];
+
+export const twoFactorDisableValidator = [
+  body('currentPassword')
+    .exists({ checkFalsy: true })
+    .withMessage('currentPassword is required')
+    .bail()
+    .isString()
+    .withMessage('currentPassword must be a string')
+    .bail()
+    .isLength({ min: 8 })
+    .withMessage('currentPassword must be at least 8 characters long'),
+  optionalTwoFactorCode,
+  optionalRecoveryCode,
+  requireOneTwoFactorProof
+];
+
+export const twoFactorRegenerateRecoveryCodesValidator = [
+  body('currentPassword')
+    .exists({ checkFalsy: true })
+    .withMessage('currentPassword is required')
+    .bail()
+    .isString()
+    .withMessage('currentPassword must be a string')
+    .bail()
+    .isLength({ min: 8 })
+    .withMessage('currentPassword must be at least 8 characters long'),
+  optionalTwoFactorCode,
+  optionalRecoveryCode,
+  requireOneTwoFactorProof
+];
+
 const allowedUiThemes = [
   'ledgerly-classic',
   'glacier-blue',
@@ -130,6 +239,18 @@ export const updateMePreferencesValidator = [
     .withMessage(`uiTheme must be one of: ${allowedUiThemes.join(', ')}`)
 ];
 
+export const sessionIdParamValidator = [
+  param('sessionId')
+    .exists({ checkFalsy: true })
+    .withMessage('sessionId is required')
+    .bail()
+    .isString()
+    .withMessage('sessionId must be a string')
+    .bail()
+    .isLength({ min: 8, max: 128 })
+    .withMessage('sessionId must be between 8 and 128 characters')
+];
+
 export default {
   registerValidator,
   loginValidator,
@@ -138,5 +259,11 @@ export default {
   verifyEmailValidator,
   forgotPasswordValidator,
   resetPasswordValidator,
-  updateMePreferencesValidator
+  updateMePreferencesValidator,
+  sessionIdParamValidator,
+  twoFactorVerifyLoginValidator,
+  twoFactorSetupValidator,
+  twoFactorEnableValidator,
+  twoFactorDisableValidator,
+  twoFactorRegenerateRecoveryCodesValidator
 };

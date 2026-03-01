@@ -53,6 +53,7 @@ export const getDefaultSettings = () => ({
   inventory: {
     defaultWarehouse: '',
     enforceWarehouseForAdjustments: true,
+    sensitiveAdjustmentMinRole: 'manager',
     allowNegativeStock: false,
     deadStockThresholdDays: 90
   },
@@ -174,6 +175,11 @@ export const mapFormToApiPayload = (form) => ({
     enforceWarehouseForAdjustments: Boolean(
       form.inventory?.enforceWarehouseForAdjustments
     ),
+    sensitiveAdjustmentMinRole: String(
+      form.inventory?.sensitiveAdjustmentMinRole || 'manager'
+    )
+      .trim()
+      .toLowerCase(),
     allowNegativeStock: Boolean(form.inventory?.allowNegativeStock),
     deadStockThresholdDays: Number(form.inventory?.deadStockThresholdDays || 90)
   },

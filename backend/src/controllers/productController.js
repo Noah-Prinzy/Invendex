@@ -7,9 +7,12 @@ import mongoose from 'mongoose';
 import { adjustInventoryFromManualInput } from '../services/inventory/manualAdjustmentService.js';
 import {
   generateUniqueSku,
-  normalizeManualSku,
-  previewUniqueSku
+  normalizeManualSku
 } from '../services/product/skuService.js';
+import {
+  executeProductBulkImport,
+  normalizeBulkImportOptions
+} from '../services/product/bulkImportService.js';
 import {
   extractIdempotencyKeyFromRequest,
   IDEMPOTENCY_SCOPE,
@@ -23,6 +26,10 @@ import {
 const PRODUCT_FIELDS = [
   'name',
   'sku',
+  'isVariant',
+  'parentProduct',
+  'variantAttributes',
+  'uom',
   'price',
   'description',
   'category',
@@ -30,7 +37,6 @@ const PRODUCT_FIELDS = [
   'barcode',
   'barcodeType'
 ];
-const BULK_IMPORT_DUPLICATE_POLICIES = new Set(['skip', 'update', 'fail']);
 
 const pickProductFields = (source = {}) =>
   PRODUCT_FIELDS.reduce((obj, key) => {
@@ -53,52 +59,66 @@ const normalizeBarcodeType = (value) => {
   return normalized || null;
 };
 
-const mapBulkImportRow = ({ row, fieldMap }) => {
-  const resolvedFieldMap =
-    fieldMap && typeof fieldMap === 'object' ? fieldMap : {};
-  const getField = (canonicalName) => {
-    const mappedFieldName = String(
-      resolvedFieldMap[canonicalName] || canonicalName
-    ).trim();
-    return row?.[mappedFieldName];
-  };
+const normalizeVariantAttributes = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
 
-  return {
-    name: getField('name'),
-    sku: getField('sku'),
-    skuPrefix: getField('skuPrefix'),
-    price: getField('price'),
-    category: getField('category'),
-    description: getField('description'),
-    lowStockThreshold: getField('lowStockThreshold'),
-    barcode: getField('barcode'),
-    barcodeType: getField('barcodeType')
-  };
+  return Object.entries(value).reduce((acc, [key, rawValue]) => {
+    const normalizedKey = String(key || '').trim();
+    const normalizedValue = String(rawValue ?? '').trim();
+    if (!normalizedKey || !normalizedValue) {
+      return acc;
+    }
+    acc[normalizedKey] = normalizedValue;
+    return acc;
+  }, {});
 };
 
-const normalizeBulkImportOptions = (options = {}) => {
-  const validateOnly = options?.validateOnly === true;
-  const atomic = options?.atomic === true;
-  const duplicatePolicy = String(options?.duplicatePolicy || 'skip')
+const normalizeUomConfig = (value) => {
+  const source =
+    value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const base = String(source.base || '')
     .trim()
     .toLowerCase();
+  const purchase = String(source.purchase || '')
+    .trim()
+    .toLowerCase();
+  const factor = Number(source.purchaseToBaseFactor || 1);
 
   return {
-    validateOnly,
-    atomic,
-    duplicatePolicy: BULK_IMPORT_DUPLICATE_POLICIES.has(duplicatePolicy)
-      ? duplicatePolicy
-      : 'skip'
+    base: base || 'pcs',
+    purchase: purchase || base || 'pcs',
+    purchaseToBaseFactor:
+      Number.isInteger(factor) && factor >= 1 ? Number(factor) : 1
   };
 };
 
-const isTransactionUnsupportedError = (error) => {
-  const message = String(error?.message || '').toLowerCase();
-  return (
-    message.includes('transaction numbers are only allowed') ||
-    message.includes('replica set') ||
-    message.includes('standalone')
-  );
+const assertParentProductIfProvided = async ({
+  organizationId,
+  parentProductId,
+  excludeProductId = null
+}) => {
+  if (!parentProductId) return;
+
+  const parent = await Product.findOne({
+    _id: parentProductId,
+    organization: organizationId,
+    isActive: true
+  })
+    .select('_id')
+    .lean();
+
+  if (!parent) {
+    throw new AppError('parentProduct not found in organization', 400);
+  }
+
+  if (
+    excludeProductId &&
+    String(parent._id || '') === String(excludeProductId || '')
+  ) {
+    throw new AppError('A product cannot be its own parent variant', 400);
+  }
 };
 
 const getOrganizationUserAccessSettings = async (organizationId) => {
@@ -217,9 +237,25 @@ export const createProduct = async (req, res, next) => {
     const data = pickProductFields(req.body);
     data.barcode = normalizeBarcode(data.barcode);
     data.barcodeType = normalizeBarcodeType(data.barcodeType);
+    data.variantAttributes = normalizeVariantAttributes(data.variantAttributes);
+    data.uom = normalizeUomConfig(data.uom);
+    data.isVariant = data.isVariant === true;
 
     if (!data.barcode) {
       data.barcodeType = null;
+    }
+
+    if (!data.parentProduct) {
+      data.parentProduct = null;
+    } else {
+      await assertParentProductIfProvided({
+        organizationId: req.organizationId,
+        parentProductId: data.parentProduct
+      });
+    }
+
+    if (data.isVariant && !data.parentProduct) {
+      throw new AppError('parentProduct is required when isVariant=true', 400);
     }
 
     const manualSku = normalizeManualSku(data.sku);
@@ -287,330 +323,14 @@ export const createProductsBulk = async (req, res, next) => {
         ? req.body.fieldMap
         : {};
     const options = normalizeBulkImportOptions(req.body?.options || {});
-
-    const processRows = async ({ mode = 'write', session = null }) => {
-      const rowErrors = [];
-      const createdProducts = [];
-      const updatedProducts = [];
-      const previewRows = [];
-      let skippedCount = 0;
-      const previewSkuCursor = new Map();
-      const seenManualSkus = new Map();
-      const seenBarcodes = new Map();
-
-      for (let index = 0; index < rows.length; index += 1) {
-        const row = rows[index];
-        const rowNumber = index + 1;
-        try {
-          const mappedRow = mapBulkImportRow({ row, fieldMap });
-
-          const name = String(mappedRow.name || '').trim();
-          if (!name) {
-            const err = new Error('Product name is required');
-            err.field = 'name';
-            err.originalValue = mappedRow.name;
-            err.suggestedFix = 'Provide a non-empty product name.';
-            throw err;
-          }
-
-          const price = Number(mappedRow.price);
-          if (!Number.isFinite(price) || price < 0) {
-            const err = new Error('Price must be a non-negative number');
-            err.field = 'price';
-            err.originalValue = mappedRow.price;
-            err.suggestedFix =
-              'Provide a valid number greater than or equal to 0.';
-            throw err;
-          }
-
-          let lowStockThreshold = 5;
-          if (
-            mappedRow.lowStockThreshold !== undefined &&
-            mappedRow.lowStockThreshold !== null &&
-            String(mappedRow.lowStockThreshold).trim() !== ''
-          ) {
-            lowStockThreshold = Number(mappedRow.lowStockThreshold);
-            if (!Number.isInteger(lowStockThreshold) || lowStockThreshold < 0) {
-              const err = new Error(
-                'Low stock threshold must be a non-negative integer'
-              );
-              err.field = 'lowStockThreshold';
-              err.originalValue = mappedRow.lowStockThreshold;
-              err.suggestedFix = 'Use a whole number like 0, 5, or 10.';
-              throw err;
-            }
-          }
-
-          const payload = {
-            name,
-            price,
-            category: String(mappedRow.category || '').trim(),
-            description: String(mappedRow.description || '').trim(),
-            lowStockThreshold,
-            barcode: normalizeBarcode(mappedRow.barcode),
-            barcodeType: normalizeBarcodeType(mappedRow.barcodeType)
-          };
-
-          if (!payload.barcode) {
-            payload.barcodeType = null;
-          }
-
-          const manualSku = normalizeManualSku(mappedRow.sku);
-          if (manualSku) {
-            const firstSeenRow = seenManualSkus.get(manualSku);
-            if (firstSeenRow && options.duplicatePolicy !== 'update') {
-              const err = new Error(
-                `Duplicate SKU in uploaded file (first seen on row ${firstSeenRow})`
-              );
-              err.field = 'sku';
-              err.originalValue = mappedRow.sku;
-              err.suggestedFix =
-                'Remove duplicate rows or switch duplicate policy to "update".';
-              throw err;
-            }
-            if (!firstSeenRow) {
-              seenManualSkus.set(manualSku, rowNumber);
-            }
-            payload.sku = manualSku;
-          } else if (mode === 'validate') {
-            payload.sku = await previewUniqueSku({
-              organizationId: req.organizationId,
-              category: payload.category,
-              name: payload.name,
-              prefixOverride: mappedRow.skuPrefix,
-              session,
-              cursorByPrefix: previewSkuCursor
-            });
-          } else {
-            payload.sku = await generateUniqueSku({
-              organizationId: req.organizationId,
-              category: payload.category,
-              name: payload.name,
-              prefixOverride: mappedRow.skuPrefix,
-              session
-            });
-          }
-
-          if (payload.barcode) {
-            const firstSeenRow = seenBarcodes.get(payload.barcode);
-            if (firstSeenRow && options.duplicatePolicy !== 'update') {
-              const err = new Error(
-                `Duplicate barcode in uploaded file (first seen on row ${firstSeenRow})`
-              );
-              err.field = 'barcode';
-              err.originalValue = mappedRow.barcode;
-              err.suggestedFix =
-                'Remove duplicate rows or switch duplicate policy to "update".';
-              throw err;
-            }
-            if (!firstSeenRow) {
-              seenBarcodes.set(payload.barcode, rowNumber);
-            }
-          }
-
-          let existingBySku = null;
-          if (manualSku) {
-            let existingQuery = Product.findOne({
-              organization: req.organizationId,
-              sku: manualSku
-            });
-            if (session) existingQuery = existingQuery.session(session);
-            existingBySku = await existingQuery;
-          }
-
-          if (existingBySku) {
-            if (options.duplicatePolicy === 'fail') {
-              const err = new Error('SKU already exists in organization');
-              err.field = 'sku';
-              err.originalValue = mappedRow.sku;
-              err.suggestedFix =
-                'Use a unique SKU or switch duplicate policy to "skip" or "update".';
-              throw err;
-            }
-
-            if (options.duplicatePolicy === 'skip') {
-              skippedCount += 1;
-              previewRows.push({
-                row: rowNumber,
-                sku: payload.sku,
-                action: 'SKIP_DUPLICATE'
-              });
-              continue;
-            }
-
-            if (mode === 'write') {
-              existingBySku.set({
-                ...payload
-              });
-              await existingBySku.save(session ? { session } : undefined);
-              updatedProducts.push(existingBySku);
-            }
-            previewRows.push({
-              row: rowNumber,
-              sku: payload.sku,
-              action: 'UPDATE_EXISTING'
-            });
-            continue;
-          }
-
-          if (mode === 'write') {
-            let created;
-            if (session) {
-              [created] = await Product.create(
-                [
-                  {
-                    ...payload,
-                    organization: req.organizationId
-                  }
-                ],
-                { session }
-              );
-            } else {
-              created = await Product.create({
-                ...payload,
-                organization: req.organizationId
-              });
-            }
-            createdProducts.push(created);
-          }
-
-          previewRows.push({
-            row: rowNumber,
-            sku: payload.sku,
-            action: 'CREATE_NEW'
-          });
-        } catch (rowError) {
-          if (rowError?.code === 11000 && rowError?.keyPattern?.sku) {
-            rowErrors.push({
-              row: rowNumber,
-              field: 'sku',
-              error: 'SKU already exists in organization',
-              originalValue: row?.sku ?? null,
-              suggestedFix:
-                'Provide a unique SKU or switch duplicate policy to "skip" or "update".'
-            });
-            continue;
-          }
-
-          if (rowError?.code === 11000 && rowError?.keyPattern?.barcode) {
-            rowErrors.push({
-              row: rowNumber,
-              field: 'barcode',
-              error: 'Barcode already exists in organization',
-              originalValue: row?.barcode ?? null,
-              suggestedFix:
-                'Provide a unique barcode or remove duplicate barcode.'
-            });
-            continue;
-          }
-
-          rowErrors.push({
-            row: rowNumber,
-            field: String(rowError?.field || 'row'),
-            error: String(rowError?.message || 'Unknown import row error'),
-            originalValue: rowError?.originalValue ?? null,
-            suggestedFix: String(
-              rowError?.suggestedFix || 'Fix the row and retry import.'
-            )
-          });
-        }
-      }
-
-      const totalRows = rows.length;
-      const failedCount = rowErrors.length;
-      const createdCount = createdProducts.length;
-      const updatedCount = updatedProducts.length;
-      const validRows = totalRows - failedCount;
-
-      return {
-        mode,
-        totalRows,
-        validRows: Math.max(validRows, 0),
-        invalidRows: failedCount,
-        createdCount,
-        updatedCount,
-        skippedCount,
-        failedCount,
-        previewRows: previewRows.slice(0, 50),
-        products: createdProducts,
-        updatedProducts,
-        rowErrors
-      };
-    };
-
-    if (options.atomic && !options.validateOnly) {
-      const dryRunValidation = await processRows({
-        mode: 'validate',
-        session: null
-      });
-      if (dryRunValidation.rowErrors.length > 0) {
-        return successResponse(
-          res,
-          {
-            ...dryRunValidation,
-            dryRun: true,
-            atomic: true,
-            duplicatePolicy: options.duplicatePolicy
-          },
-          'Atomic import validation failed. No rows were written.',
-          200
-        );
-      }
-
-      const session = await mongoose.startSession();
-      try {
-        let result = null;
-        await session.withTransaction(async () => {
-          result = await processRows({
-            mode: 'write',
-            session
-          });
-        });
-
-        logAudit({
-          req,
-          action: 'BULK_CREATE_PRODUCTS',
-          resource: 'PRODUCT',
-          resourceId: null,
-          details: {
-            createdCount: result.createdCount,
-            updatedCount: result.updatedCount,
-            failedCount: result.failedCount,
-            atomic: true,
-            duplicatePolicy: options.duplicatePolicy
-          }
-        });
-
-        return successResponse(
-          res,
-          {
-            ...result,
-            dryRun: false,
-            atomic: true,
-            duplicatePolicy: options.duplicatePolicy
-          },
-          'Bulk product import completed (atomic mode)',
-          201
-        );
-      } catch (error) {
-        if (isTransactionUnsupportedError(error)) {
-          throw new AppError(
-            'Atomic import requires MongoDB replica set transaction support',
-            400
-          );
-        }
-        throw error;
-      } finally {
-        await session.endSession();
-      }
-    }
-
-    const result = await processRows({
-      mode: options.validateOnly ? 'validate' : 'write',
-      session: null
+    const result = await executeProductBulkImport({
+      organizationId: req.organizationId,
+      rows,
+      fieldMap,
+      options
     });
 
-    if (!options.validateOnly) {
+    if (!result.dryRun) {
       logAudit({
         req,
         action: 'BULK_CREATE_PRODUCTS',
@@ -620,24 +340,28 @@ export const createProductsBulk = async (req, res, next) => {
           createdCount: result.createdCount,
           updatedCount: result.updatedCount,
           failedCount: result.failedCount,
-          atomic: false,
-          duplicatePolicy: options.duplicatePolicy
+          atomic: result.atomic === true,
+          duplicatePolicy: String(
+            result.duplicatePolicy || options.duplicatePolicy
+          )
         }
       });
     }
 
+    const responseMessage =
+      result.validationBlocked === true
+        ? 'Atomic import validation failed. No rows were written.'
+        : result.dryRun
+          ? 'Bulk import validation completed (no database writes)'
+          : result.atomic
+            ? 'Bulk product import completed (atomic mode)'
+            : 'Bulk product import completed';
+
     return successResponse(
       res,
-      {
-        ...result,
-        dryRun: options.validateOnly,
-        atomic: options.atomic && !options.validateOnly,
-        duplicatePolicy: options.duplicatePolicy
-      },
-      options.validateOnly
-        ? 'Bulk import validation completed (no database writes)'
-        : 'Bulk product import completed',
-      options.validateOnly ? 200 : 201
+      result,
+      responseMessage,
+      result.dryRun ? 200 : 201
     );
   } catch (err) {
     if (err?.code === 11000) {
@@ -659,6 +383,13 @@ export const createProductsBulk = async (req, res, next) => {
 export const updateProduct = async (req, res, next) => {
   try {
     const updates = pickProductFields(req.body);
+    const existingProduct = await Product.findOne({
+      _id: req.params.id,
+      organization: req.organizationId
+    }).select('_id parentProduct isVariant');
+
+    if (!existingProduct) throw new AppError('Product not found', 404);
+
     if (updates.sku !== undefined) {
       const normalizedSku = normalizeManualSku(updates.sku);
       if (!normalizedSku) {
@@ -676,13 +407,53 @@ export const updateProduct = async (req, res, next) => {
       updates.barcodeType = null;
     }
 
+    if (updates.variantAttributes !== undefined) {
+      updates.variantAttributes = normalizeVariantAttributes(
+        updates.variantAttributes
+      );
+    }
+
+    if (updates.uom !== undefined) {
+      updates.uom = normalizeUomConfig(updates.uom);
+    }
+
+    if (updates.parentProduct !== undefined) {
+      const normalizedParent = String(updates.parentProduct || '').trim();
+      updates.parentProduct = normalizedParent || null;
+      if (updates.parentProduct) {
+        await assertParentProductIfProvided({
+          organizationId: req.organizationId,
+          parentProductId: updates.parentProduct,
+          excludeProductId: req.params.id
+        });
+      }
+    }
+
+    if (updates.isVariant !== undefined) {
+      updates.isVariant = updates.isVariant === true;
+      if (!updates.isVariant) {
+        updates.parentProduct = null;
+      }
+    }
+
+    const finalIsVariant =
+      updates.isVariant !== undefined
+        ? updates.isVariant
+        : existingProduct.isVariant === true;
+    const finalParentProduct =
+      updates.parentProduct !== undefined
+        ? updates.parentProduct
+        : existingProduct.parentProduct;
+
+    if (finalIsVariant && !finalParentProduct) {
+      throw new AppError('parentProduct is required when isVariant=true', 400);
+    }
+
     const product = await Product.findOneAndUpdate(
       { _id: req.params.id, organization: req.organizationId },
       updates,
       { new: true, runValidators: true }
     );
-
-    if (!product) throw new AppError('Product not found', 404);
 
     return successResponse(res, product, 'Product updated');
   } catch (err) {

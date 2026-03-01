@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
+  getFinanceDeadStockRequest,
+  getFinanceGrossMarginRequest,
+  getFinanceInventoryValuationRequest,
   getReportPurchaseOrderStatusSummaryRequest,
   getReportSpendBySupplierRequest,
   getReportSpendSummaryRequest
@@ -109,10 +112,27 @@ const Reports = ({ accessToken, userRole = null }) => {
     enabled: Boolean(accessToken) && isAdmin,
     staleTime: REPORTS_QUERY_STALE_TIME_MS,
     queryFn: async () => {
-      const [statusData, spendData, supplierSpendData] = await Promise.all([
+      const [
+        statusData,
+        spendData,
+        supplierSpendData,
+        valuationData,
+        deadStockData,
+        grossMarginData
+      ] = await Promise.all([
         getReportPurchaseOrderStatusSummaryRequest(accessToken),
         getReportSpendSummaryRequest(accessToken),
-        getReportSpendBySupplierRequest(accessToken)
+        getReportSpendBySupplierRequest(accessToken),
+        getFinanceInventoryValuationRequest({
+          accessToken
+        }),
+        getFinanceDeadStockRequest({
+          accessToken
+        }),
+        getFinanceGrossMarginRequest({
+          accessToken,
+          groupBy: 'day'
+        })
       ]);
 
       return {
@@ -120,7 +140,10 @@ const Reports = ({ accessToken, userRole = null }) => {
         spendSummary: spendData || { totalSpend: 0 },
         spendBySupplier: Array.isArray(supplierSpendData)
           ? supplierSpendData
-          : []
+          : [],
+        valuation: valuationData || null,
+        deadStock: deadStockData || null,
+        grossMargin: grossMarginData || null
       };
     }
   });
@@ -131,6 +154,9 @@ const Reports = ({ accessToken, userRole = null }) => {
     () => (Array.isArray(data?.spendBySupplier) ? data.spendBySupplier : []),
     [data]
   );
+  const valuation = data?.valuation || null;
+  const deadStock = data?.deadStock || null;
+  const grossMargin = data?.grossMargin || null;
   const errorMessage = String(error?.message || '').trim();
 
   const totalOpenPurchaseOrders = useMemo(() => {
@@ -201,6 +227,16 @@ const Reports = ({ accessToken, userRole = null }) => {
     return filteredSpendRows.slice(start, start + SPEND_PAGE_SIZE);
   }, [filteredSpendRows, spendPage]);
 
+  const deadStockRows = useMemo(
+    () => (Array.isArray(deadStock?.items) ? deadStock.items : []),
+    [deadStock]
+  );
+
+  const topDeadStockRows = useMemo(
+    () => deadStockRows.slice(0, 8),
+    [deadStockRows]
+  );
+
   const handleDownloadSpendBySupplier = () => {
     const csv = toCsv(
       ['supplierName', 'totalSpend'],
@@ -212,6 +248,67 @@ const Reports = ({ accessToken, userRole = null }) => {
 
     downloadFile({
       filename: buildReportFilename('spend-by-supplier', 'csv'),
+      content: csv,
+      mimeType: 'text/csv;charset=utf-8'
+    });
+  };
+
+  const handleDownloadValuationCsv = () => {
+    const byProduct = Array.isArray(valuation?.byProduct)
+      ? valuation.byProduct
+      : [];
+    const csv = toCsv(
+      [
+        'method',
+        'productName',
+        'sku',
+        'warehouseCode',
+        'quantityOnHand',
+        'unitCost',
+        'value'
+      ],
+      byProduct.map((row) => [
+        valuation?.method || '',
+        row.productName || '',
+        row.sku || '',
+        row.warehouseCode || '',
+        Number(row.quantityOnHand || 0),
+        Number(row.unitCost || 0).toFixed(2),
+        Number(row.value || 0).toFixed(2)
+      ])
+    );
+
+    downloadFile({
+      filename: buildReportFilename('inventory-valuation', 'csv'),
+      content: csv,
+      mimeType: 'text/csv;charset=utf-8'
+    });
+  };
+
+  const handleDownloadDeadStockCsv = () => {
+    const csv = toCsv(
+      [
+        'sku',
+        'productName',
+        'warehouseCode',
+        'quantityOnHand',
+        'inventoryValue',
+        'ageDays',
+        'lastMovementAt'
+      ],
+      deadStockRows.map((row) => [
+        row.sku || '',
+        row.productName || '',
+        row.warehouseCode || '',
+        Number(row.quantityOnHand || 0),
+        Number(row.inventoryValue || 0).toFixed(2),
+        Number(row.ageDays || 0),
+        row.lastMovementAt || ''
+      ])
+    );
+
+    downloadFile({
+      filename: buildReportFilename('dead-stock', 'csv'),
       content: csv,
       mimeType: 'text/csv;charset=utf-8'
     });
@@ -361,6 +458,25 @@ const Reports = ({ accessToken, userRole = null }) => {
           <button
             type="button"
             className="btn-ghost"
+            onClick={handleDownloadValuationCsv}
+            disabled={
+              !Array.isArray(valuation?.byProduct) ||
+              !valuation.byProduct.length
+            }
+          >
+            Valuation CSV
+          </button>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={handleDownloadDeadStockCsv}
+            disabled={!deadStockRows.length}
+          >
+            Dead stock CSV
+          </button>
+          <button
+            type="button"
+            className="btn-ghost"
             onClick={handleDownloadFullSummaryExcel}
             disabled={!statusSummary && !spendBySupplier.length}
           >
@@ -399,6 +515,24 @@ const Reports = ({ accessToken, userRole = null }) => {
         <article className="metric-card">
           <p className="metric-label">Suppliers in spend report</p>
           <p className="metric-value">{spendBySupplier.length}</p>
+        </article>
+        <article className="metric-card">
+          <p className="metric-label">Inventory valuation</p>
+          <p className="metric-value">
+            {formatCurrency(valuation?.totalInventoryValue)}
+          </p>
+        </article>
+        <article className="metric-card">
+          <p className="metric-label">Gross margin %</p>
+          <p className="metric-value">
+            {Number(grossMargin?.totals?.grossMarginPct || 0).toFixed(2)}%
+          </p>
+        </article>
+        <article className="metric-card">
+          <p className="metric-label">Dead stock value</p>
+          <p className="metric-value">
+            {formatCurrency(deadStock?.totalValue)}
+          </p>
         </article>
       </div>
 
@@ -538,6 +672,82 @@ const Reports = ({ accessToken, userRole = null }) => {
             </>
           ) : (
             <p className="muted">No supplier spend data available.</p>
+          )}
+        </article>
+
+        <article className="data-card">
+          <h3>Finance Snapshot</h3>
+          {valuation || grossMargin ? (
+            <ul className="rank-list">
+              <li className="rank-item">
+                <p>Valuation method</p>
+                <span>{valuation?.method || 'n/a'}</span>
+              </li>
+              <li className="rank-item">
+                <p>Valued inventory items</p>
+                <span>{Number(valuation?.itemCount || 0)}</span>
+              </li>
+              <li className="rank-item">
+                <p>Total inventory value</p>
+                <span>{formatCurrency(valuation?.totalInventoryValue)}</span>
+              </li>
+              <li className="rank-item">
+                <p>Gross margin</p>
+                <span>{formatCurrency(grossMargin?.totals?.grossMargin)}</span>
+              </li>
+              <li className="rank-item">
+                <p>Gross margin %</p>
+                <span>
+                  {Number(grossMargin?.totals?.grossMarginPct || 0).toFixed(2)}%
+                </span>
+              </li>
+            </ul>
+          ) : (
+            <p className="muted">Finance summary is not available.</p>
+          )}
+        </article>
+
+        <article className="data-card">
+          <h3>Dead Stock</h3>
+          {deadStockRows.length ? (
+            <>
+              <p className="section-note">
+                Threshold {Number(deadStock?.thresholdDays || 90)} days | Items{' '}
+                {Number(deadStock?.count || deadStockRows.length)}
+              </p>
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>SKU</th>
+                      <th>Product</th>
+                      <th>Warehouse</th>
+                      <th>Qty</th>
+                      <th>Age (days)</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topDeadStockRows.map((row) => (
+                      <tr
+                        key={`${row.productId || row.sku}-${row.warehouseId || row.warehouseCode}`}
+                      >
+                        <td>{row.sku || '-'}</td>
+                        <td>{row.productName || '-'}</td>
+                        <td>{row.warehouseCode || '-'}</td>
+                        <td>{Number(row.quantityOnHand || 0)}</td>
+                        <td>{Number(row.ageDays || 0)}</td>
+                        <td>{formatCurrency(row.inventoryValue)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <p className="muted">
+              No dead stock detected for the current threshold.
+            </p>
           )}
         </article>
       </div>

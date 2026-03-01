@@ -1,6 +1,59 @@
 import mongoose from 'mongoose';
 
-export const STOCK_REASONS = ['sale', 'restock', 'adjustment', 'return'];
+export const STOCK_REASONS = [
+  'sale',
+  'restock',
+  'adjustment',
+  'return',
+  'damaged',
+  'expired',
+  'stolen',
+  'correction',
+  'supplier_return'
+];
+
+export const STOCK_REASON_POLICIES = Object.freeze({
+  sale: Object.freeze({
+    direction: 'decrease',
+    sensitive: false
+  }),
+  restock: Object.freeze({
+    direction: 'increase',
+    sensitive: false
+  }),
+  adjustment: Object.freeze({
+    direction: 'any',
+    sensitive: false
+  }),
+  return: Object.freeze({
+    direction: 'increase',
+    sensitive: false
+  }),
+  damaged: Object.freeze({
+    direction: 'decrease',
+    sensitive: true
+  }),
+  expired: Object.freeze({
+    direction: 'decrease',
+    sensitive: true
+  }),
+  stolen: Object.freeze({
+    direction: 'decrease',
+    sensitive: true
+  }),
+  correction: Object.freeze({
+    direction: 'any',
+    sensitive: true
+  }),
+  supplier_return: Object.freeze({
+    direction: 'decrease',
+    sensitive: true
+  })
+});
+
+export const SENSITIVE_STOCK_REASONS = STOCK_REASONS.filter(
+  (reason) => STOCK_REASON_POLICIES[reason]?.sensitive === true
+);
 
 const stockHistorySchema = new mongoose.Schema(
   {
@@ -112,6 +165,45 @@ const productSchema = new mongoose.Schema(
       index: true
     },
 
+    isVariant: {
+      type: Boolean,
+      default: false,
+      index: true
+    },
+
+    parentProduct: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Product',
+      default: null,
+      index: true
+    },
+
+    variantAttributes: {
+      type: Map,
+      of: String,
+      default: {}
+    },
+
+    uom: {
+      base: {
+        type: String,
+        trim: true,
+        lowercase: true,
+        default: 'pcs'
+      },
+      purchase: {
+        type: String,
+        trim: true,
+        lowercase: true,
+        default: 'pcs'
+      },
+      purchaseToBaseFactor: {
+        type: Number,
+        min: 1,
+        default: 1
+      }
+    },
+
     isActive: {
       type: Boolean,
       default: true,
@@ -179,6 +271,7 @@ const productSchema = new mongoose.Schema(
   {
     timestamps: true,
     toJSON: {
+      flattenMaps: true,
       transform(doc, ret) {
         ret.id = ret._id;
         delete ret._id;
@@ -207,6 +300,39 @@ productSchema.methods.adjustStock = async function (
   );
 };
 
+productSchema.pre('validate', function validateVariantAndUom(next) {
+  if (this.isVariant && !this.parentProduct) {
+    this.invalidate('parentProduct', 'parentProduct is required for variants');
+  }
+
+  if (!this.isVariant) {
+    this.parentProduct = null;
+  }
+
+  if (!this.uom || typeof this.uom !== 'object') {
+    this.uom = {
+      base: 'pcs',
+      purchase: 'pcs',
+      purchaseToBaseFactor: 1
+    };
+  }
+
+  const base = String(this.uom.base || '')
+    .trim()
+    .toLowerCase();
+  const purchase = String(this.uom.purchase || '')
+    .trim()
+    .toLowerCase();
+  const factor = Number(this.uom.purchaseToBaseFactor || 1);
+
+  this.uom.base = base || 'pcs';
+  this.uom.purchase = purchase || this.uom.base;
+  this.uom.purchaseToBaseFactor =
+    Number.isInteger(factor) && factor >= 1 ? factor : 1;
+
+  next();
+});
+
 /**
  * ⚠️ Virtual: low stock indicator
  */
@@ -229,6 +355,7 @@ productSchema.index(
 );
 productSchema.index({ category: 1, isActive: 1 });
 productSchema.index({ organization: 1, isActive: 1, deleteStatus: 1 });
+productSchema.index({ organization: 1, parentProduct: 1, isVariant: 1 });
 productSchema.index({ createdAt: -1 });
 
 export default mongoose.model('Product', productSchema);
