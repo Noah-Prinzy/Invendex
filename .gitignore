@@ -23,6 +23,7 @@ node_modules/
 # =========================
 dist/
 build/
+build_tmp/
 out/
 .next/
 .nuxt/

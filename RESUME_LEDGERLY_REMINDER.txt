@@ -1,7 +1,0 @@
-Ledgerly reminder
-
-Date: Thursday, March 5, 2026
-Time: 6:00 PM
-
-Open Codex/ChatGPT and send:
-"Resume Ledgerly implementation"
