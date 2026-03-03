@@ -291,6 +291,10 @@ export const patchTaxConfiguration = async (req, res, next) => {
       taxInclusivePricing: req.body.taxInclusivePricing,
       countryCode: req.body.countryCode,
       currencyCode: req.body.currencyCode,
+      taxAuthorityName: req.body.taxAuthorityName,
+      taxRegistrationNumber: req.body.taxRegistrationNumber,
+      regime: req.body.regime,
+      defaultTaxCategory: req.body.defaultTaxCategory,
       updatedBy: req.user?._id || null
     });
 

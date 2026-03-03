@@ -1,7 +1,9 @@
 import express from 'express';
 
 import { protect } from '../middlewares/authMiddleware.js';
+import requireFeatureFlag from '../middlewares/requireFeatureFlag.js';
 import requireOrganization from '../middlewares/requireOrganization.js';
+import requirePlanFeature from '../middlewares/requirePlanFeature.js';
 import requireRoles from '../middlewares/requireRoles.js';
 import { requireCsrf } from '../middlewares/csrfProtection.js';
 import validateRequest from '../middlewares/validateRequest.js';
@@ -24,6 +26,8 @@ router.use(protect, requireOrganization);
 router.get(
   '/export',
   requireRoles('manager'),
+  requireFeatureFlag('compliance_export'),
+  requirePlanFeature('compliance_export'),
   exportOrganizationDataValidator,
   validateRequest,
   auditMiddleware({

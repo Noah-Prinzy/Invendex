@@ -69,6 +69,27 @@ export const patchSettingsValidator = [
         .trim()
         .toUpperCase()
     ),
+  body('companyProfile.locale')
+    .optional()
+    .isString()
+    .withMessage('companyProfile.locale must be a string')
+    .bail()
+    .trim()
+    .isLength({ min: 2, max: 16 })
+    .withMessage('companyProfile.locale must be between 2 and 16 characters'),
+  body('companyProfile.countryCode')
+    .optional()
+    .isString()
+    .withMessage('companyProfile.countryCode must be a string')
+    .bail()
+    .trim()
+    .isLength({ min: 2, max: 3 })
+    .withMessage('companyProfile.countryCode must be 2-3 characters')
+    .customSanitizer((value) =>
+      String(value || '')
+        .trim()
+        .toUpperCase()
+    ),
   body('companyProfile.dateFormat')
     .optional()
     .isIn(['YYYY-MM-DD', 'DD/MM/YYYY', 'MM/DD/YYYY'])

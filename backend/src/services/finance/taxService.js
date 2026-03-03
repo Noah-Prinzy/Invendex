@@ -63,9 +63,16 @@ export const updateTaxConfiguration = async ({
   taxInclusivePricing,
   countryCode,
   currencyCode,
+  taxAuthorityName,
+  taxRegistrationNumber,
+  regime,
+  defaultTaxCategory,
   updatedBy = null
 }) => {
   const config = await getOrCreateTaxConfiguration(organizationId);
+  if (!config.regionProfile || typeof config.regionProfile !== 'object') {
+    config.regionProfile = {};
+  }
 
   if (typeof vatEnabled === 'boolean') {
     config.vatEnabled = vatEnabled;
@@ -81,6 +88,26 @@ export const updateTaxConfiguration = async ({
   }
   if (currencyCode != null) {
     config.currencyCode = String(currencyCode).trim().toUpperCase() || 'UGX';
+  }
+  if (taxAuthorityName != null) {
+    config.regionProfile.taxAuthorityName = String(
+      taxAuthorityName || ''
+    ).trim();
+  }
+  if (taxRegistrationNumber != null) {
+    config.regionProfile.taxRegistrationNumber = String(
+      taxRegistrationNumber || ''
+    ).trim();
+  }
+  if (regime != null) {
+    config.regionProfile.regime = String(regime || '')
+      .trim()
+      .toUpperCase();
+  }
+  if (defaultTaxCategory != null) {
+    config.regionProfile.defaultTaxCategory = String(defaultTaxCategory || '')
+      .trim()
+      .toUpperCase();
   }
 
   config.updatedBy = updatedBy || null;

@@ -35,6 +35,7 @@ import {
   shutdownBackgroundJobQueue,
   startBackgroundJobWorker
 } from './services/jobs/backgroundQueueService.js';
+import { ensureDefaultPlanCatalog } from './services/subscription/subscriptionService.js';
 
 dotenv.config();
 
@@ -45,6 +46,7 @@ async function startServer() {
     validateRuntimeEnv();
 
     await connectDB();
+    await ensureDefaultPlanCatalog();
     await initializeBackgroundJobQueue();
     const inlineWorkerStarted = await startBackgroundJobWorker();
     const backgroundJobQueueStatus = getBackgroundJobQueueStatus();

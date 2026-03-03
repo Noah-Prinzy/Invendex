@@ -50,8 +50,8 @@ jobs:
       - name: Format check
         run: npm run format:check
 
-      - name: Test
-        run: npm test
+      - name: Test (Coverage Enforced)
+        run: npm run test:coverage
 
   frontend:
     name: Frontend Format + Lint + Test + Build

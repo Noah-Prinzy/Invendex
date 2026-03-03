@@ -13,6 +13,7 @@
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --passWithNoTests",
+    "test:coverage": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --passWithNoTests --coverage --runInBand",
     "test:finance-realtime": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js src/tests/valuationService.test.js src/tests/financeLifecycle.test.js src/tests/realtimeSocket.test.js src/tests/financeRealtimeSmoke.test.js",
     "test:auth-e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand src/tests/authRegister.test.js src/tests/authE2e.test.js src/tests/userManagement.test.js",
     "test:inventory-intelligence": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand src/tests/serialBatchTracking.test.js src/tests/dashboardIntelligence.test.js src/tests/serialHistoryApi.test.js src/tests/operationsPolish.test.js",
@@ -26,7 +27,15 @@
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/src/tests_disabled/"
-    ]
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 25,
+        "functions": 35,
+        "lines": 40,
+        "statements": 40
+      }
+    }
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -51,6 +60,7 @@
     "rate-limit-redis": "^4.3.1",
     "redis": "^5.11.0",
     "socket.io": "^4.8.3",
+    "swagger-ui-express": "^5.0.1",
     "xlsx": "^0.18.5",
     "xss-clean": "^0.1.4"
   },

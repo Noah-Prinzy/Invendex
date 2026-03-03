@@ -39,6 +39,17 @@ const organizationSettingsSchema = new mongoose.Schema(
         trim: true,
         uppercase: true
       },
+      locale: {
+        type: String,
+        default: 'en-UG',
+        trim: true
+      },
+      countryCode: {
+        type: String,
+        default: 'UG',
+        trim: true,
+        uppercase: true
+      },
       dateFormat: {
         type: String,
         enum: ['YYYY-MM-DD', 'DD/MM/YYYY', 'MM/DD/YYYY'],

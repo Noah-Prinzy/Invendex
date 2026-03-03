@@ -12,9 +12,14 @@ import {
 import { protect } from '../middlewares/authMiddleware.js';
 import requireOrganization from '../middlewares/requireOrganization.js';
 import requirePermission from '../middlewares/requirePermission.js';
+import responseCache from '../middlewares/responseCache.js';
 import { PERMISSIONS } from '../authorization/permissions.js';
 
 const router = express.Router();
+const dashboardCache = responseCache({
+  namespace: 'dashboard',
+  ttlMs: Number(process.env.DASHBOARD_CACHE_TTL_MS || 60 * 1000)
+});
 
 router.use(
   protect,
@@ -22,13 +27,25 @@ router.use(
   requirePermission(PERMISSIONS.DASHBOARD_VIEW)
 );
 
-router.get('/top-selling-items', getDashboardTopSellingItems);
-router.get('/turnover-skus', getDashboardTurnoverSkus);
-router.get('/fastest-moving-skus', getDashboardFastestMovingSkus);
-router.get('/slow-moving-skus', getDashboardSlowMovingSkus);
-router.get('/dead-stock', getDashboardDeadStock);
-router.get('/stock-aging-buckets', getDashboardStockAgingBuckets);
-router.get('/supplier-ranking', getDashboardSupplierRanking);
-router.get('/supplier-reliability', getDashboardSupplierReliability);
+router.get('/top-selling-items', dashboardCache, getDashboardTopSellingItems);
+router.get('/turnover-skus', dashboardCache, getDashboardTurnoverSkus);
+router.get(
+  '/fastest-moving-skus',
+  dashboardCache,
+  getDashboardFastestMovingSkus
+);
+router.get('/slow-moving-skus', dashboardCache, getDashboardSlowMovingSkus);
+router.get('/dead-stock', dashboardCache, getDashboardDeadStock);
+router.get(
+  '/stock-aging-buckets',
+  dashboardCache,
+  getDashboardStockAgingBuckets
+);
+router.get('/supplier-ranking', dashboardCache, getDashboardSupplierRanking);
+router.get(
+  '/supplier-reliability',
+  dashboardCache,
+  getDashboardSupplierReliability
+);
 
 export default router;

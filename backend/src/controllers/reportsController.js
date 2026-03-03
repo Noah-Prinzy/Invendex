@@ -1,6 +1,10 @@
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import { successResponse } from '../utils/response.js';
 import mongoose from 'mongoose';
+import {
+  buildTimeBucketExpression,
+  resolveOrganizationLocaleContext
+} from '../services/i18n/organizationLocaleService.js';
 
 const CLOSED_PO_STATUSES = ['RECEIVED', 'CLOSED', 'received', 'closed'];
 
@@ -13,12 +17,30 @@ const ACTIVE_PO_STATUSES = [
   'closed'
 ];
 
+const applyLocaleHeaders = (res, localeContext) => {
+  if (!localeContext) return;
+  res.setHeader('x-org-timezone', String(localeContext.timezone || 'UTC'));
+  res.setHeader('x-org-currency', String(localeContext.currencyCode || 'UGX'));
+  res.setHeader('x-org-locale', String(localeContext.locale || 'en-UG'));
+  res.setHeader('x-org-country', String(localeContext.countryCode || 'UG'));
+};
+
+const sendLocalizedSuccess = (res, data, message, localeContext) => {
+  applyLocaleHeaders(res, localeContext);
+  return successResponse(res, data, message, 200, {
+    localeContext
+  });
+};
+
 /**
  * 📊 Purchase Order Status Summary (A20.3.1)
  */
 export const getPurchaseOrderStatusSummary = async (req, res, next) => {
   try {
     const organizationId = new mongoose.Types.ObjectId(req.organizationId);
+    const localeContext = await resolveOrganizationLocaleContext({
+      organizationId: req.organizationId
+    });
 
     const summary = await PurchaseOrder.aggregate([
       {
@@ -47,10 +69,11 @@ export const getPurchaseOrderStatusSummary = async (req, res, next) => {
       result[String(row._id).toLowerCase()] = row.count;
     }
 
-    return successResponse(
+    return sendLocalizedSuccess(
       res,
       result,
-      'Purchase order status summary fetched successfully'
+      'Purchase order status summary fetched successfully',
+      localeContext
     );
   } catch (err) {
     next(err);
@@ -63,6 +86,9 @@ export const getPurchaseOrderStatusSummary = async (req, res, next) => {
 export const getSupplierPurchaseOrderSummary = async (req, res, next) => {
   try {
     const organizationId = new mongoose.Types.ObjectId(req.organizationId);
+    const localeContext = await resolveOrganizationLocaleContext({
+      organizationId: req.organizationId
+    });
 
     const summary = await PurchaseOrder.aggregate([
       {
@@ -132,10 +158,11 @@ export const getSupplierPurchaseOrderSummary = async (req, res, next) => {
       { $sort: { totalSpend: -1 } }
     ]);
 
-    return successResponse(
+    return sendLocalizedSuccess(
       res,
       summary,
-      'Supplier purchase order summary fetched successfully'
+      'Supplier purchase order summary fetched successfully',
+      localeContext
     );
   } catch (err) {
     next(err);
@@ -149,18 +176,14 @@ export const getPurchaseOrderTrend = async (req, res, next) => {
   try {
     const period = req.query.period === 'day' ? 'day' : 'month';
     const organizationId = new mongoose.Types.ObjectId(req.organizationId);
-
-    const groupId =
-      period === 'day'
-        ? {
-            year: { $year: '$createdAt' },
-            month: { $month: '$createdAt' },
-            day: { $dayOfMonth: '$createdAt' }
-          }
-        : {
-            year: { $year: '$createdAt' },
-            month: { $month: '$createdAt' }
-          };
+    const localeContext = await resolveOrganizationLocaleContext({
+      organizationId: req.organizationId
+    });
+    const timeBucketExpr = buildTimeBucketExpression({
+      dateField: 'createdAt',
+      period,
+      timezone: localeContext.timezone
+    });
 
     const trend = await PurchaseOrder.aggregate([
       {
@@ -170,37 +193,27 @@ export const getPurchaseOrderTrend = async (req, res, next) => {
       },
       {
         $group: {
-          _id: groupId,
+          _id: timeBucketExpr,
           totalOrders: { $sum: 1 },
           totalQuantity: { $sum: '$totalQuantity' },
           totalSpend: { $sum: '$totalAmount' }
         }
       },
-      {
-        $sort: {
-          '_id.year': 1,
-          '_id.month': 1,
-          '_id.day': 1
-        }
-      }
+      { $sort: { _id: 1 } }
     ]);
 
     const formatted = trend.map((row) => ({
-      period:
-        period === 'day'
-          ? `${row._id.year}-${String(row._id.month).padStart(2, '0')}-${String(
-              row._id.day
-            ).padStart(2, '0')}`
-          : `${row._id.year}-${String(row._id.month).padStart(2, '0')}`,
+      period: String(row._id || ''),
       totalOrders: row.totalOrders,
       totalQuantity: row.totalQuantity,
       totalSpend: row.totalSpend
     }));
 
-    return successResponse(
+    return sendLocalizedSuccess(
       res,
       formatted,
-      'Purchase order trend fetched successfully'
+      'Purchase order trend fetched successfully',
+      localeContext
     );
   } catch (err) {
     next(err);
@@ -212,6 +225,9 @@ export const getPurchaseOrderTrend = async (req, res, next) => {
 export const getPurchaseOrderValueSummary = async (req, res, next) => {
   try {
     const organizationId = new mongoose.Types.ObjectId(req.organizationId);
+    const localeContext = await resolveOrganizationLocaleContext({
+      organizationId: req.organizationId
+    });
 
     const summary = await PurchaseOrder.aggregate([
       {
@@ -246,10 +262,11 @@ export const getPurchaseOrderValueSummary = async (req, res, next) => {
 
     const totalSpend = summary.reduce((sum, row) => sum + row.totalAmount, 0);
 
-    return successResponse(
+    return sendLocalizedSuccess(
       res,
       { totalSpend, bySupplier: summary },
-      'Purchase order value summary fetched successfully'
+      'Purchase order value summary fetched successfully',
+      localeContext
     );
   } catch (err) {
     next(err);
@@ -259,6 +276,9 @@ export const getPurchaseOrderValueSummary = async (req, res, next) => {
 export const getSupplierPerformanceReport = async (req, res, next) => {
   try {
     const organizationId = new mongoose.Types.ObjectId(req.organizationId);
+    const localeContext = await resolveOrganizationLocaleContext({
+      organizationId: req.organizationId
+    });
 
     const report = await PurchaseOrder.aggregate([
       {
@@ -336,10 +356,11 @@ export const getSupplierPerformanceReport = async (req, res, next) => {
       { $sort: { reliabilityScore: -1 } }
     ]);
 
-    return successResponse(
+    return sendLocalizedSuccess(
       res,
       report,
-      'Supplier performance report generated'
+      'Supplier performance report generated',
+      localeContext
     );
   } catch (err) {
     next(err);
@@ -349,6 +370,9 @@ export const getSupplierPerformanceReport = async (req, res, next) => {
 export const getTotalSpendSummary = async (req, res, next) => {
   try {
     const organizationId = new mongoose.Types.ObjectId(req.organizationId);
+    const localeContext = await resolveOrganizationLocaleContext({
+      organizationId: req.organizationId
+    });
 
     const summary = await PurchaseOrder.aggregate([
       {
@@ -373,10 +397,11 @@ export const getTotalSpendSummary = async (req, res, next) => {
       }
     ]);
 
-    return successResponse(
+    return sendLocalizedSuccess(
       res,
       { totalSpend: summary[0]?.totalSpend || 0 },
-      'Total spend calculated'
+      'Total spend calculated',
+      localeContext
     );
   } catch (err) {
     next(err);
@@ -386,6 +411,9 @@ export const getTotalSpendSummary = async (req, res, next) => {
 export const getSpendBySupplier = async (req, res, next) => {
   try {
     const organizationId = new mongoose.Types.ObjectId(req.organizationId);
+    const localeContext = await resolveOrganizationLocaleContext({
+      organizationId: req.organizationId
+    });
 
     const report = await PurchaseOrder.aggregate([
       {
@@ -418,7 +446,12 @@ export const getSpendBySupplier = async (req, res, next) => {
       { $sort: { totalSpend: -1 } }
     ]);
 
-    return successResponse(res, report, 'Spend by supplier calculated');
+    return sendLocalizedSuccess(
+      res,
+      report,
+      'Spend by supplier calculated',
+      localeContext
+    );
   } catch (err) {
     next(err);
   }
@@ -427,6 +460,9 @@ export const getSpendBySupplier = async (req, res, next) => {
 export const getSpendByProduct = async (req, res, next) => {
   try {
     const organizationId = new mongoose.Types.ObjectId(req.organizationId);
+    const localeContext = await resolveOrganizationLocaleContext({
+      organizationId: req.organizationId
+    });
 
     const report = await PurchaseOrder.aggregate([
       {
@@ -460,7 +496,12 @@ export const getSpendByProduct = async (req, res, next) => {
       { $sort: { totalSpend: -1 } }
     ]);
 
-    return successResponse(res, report, 'Spend by product calculated');
+    return sendLocalizedSuccess(
+      res,
+      report,
+      'Spend by product calculated',
+      localeContext
+    );
   } catch (err) {
     next(err);
   }
@@ -469,6 +510,14 @@ export const getSpendByProduct = async (req, res, next) => {
 export const getMonthlySpendTrend = async (req, res, next) => {
   try {
     const organizationId = new mongoose.Types.ObjectId(req.organizationId);
+    const localeContext = await resolveOrganizationLocaleContext({
+      organizationId: req.organizationId
+    });
+    const periodExpr = buildTimeBucketExpression({
+      dateField: 'receivedAt',
+      period: 'month',
+      timezone: localeContext.timezone
+    });
 
     const trend = await PurchaseOrder.aggregate([
       {
@@ -481,10 +530,7 @@ export const getMonthlySpendTrend = async (req, res, next) => {
       { $unwind: '$items' },
       {
         $group: {
-          _id: {
-            year: { $year: '$receivedAt' },
-            month: { $month: '$receivedAt' }
-          },
+          _id: periodExpr,
           totalSpend: {
             $sum: {
               $multiply: ['$items.quantity', '$items.unitCost']
@@ -492,10 +538,15 @@ export const getMonthlySpendTrend = async (req, res, next) => {
           }
         }
       },
-      { $sort: { '_id.year': 1, '_id.month': 1 } }
+      { $sort: { _id: 1 } }
     ]);
 
-    return successResponse(res, trend, 'Monthly spend trend calculated');
+    return sendLocalizedSuccess(
+      res,
+      trend,
+      'Monthly spend trend calculated',
+      localeContext
+    );
   } catch (err) {
     next(err);
   }

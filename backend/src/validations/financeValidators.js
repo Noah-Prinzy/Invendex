@@ -187,7 +187,35 @@ export const patchTaxConfigurationValidator = [
     .isLength({ min: 3, max: 3 })
     .withMessage('currencyCode must be exactly 3 characters')
     .trim()
-    .toUpperCase()
+    .toUpperCase(),
+  body('taxAuthorityName')
+    .optional()
+    .isString()
+    .withMessage('taxAuthorityName must be a string')
+    .bail()
+    .trim()
+    .isLength({ max: 120 })
+    .withMessage('taxAuthorityName must not exceed 120 characters'),
+  body('taxRegistrationNumber')
+    .optional()
+    .isString()
+    .withMessage('taxRegistrationNumber must be a string')
+    .bail()
+    .trim()
+    .isLength({ max: 64 })
+    .withMessage('taxRegistrationNumber must not exceed 64 characters'),
+  body('regime')
+    .optional()
+    .isIn(['STANDARD_VAT', 'SIMPLIFIED', 'ZERO_RATED', 'EXEMPT'])
+    .withMessage(
+      'regime must be one of STANDARD_VAT, SIMPLIFIED, ZERO_RATED, EXEMPT'
+    ),
+  body('defaultTaxCategory')
+    .optional()
+    .isIn(['STANDARD', 'REDUCED', 'ZERO', 'EXEMPT'])
+    .withMessage(
+      'defaultTaxCategory must be one of STANDARD, REDUCED, ZERO, EXEMPT'
+    )
 ];
 
 export const vatSummaryQueryValidator = [

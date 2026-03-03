@@ -38,6 +38,28 @@ const taxConfigurationSchema = new mongoose.Schema(
       enum: ['HALF_UP'],
       default: 'HALF_UP'
     },
+    regionProfile: {
+      taxAuthorityName: {
+        type: String,
+        trim: true,
+        default: ''
+      },
+      taxRegistrationNumber: {
+        type: String,
+        trim: true,
+        default: ''
+      },
+      regime: {
+        type: String,
+        enum: ['STANDARD_VAT', 'SIMPLIFIED', 'ZERO_RATED', 'EXEMPT'],
+        default: 'STANDARD_VAT'
+      },
+      defaultTaxCategory: {
+        type: String,
+        enum: ['STANDARD', 'REDUCED', 'ZERO', 'EXEMPT'],
+        default: 'STANDARD'
+      }
+    },
     updatedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

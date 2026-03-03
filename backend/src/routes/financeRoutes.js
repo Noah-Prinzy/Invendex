@@ -17,8 +17,10 @@ import {
   patchValuationMethod
 } from '../controllers/financeController.js';
 import { protect } from '../middlewares/authMiddleware.js';
+import requireFeatureFlag from '../middlewares/requireFeatureFlag.js';
 import requireOrganization from '../middlewares/requireOrganization.js';
 import requirePermission from '../middlewares/requirePermission.js';
+import requirePlanFeature from '../middlewares/requirePlanFeature.js';
 import validateRequest from '../middlewares/validateRequest.js';
 import { PERMISSIONS } from '../authorization/permissions.js';
 import {
@@ -45,6 +47,8 @@ router.use(
 
 router.get(
   '/valuation',
+  requireFeatureFlag('finance_valuation'),
+  requirePlanFeature('finance_valuation'),
   financeValuationQueryValidator,
   validateRequest,
   getInventoryValuation
@@ -58,15 +62,26 @@ router.patch(
   patchValuationMethod
 );
 
-router.get('/cogs', cogsQueryValidator, validateRequest, getCogsEntries);
+router.get(
+  '/cogs',
+  requireFeatureFlag('finance_valuation'),
+  requirePlanFeature('finance_valuation'),
+  cogsQueryValidator,
+  validateRequest,
+  getCogsEntries
+);
 router.get(
   '/gross-margin',
+  requireFeatureFlag('finance_valuation'),
+  requirePlanFeature('finance_valuation'),
   grossMarginQueryValidator,
   validateRequest,
   getGrossMargin
 );
 router.get(
   '/dead-stock',
+  requireFeatureFlag('finance_valuation'),
+  requirePlanFeature('finance_valuation'),
   deadStockQueryValidator,
   validateRequest,
   getDeadStock

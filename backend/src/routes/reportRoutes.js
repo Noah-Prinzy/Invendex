@@ -18,6 +18,7 @@ import {
 import { protect } from '../middlewares/authMiddleware.js';
 import requireOrganization from '../middlewares/requireOrganization.js';
 import requirePermission from '../middlewares/requirePermission.js';
+import responseCache from '../middlewares/responseCache.js';
 import { PERMISSIONS } from '../authorization/permissions.js';
 import validateRequest from '../middlewares/validateRequest.js';
 import {
@@ -26,6 +27,10 @@ import {
 } from '../validations/reportValidators.js';
 
 const router = express.Router();
+const reportCache = responseCache({
+  namespace: 'reports',
+  ttlMs: Number(process.env.REPORT_CACHE_TTL_MS || 2 * 60 * 1000)
+});
 
 router.use(
   protect,
@@ -54,14 +59,26 @@ router.get(
   downloadReportExportJob
 );
 
-router.get('/purchase-orders/status-summary', getPurchaseOrderStatusSummary);
-router.get('/purchase-orders/by-supplier', getSupplierPurchaseOrderSummary);
-router.get('/purchase-orders/trend', getPurchaseOrderTrend);
-router.get('/purchase-orders/value-summary', getPurchaseOrderValueSummary);
+router.get(
+  '/purchase-orders/status-summary',
+  reportCache,
+  getPurchaseOrderStatusSummary
+);
+router.get(
+  '/purchase-orders/by-supplier',
+  reportCache,
+  getSupplierPurchaseOrderSummary
+);
+router.get('/purchase-orders/trend', reportCache, getPurchaseOrderTrend);
+router.get(
+  '/purchase-orders/value-summary',
+  reportCache,
+  getPurchaseOrderValueSummary
+);
 
-router.get('/spend/summary', getTotalSpendSummary);
-router.get('/spend/by-supplier', getSpendBySupplier);
-router.get('/spend/by-product', getSpendByProduct);
-router.get('/spend/monthly-trend', getMonthlySpendTrend);
+router.get('/spend/summary', reportCache, getTotalSpendSummary);
+router.get('/spend/by-supplier', reportCache, getSpendBySupplier);
+router.get('/spend/by-product', reportCache, getSpendByProduct);
+router.get('/spend/monthly-trend', reportCache, getMonthlySpendTrend);
 
 export default router;

@@ -577,6 +577,49 @@ const validateBackgroundQueueConfig = (issues, warnings, nodeEnv) => {
   }
 };
 
+const validateSubscriptionRateLimitConfig = (issues) => {
+  const windowMs = asInteger(process.env.SUBSCRIPTION_RATE_LIMIT_WINDOW_MS);
+  const fallbackLimit = asInteger(
+    process.env.SUBSCRIPTION_RATE_LIMIT_FALLBACK_LIMIT
+  );
+
+  if (windowMs != null && (windowMs < 1000 || windowMs > 3_600_000)) {
+    issues.push(
+      'SUBSCRIPTION_RATE_LIMIT_WINDOW_MS must be between 1000 and 3600000'
+    );
+  }
+
+  if (
+    fallbackLimit != null &&
+    (fallbackLimit < 10 || fallbackLimit > 100_000)
+  ) {
+    issues.push(
+      'SUBSCRIPTION_RATE_LIMIT_FALLBACK_LIMIT must be between 10 and 100000'
+    );
+  }
+};
+
+const validateApiCacheConfig = (issues) => {
+  const defaultTtlMs = asInteger(process.env.API_QUERY_CACHE_DEFAULT_TTL_MS);
+  const dashboardTtlMs = asInteger(process.env.DASHBOARD_CACHE_TTL_MS);
+  const reportTtlMs = asInteger(process.env.REPORT_CACHE_TTL_MS);
+  const forecastTtlMs = asInteger(process.env.FORECAST_CACHE_TTL_MS);
+
+  const validators = [
+    ['API_QUERY_CACHE_DEFAULT_TTL_MS', defaultTtlMs],
+    ['DASHBOARD_CACHE_TTL_MS', dashboardTtlMs],
+    ['REPORT_CACHE_TTL_MS', reportTtlMs],
+    ['FORECAST_CACHE_TTL_MS', forecastTtlMs]
+  ];
+
+  for (const [key, value] of validators) {
+    if (value == null) continue;
+    if (value < 100 || value > 3_600_000) {
+      issues.push(`${key} must be between 100 and 3600000`);
+    }
+  }
+};
+
 const warnUnsafeFlags = () => {
   const nodeEnv = asString(process.env.NODE_ENV || 'development');
   const authBypass = asBoolean(process.env.AUTH_TEST_BYPASS);
@@ -619,6 +662,8 @@ export const validateRuntimeEnv = () => {
   validateSocketEventRateLimit(issues);
   validateInventoryIntegrityConfig(issues);
   validateBackgroundQueueConfig(issues, warnings, nodeEnv);
+  validateSubscriptionRateLimitConfig(issues);
+  validateApiCacheConfig(issues);
   warnUnsafeFlags();
 
   if (warnings.length) {
