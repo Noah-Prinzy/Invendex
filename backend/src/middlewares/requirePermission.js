@@ -1,6 +1,7 @@
 import { AppError } from '../errors/AppError.js';
 import { hasPermission } from '../authorization/permissions.js';
 import { logAudit } from '../utils/auditLogger.js';
+import { hasOrganizationPermission } from '../authorization/permissionPolicyService.js';
 
 const requirePermission = (permission) => {
   return async (req, res, next) => {
@@ -18,7 +19,17 @@ const requirePermission = (permission) => {
       return next(new AppError('Not authenticated', 401));
     }
 
-    if (!hasPermission(req.user.role, permission)) {
+    const organizationId = req.organizationId || req.user?.organization || null;
+
+    const allowed = organizationId
+      ? await hasOrganizationPermission({
+          organizationId,
+          role: req.user.role,
+          permission
+        })
+      : hasPermission(req.user.role, permission);
+
+    if (!allowed) {
       try {
         await logAudit({
           req,

@@ -87,6 +87,21 @@ const parseJsonSafe = async (response) => {
   }
 };
 
+const parseContentDispositionFilename = (value = '') => {
+  const normalized = String(value || '');
+  const utf8Match = normalized.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch {
+      return utf8Match[1];
+    }
+  }
+
+  const basicMatch = normalized.match(/filename="?([^";]+)"?/i);
+  return basicMatch?.[1] ? String(basicMatch[1]).trim() : '';
+};
+
 const request = async ({
   method = 'GET',
   path,
@@ -193,6 +208,59 @@ const request = async ({
   }
 
   return payload;
+};
+
+const requestBinary = async ({ method = 'GET', path, accessToken = null }) => {
+  const normalizedMethod = String(method || 'GET').toUpperCase();
+  const trace = createRequestTrace({
+    method: normalizedMethod,
+    path
+  });
+
+  let response;
+  try {
+    response = await fetch(buildUrl(path), {
+      method: normalizedMethod,
+      credentials: 'include',
+      headers: {
+        'x-request-id': trace.requestId,
+        'x-client-trace-id': trace.clientTraceId,
+        'x-device-id': getClientDeviceId(),
+        ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {})
+      }
+    });
+  } catch {
+    throw new ApiError(
+      'Unable to reach the server. Check your network connection and try again.',
+      0,
+      {
+        requestId: trace.requestId,
+        clientTraceId: trace.clientTraceId,
+        method: normalizedMethod,
+        path
+      }
+    );
+  }
+
+  if (!response.ok) {
+    const payload = await parseJsonSafe(response);
+    throw new ApiError(
+      payload?.message || `Request failed (${response.status})`,
+      response.status,
+      payload || null
+    );
+  }
+
+  const fileName = parseContentDispositionFilename(
+    response.headers.get('content-disposition')
+  );
+  const contentType = String(response.headers.get('content-type') || '').trim();
+  const blob = await response.blob();
+  return {
+    blob,
+    fileName,
+    contentType
+  };
 };
 
 export const authLoginRequest = ({ email, password }) =>
@@ -555,6 +623,25 @@ export const getUsersRequest = (accessToken) =>
     accessToken
   }).then(readData);
 
+export const getUserRolePermissionsMatrixRequest = (accessToken) =>
+  request({
+    method: 'GET',
+    path: API_ENDPOINTS.USERS_ROLE_PERMISSIONS_MATRIX,
+    accessToken
+  }).then(readData);
+
+export const updateUserRolePermissionsMatrixRequest = ({
+  accessToken,
+  role,
+  permissions = []
+}) =>
+  request({
+    method: 'PATCH',
+    path: `${API_ENDPOINTS.USERS_ROLE_PERMISSIONS_MATRIX}/${role}`,
+    accessToken,
+    body: { permissions }
+  }).then(readData);
+
 export const getNotificationsRequest = ({
   accessToken,
   limit = 20,
@@ -666,14 +753,71 @@ export const getFinanceRealtimeStatsRequest = (accessToken) =>
     accessToken
   }).then(readData);
 
+export const getFinanceExchangeRatesRequest = ({
+  accessToken,
+  baseCurrencyCode = null
+}) => {
+  const query = new URLSearchParams();
+  if (baseCurrencyCode) {
+    query.set('baseCurrencyCode', String(baseCurrencyCode).toUpperCase());
+  }
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.FINANCE_EXCHANGE_RATES}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const putFinanceExchangeRatesRequest = ({
+  accessToken,
+  baseCurrencyCode = null,
+  rates = []
+}) =>
+  request({
+    method: 'PUT',
+    path: API_ENDPOINTS.FINANCE_EXCHANGE_RATES,
+    accessToken,
+    body: {
+      ...(String(baseCurrencyCode || '').trim()
+        ? { baseCurrencyCode: String(baseCurrencyCode).trim().toUpperCase() }
+        : {}),
+      rates: Array.isArray(rates) ? rates : []
+    }
+  }).then(readData);
+
+export const convertFinanceCurrencyRequest = ({
+  accessToken,
+  amount,
+  fromCurrencyCode,
+  toCurrencyCode
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.FINANCE_CONVERT_CURRENCY,
+    accessToken,
+    body: {
+      amount,
+      fromCurrencyCode: String(fromCurrencyCode || '')
+        .trim()
+        .toUpperCase(),
+      toCurrencyCode: String(toCurrencyCode || '')
+        .trim()
+        .toUpperCase()
+    }
+  }).then(readData);
+
 export const getFinanceInventoryValuationRequest = ({
   accessToken,
   warehouseId = null,
-  method = null
+  method = null,
+  currencyCode = null
 }) => {
   const query = new URLSearchParams();
   if (warehouseId) query.set('warehouseId', String(warehouseId));
   if (method) query.set('method', String(method));
+  if (currencyCode) query.set('currencyCode', String(currencyCode));
   const suffix = query.toString() ? `?${query.toString()}` : '';
 
   return request({
@@ -688,13 +832,15 @@ export const getFinanceCogsEntriesRequest = ({
   from = null,
   to = null,
   productId = null,
-  warehouseId = null
+  warehouseId = null,
+  currencyCode = null
 }) => {
   const query = new URLSearchParams();
   if (from) query.set('from', String(from));
   if (to) query.set('to', String(to));
   if (productId) query.set('productId', String(productId));
   if (warehouseId) query.set('warehouseId', String(warehouseId));
+  if (currencyCode) query.set('currencyCode', String(currencyCode));
   const suffix = query.toString() ? `?${query.toString()}` : '';
 
   return request({
@@ -708,12 +854,14 @@ export const getFinanceGrossMarginRequest = ({
   accessToken,
   from = null,
   to = null,
-  groupBy = 'day'
+  groupBy = 'day',
+  currencyCode = null
 }) => {
   const query = new URLSearchParams();
   if (from) query.set('from', String(from));
   if (to) query.set('to', String(to));
   if (groupBy) query.set('groupBy', String(groupBy));
+  if (currencyCode) query.set('currencyCode', String(currencyCode));
   const suffix = query.toString() ? `?${query.toString()}` : '';
 
   return request({
@@ -726,13 +874,15 @@ export const getFinanceGrossMarginRequest = ({
 export const getFinanceDeadStockRequest = ({
   accessToken,
   days = null,
-  warehouseId = null
+  warehouseId = null,
+  currencyCode = null
 }) => {
   const query = new URLSearchParams();
   if (days !== null && days !== undefined && days !== '') {
     query.set('days', String(days));
   }
   if (warehouseId) query.set('warehouseId', String(warehouseId));
+  if (currencyCode) query.set('currencyCode', String(currencyCode));
   const suffix = query.toString() ? `?${query.toString()}` : '';
 
   return request({
@@ -786,6 +936,14 @@ export const updateUserStatusRequest = ({ accessToken, userId, isActive }) =>
     path: `${API_ENDPOINTS.USERS}/${userId}/status`,
     accessToken,
     body: { isActive }
+  }).then(readData);
+
+export const updateUserRoleRequest = ({ accessToken, userId, role }) =>
+  request({
+    method: 'PATCH',
+    path: `${API_ENDPOINTS.USERS}/${userId}/role`,
+    accessToken,
+    body: { role }
   }).then(readData);
 
 export const getProductsLowStockSummaryRequest = (accessToken) =>
@@ -945,6 +1103,58 @@ export const getSupplierRankingsRequest = (accessToken) =>
     accessToken
   }).then(readData);
 
+export const getWmsMovementLedgerRequest = ({
+  accessToken,
+  warehouseId = null,
+  productId = null,
+  type = null,
+  limit = 100
+}) => {
+  const query = new URLSearchParams();
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  if (productId) query.set('productId', String(productId));
+  if (type) query.set('type', String(type));
+  query.set('limit', String(limit));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.WMS_MOVEMENTS}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const getAuditLogsRequest = ({
+  accessToken,
+  page = 1,
+  limit = 50,
+  user = null,
+  action = null,
+  resource = null,
+  success = null,
+  from = null,
+  to = null
+}) => {
+  const query = new URLSearchParams();
+  query.set('page', String(page));
+  query.set('limit', String(limit));
+  if (user) query.set('user', String(user));
+  if (action) query.set('action', String(action));
+  if (resource) query.set('resource', String(resource));
+  if (success !== null && success !== undefined && success !== 'all') {
+    query.set('success', String(success));
+  }
+  if (from) query.set('from', String(from));
+  if (to) query.set('to', String(to));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.AUDIT_LOGS}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
 export const getReportPurchaseOrderStatusSummaryRequest = (accessToken) =>
   request({
     method: 'GET',
@@ -965,6 +1175,107 @@ export const getReportSpendBySupplierRequest = (accessToken) =>
     path: API_ENDPOINTS.REPORT_SPEND_BY_SUPPLIER,
     accessToken
   }).then(readData);
+
+export const queueReportExportJobRequest = ({
+  accessToken,
+  reportType,
+  format = 'xlsx'
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.REPORT_EXPORT_JOBS,
+    accessToken,
+    body: {
+      reportType,
+      format
+    }
+  }).then(readData);
+
+export const getReportExportJobStatusRequest = ({ accessToken, jobId }) =>
+  request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.REPORT_EXPORT_JOBS}/${jobId}`,
+    accessToken
+  }).then(readData);
+
+export const downloadReportExportJobRequest = async ({
+  accessToken,
+  jobId
+}) => {
+  const file = await requestBinary({
+    method: 'GET',
+    path: `${API_ENDPOINTS.REPORT_EXPORT_JOBS}/${jobId}/download`,
+    accessToken
+  });
+
+  return {
+    blob: file.blob,
+    fileName:
+      file.fileName ||
+      `report-export-${Date.now()}.${
+        file.contentType.includes('application/pdf')
+          ? 'pdf'
+          : file.contentType.includes(
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+              )
+            ? 'xlsx'
+            : 'csv'
+      }`,
+    contentType: file.contentType
+  };
+};
+
+export const queueInventoryReportExportJobRequest = ({
+  accessToken,
+  format = 'csv',
+  from = null,
+  to = null
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.INVENTORY_REPORT_EXPORT_JOBS,
+    accessToken,
+    body: {
+      format,
+      ...(String(from || '').trim() ? { from } : {}),
+      ...(String(to || '').trim() ? { to } : {})
+    }
+  }).then(readData);
+
+export const getInventoryReportExportJobStatusRequest = ({
+  accessToken,
+  jobId
+}) =>
+  request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.INVENTORY_REPORT_EXPORT_JOBS}/${jobId}`,
+    accessToken
+  }).then(readData);
+
+export const downloadInventoryReportExportJobRequest = async ({
+  accessToken,
+  jobId
+}) => {
+  const file = await requestBinary({
+    method: 'GET',
+    path: `${API_ENDPOINTS.INVENTORY_REPORT_EXPORT_JOBS}/${jobId}/download`,
+    accessToken
+  });
+
+  return {
+    blob: file.blob,
+    fileName:
+      file.fileName ||
+      `inventory-report-export-${Date.now()}.${
+        file.contentType.includes(
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+          ? 'xlsx'
+          : 'csv'
+      }`,
+    contentType: file.contentType
+  };
+};
 
 export const getObservabilityPingRequest = (accessToken) =>
   request({
@@ -990,6 +1301,34 @@ export const seedOnboardingSampleDataRequest = ({
     accessToken,
     body: {
       force: Boolean(force)
+    }
+  }).then(readData);
+
+export const getOnboardingStatusRequest = (accessToken) =>
+  request({
+    method: 'GET',
+    path: API_ENDPOINTS.ONBOARDING_STATUS,
+    accessToken
+  }).then(readData);
+
+export const createOnboardingWarehouseRequest = ({
+  accessToken,
+  name,
+  code = '',
+  region = '',
+  address = null,
+  managerUserId = ''
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.ONBOARDING_WAREHOUSES,
+    accessToken,
+    body: {
+      name,
+      ...(String(code || '').trim() ? { code } : {}),
+      ...(String(region || '').trim() ? { region } : {}),
+      ...(address && typeof address === 'object' ? { address } : {}),
+      ...(String(managerUserId || '').trim() ? { managerUserId } : {})
     }
   }).then(readData);
 
@@ -1101,6 +1440,8 @@ export default {
   authUpdatePreferencesRequest,
   authLogoutRequest,
   getUsersRequest,
+  getUserRolePermissionsMatrixRequest,
+  updateUserRolePermissionsMatrixRequest,
   getNotificationsRequest,
   markNotificationReadRequest,
   markAllNotificationsReadRequest,
@@ -1113,6 +1454,9 @@ export default {
   getFinanceNotificationSettingsRequest,
   patchFinanceNotificationSettingsRequest,
   getFinanceRealtimeStatsRequest,
+  getFinanceExchangeRatesRequest,
+  putFinanceExchangeRatesRequest,
+  convertFinanceCurrencyRequest,
   getFinanceInventoryValuationRequest,
   getFinanceCogsEntriesRequest,
   getFinanceGrossMarginRequest,
@@ -1122,6 +1466,7 @@ export default {
   createUserInviteRequest,
   revokeUserInviteRequest,
   updateUserStatusRequest,
+  updateUserRoleRequest,
   getPurchaseOrdersRequest,
   getProductsRequest,
   getDeletedProductsRequest,
@@ -1142,11 +1487,21 @@ export default {
   receivePurchaseOrderRequest,
   getSuppliersRequest,
   getSupplierRankingsRequest,
+  getWmsMovementLedgerRequest,
+  getAuditLogsRequest,
   getReportPurchaseOrderStatusSummaryRequest,
   getReportSpendSummaryRequest,
   getReportSpendBySupplierRequest,
+  queueReportExportJobRequest,
+  getReportExportJobStatusRequest,
+  downloadReportExportJobRequest,
+  queueInventoryReportExportJobRequest,
+  getInventoryReportExportJobStatusRequest,
+  downloadInventoryReportExportJobRequest,
   getObservabilityPingRequest,
   getObservabilityRuntimeRequest,
+  getOnboardingStatusRequest,
+  createOnboardingWarehouseRequest,
   seedOnboardingSampleDataRequest,
   complianceExportRequest,
   complianceDeleteMyAccountRequest,

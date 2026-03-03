@@ -3,12 +3,9 @@ import BackgroundJob, {
   BACKGROUND_JOB_STATUSES,
   BACKGROUND_JOB_TYPES
 } from '../../models/BackgroundJob.js';
-import {
-  executeProductBulkImport,
-  normalizeBulkImportOptions
-} from '../product/bulkImportService.js';
-
-const activeJobIds = new Set();
+import { logger } from '../../observability/logger.js';
+import { processQueuedBackgroundJob } from './backgroundJobProcessor.js';
+import { enqueueBackgroundJob } from './backgroundQueueService.js';
 
 const clampPercent = (value) => {
   const numeric = Number(value);
@@ -21,12 +18,7 @@ const toObjectId = (value) => {
   return typeof value === 'string' ? new mongoose.Types.ObjectId(value) : value;
 };
 
-const sanitizeJobError = (error) => ({
-  message: String(error?.message || 'Background job failed'),
-  code: String(error?.code || 'BACKGROUND_JOB_FAILED')
-});
-
-const mapJobForResponse = (job) => {
+const mapJobForResponse = (job, { includePayload = false } = {}) => {
   if (!job) return null;
 
   const normalized = typeof job.toObject === 'function' ? job.toObject() : job;
@@ -35,6 +27,14 @@ const mapJobForResponse = (job) => {
     id: String(normalized._id || ''),
     type: normalized.type,
     status: normalized.status,
+    ...(includePayload
+      ? {
+          payload:
+            normalized.payload && typeof normalized.payload === 'object'
+              ? normalized.payload
+              : null
+        }
+      : {}),
     progress: {
       percent: clampPercent(normalized?.progress?.percent),
       totalRows: Number(normalized?.progress?.totalRows || 0),
@@ -54,135 +54,17 @@ const mapJobForResponse = (job) => {
     createdAt: normalized.createdAt,
     startedAt: normalized.startedAt,
     completedAt: normalized.completedAt,
-    updatedAt: normalized.updatedAt
+    updatedAt: normalized.updatedAt,
+    organizationId: normalized.organization
+      ? String(normalized.organization)
+      : null,
+    createdBy: normalized.createdBy ? String(normalized.createdBy) : null
   };
-};
-
-const processProductBulkImportJob = async ({
-  jobId,
-  payload,
-  organizationId
-}) => {
-  const rows = Array.isArray(payload?.products) ? payload.products : [];
-  const fieldMap =
-    payload?.fieldMap && typeof payload.fieldMap === 'object'
-      ? payload.fieldMap
-      : {};
-  const options = normalizeBulkImportOptions(payload?.options || {});
-
-  return executeProductBulkImport({
-    organizationId,
-    rows,
-    fieldMap,
-    options,
-    onProgress: async (snapshot) => {
-      await BackgroundJob.findByIdAndUpdate(jobId, {
-        $set: {
-          progress: {
-            percent: clampPercent(snapshot?.percent),
-            totalRows: Number(snapshot?.totalRows || rows.length),
-            processedRows: Number(snapshot?.processedRows || 0),
-            createdCount: Number(snapshot?.createdCount || 0),
-            updatedCount: Number(snapshot?.updatedCount || 0),
-            skippedCount: Number(snapshot?.skippedCount || 0),
-            failedCount: Number(snapshot?.failedCount || 0)
-          },
-          updatedAt: new Date()
-        }
-      });
-    }
-  });
-};
-
-const processJobById = async (jobId) => {
-  const normalizedJobId = String(jobId || '').trim();
-  if (!normalizedJobId || activeJobIds.has(normalizedJobId)) {
-    return;
-  }
-
-  activeJobIds.add(normalizedJobId);
-  try {
-    const queuedJob = await BackgroundJob.findOneAndUpdate(
-      {
-        _id: normalizedJobId,
-        status: BACKGROUND_JOB_STATUSES.QUEUED
-      },
-      {
-        $set: {
-          status: BACKGROUND_JOB_STATUSES.RUNNING,
-          startedAt: new Date()
-        }
-      },
-      { new: true }
-    );
-
-    if (!queuedJob) {
-      return;
-    }
-
-    let result = null;
-    if (queuedJob.type === BACKGROUND_JOB_TYPES.PRODUCT_BULK_IMPORT) {
-      result = await processProductBulkImportJob({
-        jobId: queuedJob._id,
-        payload: queuedJob.payload,
-        organizationId: queuedJob.organization
-      });
-    } else {
-      throw new Error(`Unsupported background job type: ${queuedJob.type}`);
-    }
-
-    await BackgroundJob.findByIdAndUpdate(queuedJob._id, {
-      $set: {
-        status: BACKGROUND_JOB_STATUSES.COMPLETED,
-        completedAt: new Date(),
-        progress: {
-          percent: 100,
-          totalRows: Number(result?.totalRows || 0),
-          processedRows: Number(result?.totalRows || 0),
-          createdCount: Number(result?.createdCount || 0),
-          updatedCount: Number(result?.updatedCount || 0),
-          skippedCount: Number(result?.skippedCount || 0),
-          failedCount: Number(result?.failedCount || 0)
-        },
-        result: {
-          totalRows: Number(result?.totalRows || 0),
-          validRows: Number(result?.validRows || 0),
-          invalidRows: Number(result?.invalidRows || 0),
-          createdCount: Number(result?.createdCount || 0),
-          updatedCount: Number(result?.updatedCount || 0),
-          skippedCount: Number(result?.skippedCount || 0),
-          failedCount: Number(result?.failedCount || 0),
-          rowErrors: Array.isArray(result?.rowErrors) ? result.rowErrors : [],
-          dryRun: result?.dryRun === true,
-          atomic: result?.atomic === true,
-          duplicatePolicy: String(result?.duplicatePolicy || 'skip'),
-          validationBlocked: result?.validationBlocked === true,
-          previewRows: Array.isArray(result?.previewRows)
-            ? result.previewRows
-            : []
-        },
-        error: {
-          message: null,
-          code: null
-        }
-      }
-    });
-  } catch (error) {
-    await BackgroundJob.findByIdAndUpdate(normalizedJobId, {
-      $set: {
-        status: BACKGROUND_JOB_STATUSES.FAILED,
-        completedAt: new Date(),
-        error: sanitizeJobError(error)
-      }
-    });
-  } finally {
-    activeJobIds.delete(normalizedJobId);
-  }
 };
 
 const scheduleJobProcessing = (jobId) => {
   setImmediate(() => {
-    void processJobById(jobId);
+    void processQueuedBackgroundJob(jobId);
   });
 };
 
@@ -190,7 +72,8 @@ export const createBackgroundJob = async ({
   organizationId,
   createdBy,
   type,
-  payload = {}
+  payload = {},
+  dedupeKey = null
 }) => {
   const resolvedType = String(type || '')
     .trim()
@@ -200,10 +83,28 @@ export const createBackgroundJob = async ({
   }
 
   const safePayload = payload && typeof payload === 'object' ? payload : {};
+  const normalizedDedupeKey = String(dedupeKey || '').trim() || null;
+
+  if (normalizedDedupeKey) {
+    const existingJob = await BackgroundJob.findOne({
+      organization: toObjectId(organizationId),
+      type: resolvedType,
+      dedupeKey: normalizedDedupeKey,
+      status: {
+        $in: [BACKGROUND_JOB_STATUSES.QUEUED, BACKGROUND_JOB_STATUSES.RUNNING]
+      }
+    });
+
+    if (existingJob) {
+      return mapJobForResponse(existingJob);
+    }
+  }
+
   const job = await BackgroundJob.create({
     organization: toObjectId(organizationId),
     createdBy: createdBy ? toObjectId(createdBy) : null,
     type: resolvedType,
+    dedupeKey: normalizedDedupeKey,
     status: BACKGROUND_JOB_STATUSES.QUEUED,
     payload: safePayload,
     progress: {
@@ -224,20 +125,35 @@ export const createBackgroundJob = async ({
     }
   });
 
-  scheduleJobProcessing(job._id.toString());
+  const jobId = job._id.toString();
+  const enqueued = await enqueueBackgroundJob({
+    jobId,
+    type: resolvedType,
+    organizationId: String(organizationId || '')
+  });
+
+  if (!enqueued) {
+    logger.info('background_job_fallback_inline_processing', {
+      jobId,
+      type: resolvedType
+    });
+    scheduleJobProcessing(jobId);
+  }
+
   return mapJobForResponse(job);
 };
 
 export const getBackgroundJobForOrganization = async ({
   organizationId,
-  jobId
+  jobId,
+  includePayload = false
 }) => {
   const job = await BackgroundJob.findOne({
     _id: jobId,
     organization: organizationId
   }).lean();
 
-  return mapJobForResponse(job);
+  return mapJobForResponse(job, { includePayload });
 };
 
 export { BACKGROUND_JOB_TYPES, BACKGROUND_JOB_STATUSES };

@@ -93,7 +93,7 @@ const getEmailTransporter = (config) => {
   return cachedTransporter;
 };
 
-const sendEmailNotification = async ({
+export const sendEmailNotification = async ({
   to,
   subject,
   text,
@@ -212,6 +212,7 @@ export const sendLowStockSmsNotification = async ({
 };
 
 export default {
+  sendEmailNotification,
   sendSupplierNotification,
   sendLowStockSmsNotification
 };

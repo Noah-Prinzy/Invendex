@@ -24,8 +24,7 @@ Ledgerly is a multi-tenant inventory and purchasing platform with:
 1. Install dependencies:
 
 ```bash
-npm --prefix backend ci
-npm --prefix frontend ci
+npm ci
 ```
 
 2. Configure backend env:
@@ -41,16 +40,23 @@ Optional env splits:
 - `frontend/.env.development.example`
 - `frontend/.env.production.example`
 
-3. Start backend:
+3. Start backend + frontend together (single command):
 
 ```bash
-npm --prefix backend run dev
+npm run dev
 ```
 
-4. Start frontend:
+Optional dedicated background worker (recommended when `BACKGROUND_JOB_QUEUE_ENABLED=true`):
 
 ```bash
-npm --prefix frontend start
+npm run dev:worker
+```
+
+If you need one side only:
+
+```bash
+npm run dev:backend
+npm run dev:frontend
 ```
 
 ## Quality Commands

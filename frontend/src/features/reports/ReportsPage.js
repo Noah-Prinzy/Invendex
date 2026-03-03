@@ -1,9 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
+  downloadInventoryReportExportJobRequest,
+  downloadReportExportJobRequest,
+  getAuditLogsRequest,
+  getFinanceExchangeRatesRequest,
   getFinanceDeadStockRequest,
   getFinanceGrossMarginRequest,
   getFinanceInventoryValuationRequest,
+  getInventoryReportExportJobStatusRequest,
+  getReportExportJobStatusRequest,
+  getSettingsRequest,
+  getWmsMovementLedgerRequest,
+  queueInventoryReportExportJobRequest,
+  queueReportExportJobRequest,
   getReportPurchaseOrderStatusSummaryRequest,
   getReportSpendBySupplierRequest,
   getReportSpendSummaryRequest
@@ -11,13 +21,29 @@ import {
 
 const SPEND_PAGE_SIZE = 8;
 const REPORTS_QUERY_STALE_TIME_MS = 45 * 1000;
+const roundMoney = (value) =>
+  Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
-const formatCurrency = (value) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 2
-  }).format(Number(value || 0));
+const formatCurrency = (value, currencyCode = 'USD') => {
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: String(currencyCode || 'USD').toUpperCase(),
+      maximumFractionDigits: 2
+    }).format(Number(value || 0));
+  } catch {
+    return `${String(currencyCode || 'USD').toUpperCase()} ${Number(
+      value || 0
+    ).toFixed(2)}`;
+  }
+};
+
+const formatDateTime = (value) => {
+  if (!value) return 'n/a';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'n/a';
+  return date.toLocaleString();
+};
 
 const sanitizeCsvCell = (value) => {
   let normalized = String(value ?? '');
@@ -57,49 +83,41 @@ const buildReportFilename = (prefix, extension) => {
   return `ledgerly-${prefix}-${stamp}.${extension}`;
 };
 
-const downloadWorkbook = async ({ filename, sheets }) => {
-  const xlsxModule = await import('xlsx');
-  const XLSX = xlsxModule?.default || xlsxModule;
-  const workbook = XLSX.utils.book_new();
-
-  Object.entries(sheets || {}).forEach(([sheetName, rows]) => {
-    const normalizedName = String(sheetName || 'Sheet1').slice(0, 31);
-    const worksheet = XLSX.utils.aoa_to_sheet(
-      Array.isArray(rows) ? rows : [['']]
-    );
-    XLSX.utils.book_append_sheet(workbook, worksheet, normalizedName);
-  });
-
-  const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-  downloadFile({
-    filename,
-    content: buffer,
-    mimeType:
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  });
-};
-
-const createPdfRuntime = async () => {
-  const [jspdfModule, autoTableModule] = await Promise.all([
-    import('jspdf'),
-    import('jspdf-autotable')
-  ]);
-  return {
-    jsPDF: jspdfModule.jsPDF,
-    autoTable: autoTableModule.default
-  };
-};
-
 const Reports = ({ accessToken, userRole = null }) => {
   const [spendSearch, setSpendSearch] = useState('');
   const [spendSortKey, setSpendSortKey] = useState('totalSpend');
   const [spendSortDirection, setSpendSortDirection] = useState('desc');
   const [spendPage, setSpendPage] = useState(1);
   const [statusSortDirection, setStatusSortDirection] = useState('desc');
+  const [selectedCurrencyCode, setSelectedCurrencyCode] = useState('');
+  const [movementTypeFilter, setMovementTypeFilter] = useState('');
+  const [auditActionFilter, setAuditActionFilter] = useState('');
+  const [auditSuccessFilter, setAuditSuccessFilter] = useState('all');
+  const [inventoryExportJob, setInventoryExportJob] = useState(null);
+  const [inventoryExportError, setInventoryExportError] = useState('');
+  const [inventoryExportBusy, setInventoryExportBusy] = useState(false);
+  const [reportExportError, setReportExportError] = useState('');
+  const [reportExportBusy, setReportExportBusy] = useState(false);
+  const [reportExportJob, setReportExportJob] = useState(null);
   const isAdmin = String(userRole || '') === 'admin';
   const reportsQueryKey = useMemo(
-    () => ['reports:index', String(accessToken || ''), String(isAdmin)],
-    [accessToken, isAdmin]
+    () => [
+      'reports:index',
+      String(accessToken || ''),
+      String(isAdmin),
+      String(selectedCurrencyCode || ''),
+      String(movementTypeFilter || ''),
+      String(auditActionFilter || ''),
+      String(auditSuccessFilter || 'all')
+    ],
+    [
+      accessToken,
+      isAdmin,
+      selectedCurrencyCode,
+      movementTypeFilter,
+      auditActionFilter,
+      auditSuccessFilter
+    ]
   );
 
   useEffect(() => {
@@ -107,43 +125,143 @@ const Reports = ({ accessToken, userRole = null }) => {
     setSpendPage(1);
   }, [isAdmin]);
 
+  useEffect(() => {
+    if (!accessToken) return undefined;
+
+    const jobId = String(inventoryExportJob?.id || '').trim();
+    const status = String(inventoryExportJob?.status || '').toUpperCase();
+    if (!jobId || status === 'COMPLETED' || status === 'FAILED') {
+      return undefined;
+    }
+
+    let stopped = false;
+    const timer = setInterval(async () => {
+      try {
+        const latest = await getInventoryReportExportJobStatusRequest({
+          accessToken,
+          jobId
+        });
+        if (!stopped && latest) {
+          setInventoryExportJob(latest);
+        }
+      } catch (error) {
+        if (!stopped) {
+          setInventoryExportError(
+            String(error?.message || 'Failed to refresh export status')
+          );
+        }
+      }
+    }, 2000);
+
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [accessToken, inventoryExportJob]);
+
   const { data, error, isLoading, isFetching, refetch } = useQuery({
     queryKey: reportsQueryKey,
     enabled: Boolean(accessToken) && isAdmin,
     staleTime: REPORTS_QUERY_STALE_TIME_MS,
     queryFn: async () => {
+      const settingsData = await getSettingsRequest(accessToken);
+      const baseCurrencyCode = String(
+        settingsData?.companyProfile?.currencyCode || 'UGX'
+      )
+        .trim()
+        .toUpperCase();
+      const targetCurrencyCode = String(
+        selectedCurrencyCode || baseCurrencyCode
+      )
+        .trim()
+        .toUpperCase();
+
       const [
+        exchangeRatesData,
         statusData,
         spendData,
         supplierSpendData,
         valuationData,
         deadStockData,
-        grossMarginData
+        grossMarginData,
+        movementData,
+        auditLogsData
       ] = await Promise.all([
+        getFinanceExchangeRatesRequest({
+          accessToken,
+          baseCurrencyCode
+        }),
         getReportPurchaseOrderStatusSummaryRequest(accessToken),
         getReportSpendSummaryRequest(accessToken),
         getReportSpendBySupplierRequest(accessToken),
         getFinanceInventoryValuationRequest({
-          accessToken
+          accessToken,
+          currencyCode: targetCurrencyCode
         }),
         getFinanceDeadStockRequest({
-          accessToken
+          accessToken,
+          currencyCode: targetCurrencyCode
         }),
         getFinanceGrossMarginRequest({
           accessToken,
-          groupBy: 'day'
+          groupBy: 'day',
+          currencyCode: targetCurrencyCode
+        }),
+        getWmsMovementLedgerRequest({
+          accessToken,
+          type: movementTypeFilter || null,
+          limit: 50
+        }),
+        getAuditLogsRequest({
+          accessToken,
+          page: 1,
+          limit: 50,
+          action: String(auditActionFilter || '').trim() || null,
+          success:
+            auditSuccessFilter === 'all'
+              ? null
+              : String(auditSuccessFilter) === 'true'
         })
       ]);
 
+      const conversionRate = Number(valuationData?.exchangeRate || 1);
+      const shouldConvertSpend =
+        targetCurrencyCode !== baseCurrencyCode &&
+        Number.isFinite(conversionRate) &&
+        conversionRate > 0;
+      const normalizedSpendSummary = {
+        ...(spendData || { totalSpend: 0 })
+      };
+      if (shouldConvertSpend) {
+        normalizedSpendSummary.totalSpend = roundMoney(
+          Number(normalizedSpendSummary.totalSpend || 0) * conversionRate
+        );
+      }
+      const normalizedSupplierSpendData = Array.isArray(supplierSpendData)
+        ? supplierSpendData.map((row) => ({
+            ...row,
+            totalSpend: shouldConvertSpend
+              ? roundMoney(Number(row.totalSpend || 0) * conversionRate)
+              : Number(row.totalSpend || 0)
+          }))
+        : [];
+
       return {
-        statusSummary: statusData || {},
-        spendSummary: spendData || { totalSpend: 0 },
-        spendBySupplier: Array.isArray(supplierSpendData)
-          ? supplierSpendData
+        baseCurrencyCode,
+        currencyCode: targetCurrencyCode,
+        exchangeRate: shouldConvertSpend ? conversionRate : 1,
+        exchangeRates: Array.isArray(exchangeRatesData?.rates)
+          ? exchangeRatesData.rates
           : [],
+        statusSummary: statusData || {},
+        spendSummary: normalizedSpendSummary,
+        spendBySupplier: normalizedSupplierSpendData,
         valuation: valuationData || null,
         deadStock: deadStockData || null,
-        grossMargin: grossMarginData || null
+        grossMargin: grossMarginData || null,
+        movements: Array.isArray(movementData) ? movementData : [],
+        auditLogs: Array.isArray(auditLogsData?.data) ? auditLogsData.data : [],
+        auditPagination: auditLogsData?.pagination || null
       };
     }
   });
@@ -157,6 +275,36 @@ const Reports = ({ accessToken, userRole = null }) => {
   const valuation = data?.valuation || null;
   const deadStock = data?.deadStock || null;
   const grossMargin = data?.grossMargin || null;
+  const movementRows = useMemo(
+    () => (Array.isArray(data?.movements) ? data.movements : []),
+    [data]
+  );
+  const auditRows = useMemo(
+    () => (Array.isArray(data?.auditLogs) ? data.auditLogs : []),
+    [data]
+  );
+  const auditPagination = data?.auditPagination || null;
+  const baseCurrencyCode = String(data?.baseCurrencyCode || 'UGX')
+    .trim()
+    .toUpperCase();
+  const activeCurrencyCode = String(
+    data?.currencyCode || baseCurrencyCode || 'UGX'
+  )
+    .trim()
+    .toUpperCase();
+  const availableCurrencyCodes = useMemo(() => {
+    const codes = new Set([baseCurrencyCode]);
+    const rows = Array.isArray(data?.exchangeRates) ? data.exchangeRates : [];
+    for (const row of rows) {
+      const code = String(row?.quoteCurrencyCode || '')
+        .trim()
+        .toUpperCase();
+      if (code.length === 3) {
+        codes.add(code);
+      }
+    }
+    return Array.from(codes).sort((a, b) => a.localeCompare(b));
+  }, [baseCurrencyCode, data?.exchangeRates]);
   const errorMessage = String(error?.message || '').trim();
 
   const totalOpenPurchaseOrders = useMemo(() => {
@@ -314,92 +462,202 @@ const Reports = ({ accessToken, userRole = null }) => {
     });
   };
 
-  const handleDownloadPoStatusSummaryExcel = async () => {
-    await downloadWorkbook({
-      filename: buildReportFilename('po-status-summary', 'xlsx'),
-      sheets: {
-        po_status_summary: [
-          ['status', 'count'],
-          ...sortedStatusRows.map((row) => [row.status, Number(row.count || 0)])
-        ]
+  const handleDownloadMovementCsv = () => {
+    const csv = toCsv(
+      [
+        'movedAt',
+        'movementType',
+        'sku',
+        'productName',
+        'quantity',
+        'warehouseFrom',
+        'warehouseTo',
+        'reason',
+        'referenceType'
+      ],
+      movementRows.map((row) => [
+        row.movedAt || row.createdAt || '',
+        row.movementType || '',
+        row.product?.sku || '',
+        row.product?.name || '',
+        Number(row.quantity || 0),
+        row.warehouseFrom?.code || '',
+        row.warehouseTo?.code || '',
+        row.reason || '',
+        row.referenceType || ''
+      ])
+    );
+
+    downloadFile({
+      filename: buildReportFilename('stock-movements', 'csv'),
+      content: csv,
+      mimeType: 'text/csv;charset=utf-8'
+    });
+  };
+
+  const handleDownloadAuditCsv = () => {
+    const csv = toCsv(
+      ['createdAt', 'action', 'entity', 'success', 'userEmail', 'path', 'ip'],
+      auditRows.map((row) => [
+        row.createdAt || '',
+        row.action || '',
+        row.entity || '',
+        String(Boolean(row.success)),
+        row.user?.email || '',
+        row.path || '',
+        row.ip || ''
+      ])
+    );
+
+    downloadFile({
+      filename: buildReportFilename('audit-log', 'csv'),
+      content: csv,
+      mimeType: 'text/csv;charset=utf-8'
+    });
+  };
+
+  const sleepAsync = (ms) =>
+    new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    });
+
+  const runQueuedReportExportDownload = async ({
+    reportType,
+    format = 'xlsx'
+  }) => {
+    if (!accessToken) return;
+
+    setReportExportBusy(true);
+    setReportExportError('');
+    try {
+      const queuedJob = await queueReportExportJobRequest({
+        accessToken,
+        reportType,
+        format
+      });
+      setReportExportJob(queuedJob || null);
+
+      const jobId = String(queuedJob?.id || '').trim();
+      if (!jobId) {
+        throw new Error('Report export job did not return a valid job ID');
       }
+
+      let finalJob = queuedJob;
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        const status = String(finalJob?.status || '').toUpperCase();
+        if (status === 'COMPLETED') break;
+        if (status === 'FAILED') {
+          throw new Error(
+            String(finalJob?.error?.message || 'Report export failed')
+          );
+        }
+
+        await sleepAsync(1000);
+        finalJob = await getReportExportJobStatusRequest({
+          accessToken,
+          jobId
+        });
+        setReportExportJob(finalJob || null);
+      }
+
+      if (String(finalJob?.status || '').toUpperCase() !== 'COMPLETED') {
+        throw new Error('Report export timed out');
+      }
+
+      const file = await downloadReportExportJobRequest({
+        accessToken,
+        jobId
+      });
+
+      const objectUrl = URL.createObjectURL(file.blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = file.fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      setReportExportError(String(error?.message || 'Failed to export report'));
+    } finally {
+      setReportExportBusy(false);
+    }
+  };
+
+  const handleDownloadPoStatusSummaryExcel = async () => {
+    await runQueuedReportExportDownload({
+      reportType: 'PURCHASE_ORDER_STATUS_SUMMARY',
+      format: 'xlsx'
     });
   };
 
   const handleDownloadPoStatusSummaryPdf = async () => {
-    const { jsPDF, autoTable } = await createPdfRuntime();
-    const document = new jsPDF();
-    document.setFontSize(14);
-    document.text('Ledgerly PO Status Summary', 14, 16);
-
-    autoTable(document, {
-      startY: 22,
-      head: [['Status', 'Count']],
-      body: sortedStatusRows.map((row) => [row.status, Number(row.count || 0)])
+    await runQueuedReportExportDownload({
+      reportType: 'PURCHASE_ORDER_STATUS_SUMMARY',
+      format: 'pdf'
     });
-
-    document.save(buildReportFilename('po-status-summary', 'pdf'));
   };
 
   const handleDownloadFullSummaryExcel = async () => {
-    await downloadWorkbook({
-      filename: buildReportFilename('reports-summary', 'xlsx'),
-      sheets: {
-        summary: [
-          ['metric', 'value'],
-          ['generatedAt', new Date().toISOString()],
-          ['totalSpend', Number(spendSummary?.totalSpend || 0).toFixed(2)],
-          ['supplierCount', Number(spendBySupplier.length || 0)],
-          ['openPurchaseOrders', Number(totalOpenPurchaseOrders || 0)]
-        ],
-        po_status_summary: [
-          ['status', 'count'],
-          ...sortedStatusRows.map((row) => [row.status, Number(row.count || 0)])
-        ],
-        spend_by_supplier: [
-          ['supplierName', 'totalSpend'],
-          ...spendBySupplier.map((row) => [
-            row.supplierName || 'Unknown supplier',
-            Number(row.totalSpend || 0).toFixed(2)
-          ])
-        ]
-      }
+    await runQueuedReportExportDownload({
+      reportType: 'FULL_SUMMARY',
+      format: 'xlsx'
     });
   };
 
   const handleDownloadFullSummaryPdf = async () => {
-    const { jsPDF, autoTable } = await createPdfRuntime();
-    const document = new jsPDF();
-    document.setFontSize(14);
-    document.text('Ledgerly Full Summary Report', 14, 16);
-    document.setFontSize(10);
-    document.text(`Generated: ${new Date().toLocaleString()}`, 14, 22);
-    document.text(
-      `Total spend: ${formatCurrency(spendSummary?.totalSpend || 0)}`,
-      14,
-      28
-    );
-    document.text(`Open POs: ${totalOpenPurchaseOrders}`, 14, 34);
-    document.text(`Suppliers: ${spendBySupplier.length}`, 14, 40);
-
-    autoTable(document, {
-      startY: 46,
-      head: [['PO Status', 'Count']],
-      body: sortedStatusRows.map((row) => [row.status, Number(row.count || 0)])
+    await runQueuedReportExportDownload({
+      reportType: 'FULL_SUMMARY',
+      format: 'pdf'
     });
+  };
 
-    autoTable(document, {
-      startY: document.lastAutoTable?.finalY
-        ? document.lastAutoTable.finalY + 8
-        : 70,
-      head: [['Supplier', 'Total spend']],
-      body: spendBySupplier.map((row) => [
-        row.supplierName || 'Unknown supplier',
-        formatCurrency(row.totalSpend)
-      ])
-    });
+  const handleQueueInventoryExport = async (format = 'csv') => {
+    if (!accessToken) return;
 
-    document.save(buildReportFilename('reports-summary', 'pdf'));
+    setInventoryExportBusy(true);
+    setInventoryExportError('');
+    try {
+      const queuedJob = await queueInventoryReportExportJobRequest({
+        accessToken,
+        format
+      });
+      setInventoryExportJob(queuedJob || null);
+    } catch (error) {
+      setInventoryExportError(
+        String(error?.message || 'Failed to queue inventory export')
+      );
+    } finally {
+      setInventoryExportBusy(false);
+    }
+  };
+
+  const handleDownloadQueuedInventoryExport = async () => {
+    const jobId = String(inventoryExportJob?.id || '').trim();
+    if (!accessToken || !jobId) return;
+
+    setInventoryExportBusy(true);
+    setInventoryExportError('');
+    try {
+      const file = await downloadInventoryReportExportJobRequest({
+        accessToken,
+        jobId
+      });
+      const objectUrl = URL.createObjectURL(file.blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = file.fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      setInventoryExportError(
+        String(error?.message || 'Failed to download inventory export')
+      );
+    } finally {
+      setInventoryExportBusy(false);
+    }
   };
 
   if (!isAdmin) {
@@ -431,11 +689,24 @@ const Reports = ({ accessToken, userRole = null }) => {
           <p>Purchase order and spend summaries from reporting APIs.</p>
         </div>
         <div className="obs-actions">
+          <label className="control-field compact-select">
+            <span>Currency</span>
+            <select
+              value={selectedCurrencyCode || baseCurrencyCode}
+              onChange={(event) => setSelectedCurrencyCode(event.target.value)}
+            >
+              {availableCurrencyCodes.map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
+            </select>
+          </label>
           <button
             type="button"
             className="btn-ghost"
             onClick={handleDownloadPoStatusSummaryExcel}
-            disabled={!sortedStatusRows.length}
+            disabled={!sortedStatusRows.length || reportExportBusy}
           >
             PO status Excel
           </button>
@@ -443,7 +714,7 @@ const Reports = ({ accessToken, userRole = null }) => {
             type="button"
             className="btn-ghost"
             onClick={handleDownloadPoStatusSummaryPdf}
-            disabled={!sortedStatusRows.length}
+            disabled={!sortedStatusRows.length || reportExportBusy}
           >
             PO status PDF
           </button>
@@ -477,8 +748,26 @@ const Reports = ({ accessToken, userRole = null }) => {
           <button
             type="button"
             className="btn-ghost"
+            onClick={handleDownloadMovementCsv}
+            disabled={!movementRows.length}
+          >
+            Movements CSV
+          </button>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={handleDownloadAuditCsv}
+            disabled={!auditRows.length}
+          >
+            Audit CSV
+          </button>
+          <button
+            type="button"
+            className="btn-ghost"
             onClick={handleDownloadFullSummaryExcel}
-            disabled={!statusSummary && !spendBySupplier.length}
+            disabled={
+              (!statusSummary && !spendBySupplier.length) || reportExportBusy
+            }
           >
             Full summary Excel
           </button>
@@ -486,9 +775,39 @@ const Reports = ({ accessToken, userRole = null }) => {
             type="button"
             className="btn-ghost"
             onClick={handleDownloadFullSummaryPdf}
-            disabled={!statusSummary && !spendBySupplier.length}
+            disabled={
+              (!statusSummary && !spendBySupplier.length) || reportExportBusy
+            }
           >
             Full summary PDF
+          </button>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => handleQueueInventoryExport('csv')}
+            disabled={inventoryExportBusy}
+          >
+            Queue inventory CSV
+          </button>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => handleQueueInventoryExport('xlsx')}
+            disabled={inventoryExportBusy}
+          >
+            Queue inventory Excel
+          </button>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={handleDownloadQueuedInventoryExport}
+            disabled={
+              inventoryExportBusy ||
+              String(inventoryExportJob?.status || '').toUpperCase() !==
+                'COMPLETED'
+            }
+          >
+            Download queued inventory export
           </button>
           <button
             type="button"
@@ -505,7 +824,7 @@ const Reports = ({ accessToken, userRole = null }) => {
         <article className="metric-card">
           <p className="metric-label">Total spend</p>
           <p className="metric-value">
-            {formatCurrency(spendSummary?.totalSpend)}
+            {formatCurrency(spendSummary?.totalSpend, activeCurrencyCode)}
           </p>
         </article>
         <article className="metric-card">
@@ -519,7 +838,7 @@ const Reports = ({ accessToken, userRole = null }) => {
         <article className="metric-card">
           <p className="metric-label">Inventory valuation</p>
           <p className="metric-value">
-            {formatCurrency(valuation?.totalInventoryValue)}
+            {formatCurrency(valuation?.totalInventoryValue, activeCurrencyCode)}
           </p>
         </article>
         <article className="metric-card">
@@ -531,12 +850,35 @@ const Reports = ({ accessToken, userRole = null }) => {
         <article className="metric-card">
           <p className="metric-label">Dead stock value</p>
           <p className="metric-value">
-            {formatCurrency(deadStock?.totalValue)}
+            {formatCurrency(deadStock?.totalValue, activeCurrencyCode)}
           </p>
         </article>
       </div>
 
       {errorMessage ? <p className="form-error">{errorMessage}</p> : null}
+      {inventoryExportError ? (
+        <p className="form-error">{inventoryExportError}</p>
+      ) : null}
+      {reportExportError ? (
+        <p className="form-error">{reportExportError}</p>
+      ) : null}
+      {inventoryExportJob?.id ? (
+        <p className="section-note">
+          Inventory export job {inventoryExportJob.id}:{' '}
+          {inventoryExportJob.status}
+          {inventoryExportJob?.progress?.percent != null
+            ? ` (${Number(inventoryExportJob.progress.percent)}%)`
+            : ''}
+        </p>
+      ) : null}
+      {reportExportJob?.id ? (
+        <p className="section-note">
+          Report export job {reportExportJob.id}: {reportExportJob.status}
+          {reportExportJob?.progress?.percent != null
+            ? ` (${Number(reportExportJob.progress.percent)}%)`
+            : ''}
+        </p>
+      ) : null}
 
       <div className="data-grid">
         <article className="data-card">
@@ -628,7 +970,9 @@ const Reports = ({ accessToken, userRole = null }) => {
                     {paginatedSpendRows.map((row) => (
                       <tr key={row._id || row.supplierName}>
                         <td>{row.supplierName || 'Unknown supplier'}</td>
-                        <td>{formatCurrency(row.totalSpend)}</td>
+                        <td>
+                          {formatCurrency(row.totalSpend, activeCurrencyCode)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -689,11 +1033,21 @@ const Reports = ({ accessToken, userRole = null }) => {
               </li>
               <li className="rank-item">
                 <p>Total inventory value</p>
-                <span>{formatCurrency(valuation?.totalInventoryValue)}</span>
+                <span>
+                  {formatCurrency(
+                    valuation?.totalInventoryValue,
+                    activeCurrencyCode
+                  )}
+                </span>
               </li>
               <li className="rank-item">
                 <p>Gross margin</p>
-                <span>{formatCurrency(grossMargin?.totals?.grossMargin)}</span>
+                <span>
+                  {formatCurrency(
+                    grossMargin?.totals?.grossMargin,
+                    activeCurrencyCode
+                  )}
+                </span>
               </li>
               <li className="rank-item">
                 <p>Gross margin %</p>
@@ -737,7 +1091,12 @@ const Reports = ({ accessToken, userRole = null }) => {
                         <td>{row.warehouseCode || '-'}</td>
                         <td>{Number(row.quantityOnHand || 0)}</td>
                         <td>{Number(row.ageDays || 0)}</td>
-                        <td>{formatCurrency(row.inventoryValue)}</td>
+                        <td>
+                          {formatCurrency(
+                            row.inventoryValue,
+                            activeCurrencyCode
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -748,6 +1107,117 @@ const Reports = ({ accessToken, userRole = null }) => {
             <p className="muted">
               No dead stock detected for the current threshold.
             </p>
+          )}
+        </article>
+
+        <article className="data-card">
+          <h3>Stock Movements</h3>
+          <div className="control-row compact">
+            <label className="control-field">
+              <span>Movement type</span>
+              <select
+                value={movementTypeFilter}
+                onChange={(event) => setMovementTypeFilter(event.target.value)}
+              >
+                <option value="">All types</option>
+                <option value="INBOUND">INBOUND</option>
+                <option value="OUTBOUND">OUTBOUND</option>
+                <option value="TRANSFER">TRANSFER</option>
+                <option value="ALLOCATION">ALLOCATION</option>
+                <option value="PICK">PICK</option>
+                <option value="ADJUSTMENT">ADJUSTMENT</option>
+              </select>
+            </label>
+          </div>
+          {movementRows.length ? (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Type</th>
+                    <th>SKU</th>
+                    <th>Qty</th>
+                    <th>From</th>
+                    <th>To</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {movementRows.slice(0, 10).map((row) => (
+                    <tr key={String(row._id || row.id || row.createdAt)}>
+                      <td>{formatDateTime(row.movedAt || row.createdAt)}</td>
+                      <td>{row.movementType || '-'}</td>
+                      <td>{row.product?.sku || '-'}</td>
+                      <td>{Number(row.quantity || 0)}</td>
+                      <td>{row.warehouseFrom?.code || '-'}</td>
+                      <td>{row.warehouseTo?.code || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="muted">No stock movements found for this filter.</p>
+          )}
+        </article>
+
+        <article className="data-card">
+          <h3>Audit Log</h3>
+          <div className="control-row">
+            <label className="control-field">
+              <span>Action filter</span>
+              <input
+                type="text"
+                value={auditActionFilter}
+                onChange={(event) => setAuditActionFilter(event.target.value)}
+                placeholder="e.g. UPDATE_SETTINGS"
+              />
+            </label>
+            <label className="control-field">
+              <span>Success</span>
+              <select
+                value={auditSuccessFilter}
+                onChange={(event) => setAuditSuccessFilter(event.target.value)}
+              >
+                <option value="all">All</option>
+                <option value="true">Successful</option>
+                <option value="false">Failed</option>
+              </select>
+            </label>
+          </div>
+          {auditRows.length ? (
+            <>
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Action</th>
+                      <th>Entity</th>
+                      <th>User</th>
+                      <th>Result</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditRows.slice(0, 10).map((row) => (
+                      <tr key={String(row._id || row.id || row.createdAt)}>
+                        <td>{formatDateTime(row.createdAt)}</td>
+                        <td>{row.action || '-'}</td>
+                        <td>{row.entity || '-'}</td>
+                        <td>{row.user?.email || row.user?.name || 'system'}</td>
+                        <td>{row.success ? 'Success' : 'Failed'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="section-note">
+                Showing {Math.min(auditRows.length, 10)} of{' '}
+                {Number(auditPagination?.total || auditRows.length)} audit rows.
+              </p>
+            </>
+          ) : (
+            <p className="muted">No audit logs found for this filter.</p>
           )}
         </article>
       </div>

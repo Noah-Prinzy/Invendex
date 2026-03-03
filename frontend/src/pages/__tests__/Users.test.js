@@ -4,18 +4,24 @@ import { renderWithProviders } from '../../test/renderWithProviders.js';
 import {
   createUserInviteRequest,
   getOnlineUsersRequest,
+  getUserRolePermissionsMatrixRequest,
   getUserInvitesRequest,
   getUsersRequest,
   revokeUserInviteRequest,
+  updateUserRolePermissionsMatrixRequest,
+  updateUserRoleRequest,
   updateUserStatusRequest
 } from '../../api/client.js';
 
 jest.mock('../../api/client.js', () => ({
   createUserInviteRequest: jest.fn(),
   getOnlineUsersRequest: jest.fn(),
+  getUserRolePermissionsMatrixRequest: jest.fn(),
   getUserInvitesRequest: jest.fn(),
   getUsersRequest: jest.fn(),
   revokeUserInviteRequest: jest.fn(),
+  updateUserRolePermissionsMatrixRequest: jest.fn(),
+  updateUserRoleRequest: jest.fn(),
   updateUserStatusRequest: jest.fn()
 }));
 
@@ -67,6 +73,15 @@ describe('Users page', () => {
         expiresAt: '2026-02-26T00:00:00.000Z'
       }
     ]);
+    getUserRolePermissionsMatrixRequest.mockResolvedValueOnce({
+      catalog: ['products:view', 'products:edit'],
+      matrix: {
+        staff: ['products:view'],
+        manager: ['products:view', 'products:edit'],
+        admin: ['products:view', 'products:edit'],
+        owner: ['products:view', 'products:edit']
+      }
+    });
     createUserInviteRequest.mockResolvedValue({
       _id: 'inv-2',
       email: 'new@example.com',
@@ -87,6 +102,22 @@ describe('Users page', () => {
       role: 'staff',
       isActive: false,
       isVerified: false
+    });
+    updateUserRoleRequest.mockResolvedValueOnce({
+      _id: 'u-2',
+      email: 'staff@example.com',
+      role: 'manager',
+      isActive: true,
+      isVerified: false
+    });
+    updateUserRolePermissionsMatrixRequest.mockResolvedValueOnce({
+      catalog: ['products:view', 'products:edit'],
+      matrix: {
+        staff: ['products:view', 'products:edit'],
+        manager: ['products:view', 'products:edit'],
+        admin: ['products:view', 'products:edit'],
+        owner: ['products:view', 'products:edit']
+      }
     });
 
     renderWithProviders(
@@ -126,6 +157,23 @@ describe('Users page', () => {
         inviteId: 'inv-1'
       });
       expect(screen.getByText('REVOKED')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByDisplayValue('staff'), {
+      target: { value: 'manager' }
+    });
+    await waitFor(() => {
+      expect(updateUserRoleRequest).toHaveBeenCalledWith({
+        accessToken: 'token',
+        userId: 'u-2',
+        role: 'manager'
+      });
+    });
+
+    const staffPermissionToggle = screen.getAllByRole('checkbox')[0];
+    fireEvent.click(staffPermissionToggle);
+    await waitFor(() => {
+      expect(updateUserRolePermissionsMatrixRequest).toHaveBeenCalled();
     });
   });
 });

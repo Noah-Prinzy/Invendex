@@ -1,7 +1,13 @@
 import mongoose from 'mongoose';
 
 export const BACKGROUND_JOB_TYPES = Object.freeze({
-  PRODUCT_BULK_IMPORT: 'PRODUCT_BULK_IMPORT'
+  PRODUCT_BULK_IMPORT: 'PRODUCT_BULK_IMPORT',
+  REPORT_EXPORT: 'REPORT_EXPORT',
+  INVENTORY_SNAPSHOT_DAILY: 'INVENTORY_SNAPSHOT_DAILY',
+  INVENTORY_METRICS_DAILY: 'INVENTORY_METRICS_DAILY',
+  FORECAST_GENERATION_DAILY: 'FORECAST_GENERATION_DAILY',
+  FORECAST_REORDER_DAILY: 'FORECAST_REORDER_DAILY',
+  EMAIL_NOTIFICATION: 'EMAIL_NOTIFICATION'
 });
 
 export const BACKGROUND_JOB_STATUSES = Object.freeze({
@@ -42,6 +48,13 @@ const backgroundJobSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: {}
     },
+    dedupeKey: {
+      type: String,
+      default: null,
+      trim: true,
+      maxlength: 200,
+      index: true
+    },
     progress: {
       percent: { type: Number, default: 0, min: 0, max: 100 },
       totalRows: { type: Number, default: 0, min: 0 },
@@ -79,5 +92,11 @@ const backgroundJobSchema = new mongoose.Schema(
 
 backgroundJobSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 backgroundJobSchema.index({ organization: 1, createdAt: -1 });
+backgroundJobSchema.index({
+  organization: 1,
+  type: 1,
+  dedupeKey: 1,
+  status: 1
+});
 
 export default mongoose.model('BackgroundJob', backgroundJobSchema);

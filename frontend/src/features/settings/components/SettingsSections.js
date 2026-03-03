@@ -347,7 +347,16 @@ export const FinanceDefaultsSection = ({
   form,
   canManageSettings,
   isSaving,
-  setNestedField
+  setNestedField,
+  baseCurrencyCode = 'UGX',
+  exchangeRates = [],
+  exchangeRatesLoading = false,
+  exchangeRateForm = { quoteCurrencyCode: '', rate: '' },
+  onExchangeRateFieldChange = () => {},
+  onAddExchangeRate = () => {},
+  updatingExchangeRates = false,
+  exchangeRateError = '',
+  exchangeRateNotice = ''
 }) => (
   <article className="data-card settings-card">
     <h3>4. Finance Defaults</h3>
@@ -381,6 +390,97 @@ export const FinanceDefaultsSection = ({
         />
         <span>Tax-inclusive pricing</span>
       </label>
+      <div className="settings-field settings-field-full">
+        <p className="event-sub">
+          Base currency: <strong>{baseCurrencyCode}</strong>
+        </p>
+      </div>
+      <label className="settings-field">
+        <span>Quote currency</span>
+        <input
+          type="text"
+          value={exchangeRateForm.quoteCurrencyCode}
+          onChange={(event) =>
+            onExchangeRateFieldChange(
+              'quoteCurrencyCode',
+              String(event.target.value || '').toUpperCase()
+            )
+          }
+          maxLength={3}
+          placeholder="USD"
+          disabled={
+            isDisabled(canManageSettings, isSaving) || updatingExchangeRates
+          }
+        />
+      </label>
+      <label className="settings-field">
+        <span>FX rate ({baseCurrencyCode} → quote)</span>
+        <input
+          type="number"
+          min="0.000001"
+          step="0.000001"
+          value={exchangeRateForm.rate}
+          onChange={(event) =>
+            onExchangeRateFieldChange('rate', event.target.value)
+          }
+          placeholder="0.00027"
+          disabled={
+            isDisabled(canManageSettings, isSaving) || updatingExchangeRates
+          }
+        />
+      </label>
+      <div className="settings-field settings-field-full">
+        <button
+          type="button"
+          className="btn-ghost"
+          onClick={onAddExchangeRate}
+          disabled={
+            isDisabled(canManageSettings, isSaving) || updatingExchangeRates
+          }
+        >
+          {updatingExchangeRates ? 'Saving rate...' : 'Save exchange rate'}
+        </button>
+      </div>
+    </div>
+    {exchangeRateNotice ? (
+      <p className="section-note">{exchangeRateNotice}</p>
+    ) : null}
+    {exchangeRateError ? (
+      <p className="form-error">{exchangeRateError}</p>
+    ) : null}
+    <div className="table-wrap">
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Base</th>
+            <th>Quote</th>
+            <th>Rate</th>
+            <th>Source</th>
+          </tr>
+        </thead>
+        <tbody>
+          {exchangeRatesLoading ? (
+            <tr>
+              <td colSpan={4}>Loading exchange rates...</td>
+            </tr>
+          ) : exchangeRates.length ? (
+            exchangeRates.map((row) => (
+              <tr
+                key={`${row.quoteCurrencyCode}-${row.id || row.updatedAt || ''}`}
+              >
+                <td>{baseCurrencyCode}</td>
+                <td>{row.quoteCurrencyCode}</td>
+                <td>{Number(row.rate || 0).toFixed(6)}</td>
+                <td>{row.source || 'MANUAL'}</td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan={4}>No exchange rates configured yet.</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   </article>
 );
@@ -815,18 +915,158 @@ export const ObservabilityPipelineSection = ({
   </article>
 );
 
-export const OnboardingSampleDataSection = ({
+export const OnboardingLaunchWizardSection = ({
   canManageSettings,
+  onboardingStatus,
+  onboardingStatusLoading,
+  onRefreshStatus,
+  warehouseForm,
+  onWarehouseFieldChange,
+  onCreateWarehouse,
+  creatingWarehouse,
+  warehouseError,
+  warehouseResult,
+  inviteEmail,
+  onInviteEmailChange,
+  onCreateInvite,
+  inviting,
+  inviteError,
+  inviteResult,
   isSeeding,
   seedResult,
   seedError,
   onSeed
 }) => (
   <article className="data-card settings-card">
-    <h3>Onboarding and Sample Data</h3>
+    <h3>Onboarding Launch Wizard</h3>
     <p className="event-sub">
-      Seed a ready-to-demo baseline: warehouse, suppliers, products, and opening
-      inventory.
+      Complete first-launch setup: warehouse, invite teammate, and optional
+      sample data.
+    </p>
+
+    <div className="panel-head-row">
+      <p className="event-sub">
+        {onboardingStatusLoading
+          ? 'Checking onboarding progress...'
+          : `Progress: ${Number(onboardingStatus?.progress?.completedSteps || 0)}/${Number(
+              onboardingStatus?.progress?.totalSteps || 0
+            )} steps (${Number(onboardingStatus?.progress?.completionPercent || 0)}%)`}
+      </p>
+      <button
+        type="button"
+        className="btn-ghost"
+        onClick={onRefreshStatus}
+        disabled={onboardingStatusLoading}
+      >
+        {onboardingStatusLoading ? 'Refreshing...' : 'Refresh progress'}
+      </button>
+    </div>
+
+    {Array.isArray(onboardingStatus?.steps) ? (
+      <div className="obs-grid settings-inline-grid">
+        {onboardingStatus.steps.map((step) => (
+          <div key={step.id} className="obs-item">
+            <p className="metric-label">{step.title}</p>
+            <p className={`obs-value ${step.completed ? 'ok' : ''}`}>
+              {step.completed ? 'Completed' : 'Pending'}
+            </p>
+          </div>
+        ))}
+      </div>
+    ) : null}
+
+    <div className="settings-grid">
+      <label className="settings-field">
+        <span>Warehouse name</span>
+        <input
+          type="text"
+          value={warehouseForm.name}
+          onChange={(event) =>
+            onWarehouseFieldChange('name', event.target.value)
+          }
+          disabled={!canManageSettings || creatingWarehouse}
+          placeholder="Main Warehouse"
+        />
+      </label>
+      <label className="settings-field">
+        <span>Warehouse code (optional)</span>
+        <input
+          type="text"
+          value={warehouseForm.code}
+          onChange={(event) =>
+            onWarehouseFieldChange('code', event.target.value)
+          }
+          disabled={!canManageSettings || creatingWarehouse}
+          placeholder="MAIN"
+        />
+      </label>
+      <label className="settings-field">
+        <span>Region (optional)</span>
+        <input
+          type="text"
+          value={warehouseForm.region}
+          onChange={(event) =>
+            onWarehouseFieldChange('region', event.target.value)
+          }
+          disabled={!canManageSettings || creatingWarehouse}
+          placeholder="Kampala"
+        />
+      </label>
+      <div className="settings-field settings-field-full">
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={onCreateWarehouse}
+          disabled={!canManageSettings || creatingWarehouse}
+        >
+          {creatingWarehouse
+            ? 'Creating warehouse...'
+            : 'Create first warehouse'}
+        </button>
+      </div>
+    </div>
+
+    {warehouseError ? <p className="form-error">{warehouseError}</p> : null}
+    {warehouseResult ? (
+      <p className="section-note">
+        Warehouse created: <strong>{warehouseResult.name}</strong> (
+        {warehouseResult.code})
+      </p>
+    ) : null}
+
+    <div className="settings-grid">
+      <label className="settings-field settings-field-full">
+        <span>Invite teammate email</span>
+        <input
+          type="email"
+          value={inviteEmail}
+          onChange={(event) => onInviteEmailChange(event.target.value)}
+          disabled={!canManageSettings || inviting}
+          placeholder="employee@company.com"
+        />
+      </label>
+      <div className="settings-field settings-field-full">
+        <button
+          type="button"
+          className="btn-ghost"
+          onClick={onCreateInvite}
+          disabled={!canManageSettings || inviting}
+        >
+          {inviting ? 'Creating invite...' : 'Create teammate invite'}
+        </button>
+      </div>
+    </div>
+
+    {inviteError ? <p className="form-error">{inviteError}</p> : null}
+    {inviteResult ? (
+      <p className="section-note">
+        Invite code: <strong>{inviteResult.inviteCode}</strong>
+      </p>
+    ) : null}
+
+    <p className="event-sub">
+      Optional: seed a ready-to-demo baseline with suppliers, products, and
+      opening inventory.
     </p>
     <div className="obs-actions">
       <button

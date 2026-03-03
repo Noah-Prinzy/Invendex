@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   adjustProductStockRequest,
@@ -229,6 +229,18 @@ const sanitizeCsvExportCell = (value) => {
   return normalized;
 };
 
+const mapScannerFormatToBarcodeType = (scannerFormat) => {
+  const normalized = String(scannerFormat || '')
+    .trim()
+    .toLowerCase();
+
+  if (normalized === 'ean_13') return 'EAN13';
+  if (normalized === 'upc_a' || normalized === 'upc_e') return 'UPC';
+  if (normalized === 'code_128') return 'CODE128';
+  if (normalized === 'qr_code') return 'QR';
+  return 'OTHER';
+};
+
 const downloadTextFile = ({ filename, content, mimeType }) => {
   const blob = new Blob([String(content || '')], {
     type: mimeType || 'text/plain;charset=utf-8'
@@ -326,6 +338,12 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
     lowStockThreshold: '5',
     description: ''
   });
+  const [barcodeScannerOpen, setBarcodeScannerOpen] = useState(false);
+  const [barcodeScannerError, setBarcodeScannerError] = useState('');
+  const [barcodeScannerStatus, setBarcodeScannerStatus] = useState('');
+  const barcodeVideoRef = useRef(null);
+  const barcodeStreamRef = useRef(null);
+  const barcodeScanFrameRef = useRef(null);
 
   const queryClient = useQueryClient();
   const normalizedRole = String(userRole || '')
@@ -347,6 +365,36 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
       (reason) => !SENSITIVE_STOCK_ADJUST_REASONS.has(reason)
     );
   }, [canUseSensitiveAdjustmentReasons]);
+
+  const supportsBarcodeCameraScan = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      'BarcodeDetector' in window &&
+      Boolean(navigator?.mediaDevices?.getUserMedia)
+    );
+  }, []);
+
+  const stopBarcodeScanner = useCallback(() => {
+    if (barcodeScanFrameRef.current) {
+      window.cancelAnimationFrame(barcodeScanFrameRef.current);
+      barcodeScanFrameRef.current = null;
+    }
+    if (barcodeStreamRef.current) {
+      for (const track of barcodeStreamRef.current.getTracks()) {
+        track.stop();
+      }
+      barcodeStreamRef.current = null;
+    }
+    if (barcodeVideoRef.current) {
+      barcodeVideoRef.current.srcObject = null;
+    }
+  }, []);
+
+  const closeBarcodeScanner = useCallback(() => {
+    stopBarcodeScanner();
+    setBarcodeScannerOpen(false);
+    setBarcodeScannerStatus('');
+  }, [stopBarcodeScanner]);
 
   const productsQueryKey = useMemo(
     () => [
@@ -638,6 +686,123 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
     setAdjustReason(availableAdjustReasons[0] || 'adjustment');
   }, [adjustReason, availableAdjustReasons]);
 
+  useEffect(() => {
+    if (!barcodeScannerOpen) {
+      stopBarcodeScanner();
+      return undefined;
+    }
+
+    if (!supportsBarcodeCameraScan) {
+      setBarcodeScannerError(
+        'Camera barcode scan is not supported in this browser. Use manual barcode entry.'
+      );
+      return undefined;
+    }
+
+    let isCancelled = false;
+    let detector = null;
+
+    const startScanner = async () => {
+      try {
+        setBarcodeScannerError('');
+        setBarcodeScannerStatus('Starting camera...');
+
+        const scannerWindow = window;
+        const BarcodeDetectorCtor = scannerWindow.BarcodeDetector;
+        const supportedFormats =
+          await BarcodeDetectorCtor.getSupportedFormats();
+        const preferredFormats = supportedFormats.filter((format) =>
+          ['ean_13', 'upc_a', 'upc_e', 'code_128', 'qr_code'].includes(format)
+        );
+        detector = new BarcodeDetectorCtor(
+          preferredFormats.length ? { formats: preferredFormats } : {}
+        );
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' }
+          },
+          audio: false
+        });
+
+        if (isCancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        barcodeStreamRef.current = stream;
+
+        if (barcodeVideoRef.current) {
+          barcodeVideoRef.current.srcObject = stream;
+          await barcodeVideoRef.current.play();
+        }
+
+        setBarcodeScannerStatus('Point camera at barcode...');
+
+        const scanFrame = async () => {
+          if (isCancelled || !barcodeVideoRef.current) return;
+
+          try {
+            const detections = await detector.detect(barcodeVideoRef.current);
+            if (Array.isArray(detections) && detections.length > 0) {
+              const first = detections[0] || null;
+              const value = String(first?.rawValue || '').trim();
+              if (value) {
+                const barcodeType = mapScannerFormatToBarcodeType(
+                  first?.format || ''
+                );
+                setCreateForm((current) => ({
+                  ...current,
+                  barcode: value,
+                  barcodeType
+                }));
+                setManagementNotice(`Barcode scanned: ${value}`);
+                closeBarcodeScanner();
+                return;
+              }
+            }
+          } catch (scanError) {
+            if (!isCancelled) {
+              setBarcodeScannerError(
+                String(scanError?.message || 'Unable to detect barcode')
+              );
+            }
+          }
+
+          if (!isCancelled) {
+            barcodeScanFrameRef.current = window.requestAnimationFrame(() => {
+              void scanFrame();
+            });
+          }
+        };
+
+        barcodeScanFrameRef.current = window.requestAnimationFrame(() => {
+          void scanFrame();
+        });
+      } catch (scannerError) {
+        if (isCancelled) return;
+        setBarcodeScannerError(
+          String(
+            scannerError?.message ||
+              'Unable to access camera for barcode scanning'
+          )
+        );
+      }
+    };
+
+    void startScanner();
+
+    return () => {
+      isCancelled = true;
+      stopBarcodeScanner();
+    };
+  }, [
+    barcodeScannerOpen,
+    closeBarcodeScanner,
+    stopBarcodeScanner,
+    supportsBarcodeCameraScan
+  ]);
+
   const softDeleteProductMutation = useMutation({
     mutationFn: async (productId) =>
       softDeleteProductRequest({
@@ -755,6 +920,20 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
       ...current,
       [field]: value
     }));
+  };
+
+  const handleOpenBarcodeScanner = () => {
+    setBarcodeScannerError('');
+    setBarcodeScannerStatus('');
+
+    if (!supportsBarcodeCameraScan) {
+      setManagementNotice(
+        'Barcode camera scan is not supported in this browser. Use manual entry.'
+      );
+      return;
+    }
+
+    setBarcodeScannerOpen(true);
   };
 
   const handleBulkImportFieldMapChange = (field) => (event) => {
@@ -1459,6 +1638,17 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
               />
             </label>
             <label className="control-field">
+              <span>Camera scan</span>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={handleOpenBarcodeScanner}
+                disabled={createProductMutation.isPending}
+              >
+                Scan barcode
+              </button>
+            </label>
+            <label className="control-field">
               <span>Barcode type</span>
               <select
                 value={createForm.barcodeType}
@@ -1535,6 +1725,36 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
               {createProductMutation.isPending ? 'Saving...' : 'Add product'}
             </button>
           </form>
+          {barcodeScannerOpen ? (
+            <div className="scanner-modal" role="dialog" aria-modal="true">
+              <div className="scanner-card">
+                <div className="panel-head-row">
+                  <h3>Scan barcode</h3>
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    onClick={closeBarcodeScanner}
+                  >
+                    Close
+                  </button>
+                </div>
+                <p className="event-sub">
+                  {barcodeScannerStatus ||
+                    'Align the barcode inside the frame.'}
+                </p>
+                <video
+                  ref={barcodeVideoRef}
+                  className="scanner-video"
+                  autoPlay
+                  muted
+                  playsInline
+                />
+                {barcodeScannerError ? (
+                  <p className="form-error">{barcodeScannerError}</p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
         </article>
       ) : null}
 

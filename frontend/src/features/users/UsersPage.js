@@ -3,19 +3,36 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createUserInviteRequest,
   getOnlineUsersRequest,
+  getUserRolePermissionsMatrixRequest,
   getUserInvitesRequest,
   getUsersRequest,
   revokeUserInviteRequest,
+  updateUserRolePermissionsMatrixRequest,
+  updateUserRoleRequest,
   updateUserStatusRequest
 } from '../../api/client.js';
 
 const CAN_MANAGE_ROLES = new Set(['owner', 'admin']);
+const MUTABLE_ROLES = ['staff', 'manager', 'admin'];
+const MATRIX_EDITABLE_ROLES = ['staff', 'manager', 'admin'];
 const USERS_QUERY_STALE_TIME_MS = 30 * 1000;
 
 const normalizeUsersPayload = (payload) => ({
   users: Array.isArray(payload?.users) ? payload.users : [],
   onlineUsers: Array.isArray(payload?.onlineUsers) ? payload.onlineUsers : [],
-  invites: Array.isArray(payload?.invites) ? payload.invites : []
+  invites: Array.isArray(payload?.invites) ? payload.invites : [],
+  rolePermissions:
+    payload?.rolePermissions && typeof payload.rolePermissions === 'object'
+      ? payload.rolePermissions
+      : {
+          catalog: [],
+          matrix: {
+            staff: [],
+            manager: [],
+            admin: [],
+            owner: []
+          }
+        }
 });
 
 const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
@@ -24,7 +41,9 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [pendingUserIds, setPendingUserIds] = useState(() => new Set());
+  const [pendingRoleUserIds, setPendingRoleUserIds] = useState(() => new Set());
   const [pendingInviteIds, setPendingInviteIds] = useState(() => new Set());
+  const [pendingMatrixRoles, setPendingMatrixRoles] = useState(() => new Set());
 
   const canManageUsers = CAN_MANAGE_ROLES.has(
     String(userRole || '').toLowerCase()
@@ -44,16 +63,19 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
     enabled: Boolean(accessToken) && canManageUsers,
     staleTime: USERS_QUERY_STALE_TIME_MS,
     queryFn: async () => {
-      const [usersData, onlineUsersData, invitesData] = await Promise.all([
-        getUsersRequest(accessToken),
-        getOnlineUsersRequest(accessToken),
-        getUserInvitesRequest(accessToken)
-      ]);
+      const [usersData, onlineUsersData, invitesData, rolePermissionsData] =
+        await Promise.all([
+          getUsersRequest(accessToken),
+          getOnlineUsersRequest(accessToken),
+          getUserInvitesRequest(accessToken),
+          getUserRolePermissionsMatrixRequest(accessToken)
+        ]);
 
       return normalizeUsersPayload({
         users: usersData,
         onlineUsers: onlineUsersData,
-        invites: invitesData
+        invites: invitesData,
+        rolePermissions: rolePermissionsData
       });
     }
   });
@@ -66,6 +88,14 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
   const users = usersPayload.users;
   const onlineUsers = usersPayload.onlineUsers;
   const invites = usersPayload.invites;
+  const rolePermissions = usersPayload.rolePermissions;
+  const permissionCatalog = Array.isArray(rolePermissions?.catalog)
+    ? rolePermissions.catalog
+    : [];
+  const permissionMatrix =
+    rolePermissions?.matrix && typeof rolePermissions.matrix === 'object'
+      ? rolePermissions.matrix
+      : { staff: [], manager: [], admin: [], owner: [] };
   const queryErrorMessage = String(usersQuery.error?.message || '').trim();
   const displayError = String(error || queryErrorMessage || '').trim();
   const isLoading = usersQuery.isLoading || usersQuery.isFetching;
@@ -145,6 +175,122 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
       setPendingUserIds((current) => {
         const next = new Set(current);
         next.delete(String(context?.userIdKey || ''));
+        return next;
+      });
+    }
+  });
+
+  const updateUserRoleMutation = useMutation({
+    mutationFn: ({ userId, role }) =>
+      updateUserRoleRequest({
+        accessToken,
+        userId,
+        role
+      }),
+    onMutate: async ({ userId, role }) => {
+      const userIdKey = String(userId || '');
+      const nextRole = String(role || '').toLowerCase();
+      setError('');
+      setPendingRoleUserIds((current) => new Set(current).add(userIdKey));
+
+      await queryClient.cancelQueries({ queryKey: usersQueryKey });
+      const previousData = queryClient.getQueryData(usersQueryKey);
+
+      queryClient.setQueryData(usersQueryKey, (current) => {
+        const safeCurrent = normalizeUsersPayload(current);
+        return {
+          ...safeCurrent,
+          users: safeCurrent.users.map((user) =>
+            String(user._id || '') === userIdKey
+              ? { ...user, role: nextRole }
+              : user
+          )
+        };
+      });
+
+      return { previousData, userIdKey };
+    },
+    onSuccess: (updatedUser) => {
+      queryClient.setQueryData(usersQueryKey, (current) => {
+        const safeCurrent = normalizeUsersPayload(current);
+        return {
+          ...safeCurrent,
+          users: safeCurrent.users.map((user) =>
+            String(user._id || '') === String(updatedUser?._id || '')
+              ? { ...user, ...updatedUser }
+              : user
+          )
+        };
+      });
+    },
+    onError: (mutationError, _variables, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(usersQueryKey, context.previousData);
+      }
+      setError(mutationError?.message || 'Failed to update user role');
+    },
+    onSettled: (_data, _error, _variables, context) => {
+      setPendingRoleUserIds((current) => {
+        const next = new Set(current);
+        next.delete(String(context?.userIdKey || ''));
+        return next;
+      });
+    }
+  });
+
+  const updateRolePermissionMatrixMutation = useMutation({
+    mutationFn: ({ role, permissions }) =>
+      updateUserRolePermissionsMatrixRequest({
+        accessToken,
+        role,
+        permissions
+      }),
+    onMutate: async ({ role, permissions }) => {
+      const roleKey = String(role || '').toLowerCase();
+      const nextPermissions = Array.isArray(permissions) ? permissions : [];
+      setError('');
+      setPendingMatrixRoles((current) => new Set(current).add(roleKey));
+
+      await queryClient.cancelQueries({ queryKey: usersQueryKey });
+      const previousData = queryClient.getQueryData(usersQueryKey);
+
+      queryClient.setQueryData(usersQueryKey, (current) => {
+        const safeCurrent = normalizeUsersPayload(current);
+        return {
+          ...safeCurrent,
+          rolePermissions: {
+            ...safeCurrent.rolePermissions,
+            matrix: {
+              ...(safeCurrent?.rolePermissions?.matrix || {}),
+              [roleKey]: nextPermissions
+            }
+          }
+        };
+      });
+
+      return { previousData, roleKey };
+    },
+    onSuccess: (payload) => {
+      queryClient.setQueryData(usersQueryKey, (current) => {
+        const safeCurrent = normalizeUsersPayload(current);
+        return {
+          ...safeCurrent,
+          rolePermissions: payload || safeCurrent.rolePermissions
+        };
+      });
+    },
+    onError: (mutationError, _variables, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(usersQueryKey, context.previousData);
+      }
+      setError(
+        mutationError?.message || 'Failed to update role permission matrix'
+      );
+    },
+    onSettled: (_data, _error, _variables, context) => {
+      setPendingMatrixRoles((current) => {
+        const next = new Set(current);
+        next.delete(String(context?.roleKey || ''));
         return next;
       });
     }
@@ -266,6 +412,30 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
     updateUserStatusMutation.mutate({ userId, isActive });
   };
 
+  const updateUserRole = async (userId, role) => {
+    if (!accessToken) return;
+    updateUserRoleMutation.mutate({ userId, role });
+  };
+
+  const toggleRolePermission = async (role, permission) => {
+    if (!accessToken) return;
+
+    const roleKey = String(role || '').toLowerCase();
+    const permissionKey = String(permission || '').toLowerCase();
+    const currentPermissions = Array.isArray(permissionMatrix?.[roleKey])
+      ? permissionMatrix[roleKey]
+      : [];
+
+    const nextPermissions = currentPermissions.includes(permissionKey)
+      ? currentPermissions.filter((entry) => entry !== permissionKey)
+      : [...currentPermissions, permissionKey];
+
+    updateRolePermissionMatrixMutation.mutate({
+      role: roleKey,
+      permissions: nextPermissions
+    });
+  };
+
   const createInvite = async () => {
     if (!accessToken) return;
 
@@ -362,7 +532,8 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
                   <th>Role</th>
                   <th>Verified</th>
                   <th>Status</th>
-                  <th>Action</th>
+                  <th>Status action</th>
+                  <th>Role action</th>
                 </tr>
               </thead>
               <tbody>
@@ -370,6 +541,19 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
                   const isCurrentUser =
                     String(currentUserId || '') === String(user._id || '');
                   const isActive = user.isActive !== false;
+                  const userRoleValue = String(
+                    user.role || 'staff'
+                  ).toLowerCase();
+                  const canModifyOwner =
+                    String(userRole || '').toLowerCase() === 'owner';
+                  const roleOptions =
+                    userRoleValue === 'owner'
+                      ? ['owner', ...MUTABLE_ROLES]
+                      : MUTABLE_ROLES;
+                  const roleChangeDisabled =
+                    isCurrentUser ||
+                    (userRoleValue === 'owner' && !canModifyOwner) ||
+                    pendingRoleUserIds.has(String(user._id || ''));
                   return (
                     <tr key={user._id}>
                       <td>{user.email}</td>
@@ -389,6 +573,21 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
                           {isActive ? 'Deactivate' : 'Activate'}
                         </button>
                       </td>
+                      <td>
+                        <select
+                          value={userRoleValue}
+                          disabled={roleChangeDisabled}
+                          onChange={(event) =>
+                            updateUserRole(user._id, event.target.value)
+                          }
+                        >
+                          {roleOptions.map((role) => (
+                            <option key={`${user._id}-${role}`} value={role}>
+                              {role}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
                     </tr>
                   );
                 })}
@@ -397,6 +596,58 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
           </div>
         ) : (
           <p className="muted">No users found for this filter.</p>
+        )}
+      </article>
+
+      <article className="data-card">
+        <h3>Role permission matrix</h3>
+        <p className="event-sub">
+          Configure organization-wide permissions for staff, manager, and admin.
+          Owner always retains full permissions.
+        </p>
+
+        {permissionCatalog.length ? (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Permission</th>
+                  <th>Staff</th>
+                  <th>Manager</th>
+                  <th>Admin</th>
+                </tr>
+              </thead>
+              <tbody>
+                {permissionCatalog.map((permission) => (
+                  <tr key={permission}>
+                    <td>{permission}</td>
+                    {MATRIX_EDITABLE_ROLES.map((role) => {
+                      const rolePermissions = Array.isArray(
+                        permissionMatrix?.[role]
+                      )
+                        ? permissionMatrix[role]
+                        : [];
+                      const enabled = rolePermissions.includes(permission);
+                      return (
+                        <td key={`${permission}-${role}`}>
+                          <input
+                            type="checkbox"
+                            checked={enabled}
+                            disabled={pendingMatrixRoles.has(role)}
+                            onChange={() =>
+                              toggleRolePermission(role, permission)
+                            }
+                          />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="muted">Permission catalog unavailable right now.</p>
         )}
       </article>
 

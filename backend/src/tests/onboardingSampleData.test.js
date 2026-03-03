@@ -6,6 +6,7 @@ import Organization from '../models/Organization.js';
 import Product from '../models/Product.js';
 import Supplier from '../models/Supplier.js';
 import Inventory from '../models/Inventory.js';
+import Warehouse from '../models/Warehouse.js';
 import { getTestDbUri } from './testDbUri.js';
 
 const originalAuthBypassValue = process.env.AUTH_TEST_BYPASS;
@@ -27,6 +28,7 @@ beforeEach(async () => {
     Inventory.deleteMany({}),
     Product.deleteMany({}),
     Supplier.deleteMany({}),
+    Warehouse.deleteMany({}),
     User.deleteMany({}),
     Organization.deleteMany({})
   ]);
@@ -80,5 +82,46 @@ describe('onboarding sample data api', () => {
     expect(totalProducts).toBeGreaterThan(0);
     expect(totalSuppliers).toBeGreaterThan(0);
     expect(totalInventoryRows).toBeGreaterThan(0);
+  });
+
+  it('returns onboarding status and creates first warehouse via onboarding api', async () => {
+    const registerResponse = await request(app).post('/auth/register').send({
+      email: 'onboarding-admin@example.com',
+      password: 'Password123!',
+      confirmPassword: 'Password123!',
+      organizationName: 'Onboarding Org'
+    });
+
+    expect(registerResponse.status).toBe(201);
+    const accessToken = registerResponse.body?.data?.accessToken;
+
+    const beforeStatusResponse = await request(app)
+      .get('/api/onboarding/status')
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    expect(beforeStatusResponse.status).toBe(200);
+    expect(beforeStatusResponse.body?.data?.counters?.warehouses).toBe(0);
+    expect(beforeStatusResponse.body?.data?.progress?.completedSteps).toBe(0);
+
+    const createWarehouseResponse = await request(app)
+      .post('/api/onboarding/warehouses')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        name: 'Central Warehouse',
+        code: 'CENTRAL-1',
+        region: 'Kampala'
+      });
+
+    expect(createWarehouseResponse.status).toBe(201);
+    expect(createWarehouseResponse.body?.data?.name).toBe('Central Warehouse');
+    expect(createWarehouseResponse.body?.data?.code).toBe('CENTRAL-1');
+
+    const afterStatusResponse = await request(app)
+      .get('/api/onboarding/status')
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    expect(afterStatusResponse.status).toBe(200);
+    expect(afterStatusResponse.body?.data?.counters?.warehouses).toBe(1);
+    expect(afterStatusResponse.body?.data?.steps?.[0]?.completed).toBe(true);
   });
 });

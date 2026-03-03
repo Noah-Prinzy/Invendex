@@ -5,6 +5,8 @@ import Supplier from '../../models/Supplier.js';
 import Product from '../../models/Product.js';
 import Inventory from '../../models/Inventory.js';
 import SupplierProduct from '../../models/SupplierProduct.js';
+import EmployeeInvite from '../../models/EmployeeInvite.js';
+import User from '../../models/User.js';
 import { AppError } from '../../errors/AppError.js';
 
 const SAMPLE_SEED_VERSION = 'v1';
@@ -58,6 +60,24 @@ const ensureOrganization = async (organizationId) => {
     throw new AppError('Organization not found', 404);
   }
   return organization;
+};
+
+const normalizeWarehouseCode = (value) =>
+  String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_-]/g, '')
+    .slice(0, 24);
+
+const buildWarehouseCode = (name) => {
+  const base = String(name || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 8);
+
+  if (base) return `${base}-01`;
+  return `WH-${Date.now().toString().slice(-6)}`;
 };
 
 const resolveOrCreateWarehouse = async ({ organizationId }) => {
@@ -265,6 +285,173 @@ export const seedOrganizationSampleData = async ({
   };
 };
 
+export const getOrganizationOnboardingStatus = async ({ organizationId }) => {
+  const organization = await ensureOrganization(organizationId);
+
+  const [
+    warehousesCount,
+    suppliersCount,
+    productsCount,
+    usersCount,
+    activeInvitesCount
+  ] = await Promise.all([
+    Warehouse.countDocuments({
+      organization: organizationId,
+      isArchived: { $ne: true }
+    }),
+    Supplier.countDocuments({ organization: organizationId }),
+    Product.countDocuments({ organization: organizationId }),
+    User.countDocuments({
+      organization: organizationId,
+      isActive: { $ne: false }
+    }),
+    EmployeeInvite.countDocuments({
+      organization: organizationId,
+      status: 'ACTIVE',
+      expiresAt: { $gt: new Date() }
+    })
+  ]);
+
+  const steps = [
+    {
+      id: 'create_first_warehouse',
+      title: 'Create first warehouse',
+      completed: warehousesCount > 0
+    },
+    {
+      id: 'add_first_supplier',
+      title: 'Add first supplier',
+      completed: suppliersCount > 0
+    },
+    {
+      id: 'add_first_product',
+      title: 'Add first product',
+      completed: productsCount > 0
+    },
+    {
+      id: 'invite_first_teammate',
+      title: 'Invite first teammate',
+      completed: usersCount > 1 || activeInvitesCount > 0
+    },
+    {
+      id: 'seed_sample_data',
+      title: 'Seed sample data (optional)',
+      completed: Boolean(organization.onboardingSampleSeededAt)
+    }
+  ];
+
+  const completedSteps = steps.filter((step) => step.completed).length;
+
+  return {
+    organization: {
+      _id: organization._id,
+      name: organization.name,
+      code: organization.code
+    },
+    progress: {
+      totalSteps: steps.length,
+      completedSteps,
+      completionPercent: Number(
+        ((completedSteps / steps.length) * 100).toFixed(2)
+      )
+    },
+    counters: {
+      warehouses: warehousesCount,
+      suppliers: suppliersCount,
+      products: productsCount,
+      activeUsers: usersCount,
+      activeInvites: activeInvitesCount
+    },
+    sampleData: {
+      seededAt: organization.onboardingSampleSeededAt || null,
+      seedVersion: organization.onboardingSampleSeedVersion || null
+    },
+    steps
+  };
+};
+
+export const createOrganizationOnboardingWarehouse = async ({
+  organizationId,
+  name,
+  code = '',
+  region = '',
+  address = null,
+  managerUserId = null
+}) => {
+  await ensureOrganization(organizationId);
+
+  const normalizedName = String(name || '').trim();
+  if (!normalizedName) {
+    throw new AppError('Warehouse name is required', 400);
+  }
+
+  const resolvedCode = normalizeWarehouseCode(code) || buildWarehouseCode(name);
+  if (!resolvedCode) {
+    throw new AppError('Unable to derive a valid warehouse code', 400);
+  }
+
+  let manager = null;
+  if (managerUserId) {
+    manager = await User.findOne({
+      _id: managerUserId,
+      organization: organizationId,
+      isActive: { $ne: false }
+    })
+      .select('_id')
+      .lean();
+    if (!manager) {
+      throw new AppError('Selected warehouse manager is not valid', 400);
+    }
+  }
+
+  const existingWarehouse = await Warehouse.findOne({
+    organization: organizationId,
+    code: resolvedCode
+  })
+    .select('_id')
+    .lean();
+  if (existingWarehouse) {
+    throw new AppError(
+      'Warehouse code already exists in your organization',
+      409
+    );
+  }
+
+  const warehouse = await Warehouse.create({
+    organization: organizationId,
+    name: normalizedName,
+    code: resolvedCode,
+    region: String(region || '').trim() || undefined,
+    manager: manager?._id || undefined,
+    address:
+      address && typeof address === 'object'
+        ? {
+            street: String(address.street || '').trim() || undefined,
+            city: String(address.city || '').trim() || undefined,
+            state: String(address.state || '').trim() || undefined,
+            country: String(address.country || '').trim() || undefined,
+            postalCode: String(address.postalCode || '').trim() || undefined
+          }
+        : undefined,
+    isActive: true,
+    isArchived: false
+  });
+
+  const settings = await OrganizationSettings.findOne({
+    organization: organizationId
+  });
+
+  if (settings && !settings.inventory?.defaultWarehouse) {
+    settings.inventory = settings.inventory || {};
+    settings.inventory.defaultWarehouse = warehouse._id;
+    await settings.save();
+  }
+
+  return warehouse;
+};
+
 export default {
-  seedOrganizationSampleData
+  seedOrganizationSampleData,
+  getOrganizationOnboardingStatus,
+  createOrganizationOnboardingWarehouse
 };

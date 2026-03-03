@@ -194,6 +194,13 @@ export const adjustStockValidator = [
 
   body('amount').isInt().withMessage('Amount must be an integer'),
 
+  body('amountUnit')
+    .optional({ values: 'falsy' })
+    .trim()
+    .toLowerCase()
+    .isIn(['base', 'purchase'])
+    .withMessage('amountUnit must be either base or purchase'),
+
   body('reason')
     .trim()
     .toLowerCase()

@@ -4,6 +4,7 @@ import app from '../app.js';
 import User from '../models/User.js';
 import Organization from '../models/Organization.js';
 import EmployeeInvite from '../models/EmployeeInvite.js';
+import RolePermissionPolicy from '../models/RolePermissionPolicy.js';
 import { getTestDbUri } from './testDbUri.js';
 
 const originalAuthBypassValue = process.env.AUTH_TEST_BYPASS;
@@ -27,6 +28,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   await Promise.all([
     EmployeeInvite.deleteMany({}),
+    RolePermissionPolicy.deleteMany({}),
     User.deleteMany({}),
     Organization.deleteMany({})
   ]);
@@ -192,5 +194,60 @@ describe('user management api', () => {
 
     expect(invalidStatusTypeResponse.status).toBe(400);
     expect(invalidStatusTypeResponse.body?.success).toBe(false);
+  });
+
+  it('updates user roles and role permission matrix', async () => {
+    const adminEmail = 'rbac-admin@example.com';
+    const adminPassword = 'Password123!';
+
+    const registerResponse = await request(app).post('/auth/register').send({
+      email: adminEmail,
+      password: adminPassword,
+      confirmPassword: adminPassword,
+      organizationName: 'RBAC Org'
+    });
+    expect(registerResponse.status).toBe(201);
+
+    const organizationId = registerResponse.body?.data?.organization?._id;
+    const accessToken = registerResponse.body?.data?.accessToken;
+
+    const staff = await User.create({
+      email: 'rbac-staff@example.com',
+      password: 'Password123!',
+      role: 'staff',
+      organization: organizationId,
+      isVerified: true
+    });
+
+    const matrixResponse = await request(app)
+      .get('/api/users/permissions/matrix')
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    expect(matrixResponse.status).toBe(200);
+    expect(Array.isArray(matrixResponse.body?.data?.catalog)).toBe(true);
+    expect(matrixResponse.body?.data?.matrix?.staff).toBeDefined();
+
+    const roleUpdateResponse = await request(app)
+      .patch(`/api/users/${staff._id}/role`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ role: 'manager' });
+
+    expect(roleUpdateResponse.status).toBe(200);
+    expect(roleUpdateResponse.body?.data?.role).toBe('manager');
+
+    const matrixPatchResponse = await request(app)
+      .patch('/api/users/permissions/matrix/staff')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        permissions: ['dashboard:view', 'products:view']
+      });
+
+    expect(matrixPatchResponse.status).toBe(200);
+    expect(matrixPatchResponse.body?.data?.matrix?.staff).toEqual(
+      expect.arrayContaining(['dashboard:view', 'products:view'])
+    );
+    expect(matrixPatchResponse.body?.data?.matrix?.manager).toEqual(
+      expect.arrayContaining(['dashboard:view', 'products:view'])
+    );
   });
 });

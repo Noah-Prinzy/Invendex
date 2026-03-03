@@ -18,6 +18,21 @@ import {
   getVatComplianceSummary,
   updateTaxConfiguration
 } from '../services/finance/taxService.js';
+import {
+  applyConversion,
+  buildCurrencyConversionContext,
+  convertCurrencyAmount,
+  getExchangeRates,
+  upsertExchangeRates
+} from '../services/finance/currencyService.js';
+
+const withCurrencyMeta = (payload, context) => ({
+  ...(payload || {}),
+  currencyCode: context.currencyCode,
+  baseCurrencyCode: context.baseCurrencyCode,
+  exchangeRate: context.rate,
+  convertedFromBase: context.converted === true
+});
 
 export const getInventoryValuation = async (req, res, next) => {
   try {
@@ -27,7 +42,30 @@ export const getInventoryValuation = async (req, res, next) => {
       method: req.query.method || null
     });
 
-    return successResponse(res, valuation, 'Inventory valuation computed');
+    const conversionContext = await buildCurrencyConversionContext({
+      organizationId: req.organizationId,
+      targetCurrencyCode: req.query.currencyCode || null
+    });
+
+    if (conversionContext.converted) {
+      valuation.totalInventoryValue = applyConversion(
+        valuation.totalInventoryValue,
+        conversionContext
+      );
+      valuation.byProduct = Array.isArray(valuation.byProduct)
+        ? valuation.byProduct.map((item) => ({
+            ...item,
+            unitCost: applyConversion(item.unitCost, conversionContext),
+            value: applyConversion(item.value, conversionContext)
+          }))
+        : [];
+    }
+
+    return successResponse(
+      res,
+      withCurrencyMeta(valuation, conversionContext),
+      'Inventory valuation computed'
+    );
   } catch (err) {
     next(err);
   }
@@ -86,7 +124,37 @@ export const getCogsEntries = async (req, res, next) => {
       .populate('orderId', 'type status createdAt')
       .lean();
 
-    return successResponse(res, rows, 'COGS entries retrieved');
+    const conversionContext = await buildCurrencyConversionContext({
+      organizationId: req.organizationId,
+      targetCurrencyCode: req.query.currencyCode || null
+    });
+
+    const mappedRows = conversionContext.converted
+      ? rows.map((row) => ({
+          ...row,
+          totalCogs: applyConversion(row.totalCogs, conversionContext),
+          unitCogs: applyConversion(row.unitCogs, conversionContext),
+          consumedLayers: Array.isArray(row.consumedLayers)
+            ? row.consumedLayers.map((layer) => ({
+                ...layer,
+                unitCost: applyConversion(layer.unitCost, conversionContext),
+                lineCost: applyConversion(layer.lineCost, conversionContext)
+              }))
+            : [],
+          currencyCode: conversionContext.currencyCode,
+          baseCurrencyCode: conversionContext.baseCurrencyCode,
+          exchangeRate: conversionContext.rate,
+          convertedFromBase: true
+        }))
+      : rows.map((row) => ({
+          ...row,
+          currencyCode: conversionContext.currencyCode,
+          baseCurrencyCode: conversionContext.baseCurrencyCode,
+          exchangeRate: conversionContext.rate,
+          convertedFromBase: false
+        }));
+
+    return successResponse(res, mappedRows, 'COGS entries retrieved');
   } catch (err) {
     next(err);
   }
@@ -101,7 +169,37 @@ export const getGrossMargin = async (req, res, next) => {
       groupBy: req.query.groupBy || 'day'
     });
 
-    return successResponse(res, report, 'Gross margin report generated');
+    const conversionContext = await buildCurrencyConversionContext({
+      organizationId: req.organizationId,
+      targetCurrencyCode: req.query.currencyCode || null
+    });
+
+    if (conversionContext.converted) {
+      report.totals = {
+        ...report.totals,
+        revenue: applyConversion(report.totals?.revenue, conversionContext),
+        cogs: applyConversion(report.totals?.cogs, conversionContext),
+        grossMargin: applyConversion(
+          report.totals?.grossMargin,
+          conversionContext
+        )
+      };
+
+      report.items = Array.isArray(report.items)
+        ? report.items.map((item) => ({
+            ...item,
+            revenue: applyConversion(item.revenue, conversionContext),
+            cogs: applyConversion(item.cogs, conversionContext),
+            grossMargin: applyConversion(item.grossMargin, conversionContext)
+          }))
+        : [];
+    }
+
+    return successResponse(
+      res,
+      withCurrencyMeta(report, conversionContext),
+      'Gross margin report generated'
+    );
   } catch (err) {
     next(err);
   }
@@ -128,7 +226,30 @@ export const getDeadStock = async (req, res, next) => {
       warehouseId: req.query.warehouseId || null
     });
 
-    return successResponse(res, report, 'Dead stock report generated');
+    const conversionContext = await buildCurrencyConversionContext({
+      organizationId: req.organizationId,
+      targetCurrencyCode: req.query.currencyCode || null
+    });
+
+    if (conversionContext.converted) {
+      report.totalValue = applyConversion(report.totalValue, conversionContext);
+      report.items = Array.isArray(report.items)
+        ? report.items.map((item) => ({
+            ...item,
+            unitPrice: applyConversion(item.unitPrice, conversionContext),
+            inventoryValue: applyConversion(
+              item.inventoryValue,
+              conversionContext
+            )
+          }))
+        : [];
+    }
+
+    return successResponse(
+      res,
+      withCurrencyMeta(report, conversionContext),
+      'Dead stock report generated'
+    );
   } catch (err) {
     next(err);
   }
@@ -240,5 +361,48 @@ export const patchNotificationSettings = async (req, res, next) => {
     return successResponse(res, organization, 'Notification settings updated');
   } catch (err) {
     next(err);
+  }
+};
+
+export const getCurrencyExchangeRates = async (req, res, next) => {
+  try {
+    const payload = await getExchangeRates({
+      organizationId: req.organizationId,
+      baseCurrencyCode: req.query.baseCurrencyCode || null
+    });
+
+    return successResponse(res, payload, 'Exchange rates retrieved');
+  } catch (err) {
+    return next(err);
+  }
+};
+
+export const putCurrencyExchangeRates = async (req, res, next) => {
+  try {
+    const payload = await upsertExchangeRates({
+      organizationId: req.organizationId,
+      baseCurrencyCode: req.body.baseCurrencyCode || null,
+      rates: req.body.rates || [],
+      updatedBy: req.user?._id || null
+    });
+
+    return successResponse(res, payload, 'Exchange rates updated');
+  } catch (err) {
+    return next(err);
+  }
+};
+
+export const postCurrencyConversion = async (req, res, next) => {
+  try {
+    const payload = await convertCurrencyAmount({
+      organizationId: req.organizationId,
+      amount: req.body.amount,
+      fromCurrencyCode: req.body.fromCurrencyCode,
+      toCurrencyCode: req.body.toCurrencyCode
+    });
+
+    return successResponse(res, payload, 'Currency conversion computed');
+  } catch (err) {
+    return next(err);
   }
 };

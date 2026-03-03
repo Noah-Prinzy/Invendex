@@ -542,6 +542,41 @@ const validateInventoryIntegrityConfig = (issues) => {
   }
 };
 
+const validateBackgroundQueueConfig = (issues, warnings, nodeEnv) => {
+  const queueEnabled = asBoolean(process.env.BACKGROUND_JOB_QUEUE_ENABLED);
+  if (!queueEnabled) return;
+
+  const redisUrl = asString(
+    process.env.BACKGROUND_JOB_REDIS_URL ||
+      process.env.REALTIME_REDIS_URL ||
+      process.env.RATE_LIMIT_REDIS_URL
+  );
+  if (!redisUrl) {
+    issues.push(
+      'BACKGROUND_JOB_QUEUE_ENABLED=true requires BACKGROUND_JOB_REDIS_URL (or REALTIME_REDIS_URL/RATE_LIMIT_REDIS_URL)'
+    );
+  }
+
+  const concurrency = asInteger(process.env.BACKGROUND_JOB_WORKER_CONCURRENCY);
+  if (concurrency != null && (concurrency < 1 || concurrency > 50)) {
+    issues.push('BACKGROUND_JOB_WORKER_CONCURRENCY must be between 1 and 50');
+  }
+
+  const queueName = asString(process.env.BACKGROUND_JOB_QUEUE_NAME);
+  if (queueName && queueName.length > 120) {
+    issues.push('BACKGROUND_JOB_QUEUE_NAME must be 120 characters or fewer');
+  }
+
+  if (
+    nodeEnv === 'production' &&
+    asBoolean(process.env.BACKGROUND_JOB_RUN_INLINE_WORKER)
+  ) {
+    warnings.push(
+      'BACKGROUND_JOB_RUN_INLINE_WORKER=true in production; run dedicated worker processes for better isolation'
+    );
+  }
+};
+
 const warnUnsafeFlags = () => {
   const nodeEnv = asString(process.env.NODE_ENV || 'development');
   const authBypass = asBoolean(process.env.AUTH_TEST_BYPASS);
@@ -583,6 +618,7 @@ export const validateRuntimeEnv = () => {
   validateHttpTimeouts(issues);
   validateSocketEventRateLimit(issues);
   validateInventoryIntegrityConfig(issues);
+  validateBackgroundQueueConfig(issues, warnings, nodeEnv);
   warnUnsafeFlags();
 
   if (warnings.length) {

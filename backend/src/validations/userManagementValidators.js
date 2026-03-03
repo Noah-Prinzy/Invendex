@@ -11,6 +11,36 @@ export const updateUserStatusValidator = [
     .toBoolean()
 ];
 
+export const updateUserRoleValidator = [
+  param('id').isMongoId().withMessage('User ID must be a valid Mongo ID'),
+  body('role')
+    .exists()
+    .withMessage('role is required')
+    .bail()
+    .isIn(['owner', 'admin', 'manager', 'staff'])
+    .withMessage('role must be one of owner, admin, manager, staff')
+];
+
+export const roleMatrixRoleParamValidator = [
+  param('role')
+    .isIn(['admin', 'manager', 'staff'])
+    .withMessage('role must be one of admin, manager, or staff')
+];
+
+export const updateRolePermissionMatrixValidator = [
+  ...roleMatrixRoleParamValidator,
+  body('permissions')
+    .exists()
+    .withMessage('permissions is required')
+    .bail()
+    .isArray()
+    .withMessage('permissions must be an array'),
+  body('permissions.*')
+    .optional({ values: 'falsy' })
+    .isString()
+    .withMessage('permissions values must be strings')
+];
+
 export const createInviteValidator = [
   body('email')
     .optional({ values: 'falsy' })

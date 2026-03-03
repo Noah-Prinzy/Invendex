@@ -4,6 +4,10 @@
   "version": "1.0.0",
   "scripts": {
     "prepare": "husky",
+    "dev": "concurrently -k -n backend,frontend -c cyan,magenta \"npm --prefix backend run dev\" \"npm --prefix frontend run start\"",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run start",
+    "dev:worker": "npm --prefix backend run worker:background-jobs",
     "lint": "npm --prefix backend run lint && npm --prefix frontend run lint",
     "lint:fix": "npm --prefix backend run lint:fix && npm --prefix frontend run lint:fix",
     "format": "prettier . --write",
@@ -11,6 +15,7 @@
     "release:bundle": "node scripts/createReleaseBundle.mjs"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "husky": "^9.1.7",
     "lint-staged": "^15.4.3",
     "prettier": "^3.5.3"

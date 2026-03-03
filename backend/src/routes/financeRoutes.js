@@ -1,10 +1,13 @@
 import express from 'express';
 import {
+  getCurrencyExchangeRates,
   getCogsEntries,
   getDeadStock,
   getGrossMargin,
   getInventoryValuation,
   getNotificationSettings,
+  postCurrencyConversion,
+  putCurrencyExchangeRates,
   getRealtimeStats,
   getTaxConfiguration,
   getVatSummary,
@@ -19,13 +22,16 @@ import requirePermission from '../middlewares/requirePermission.js';
 import validateRequest from '../middlewares/validateRequest.js';
 import { PERMISSIONS } from '../authorization/permissions.js';
 import {
+  convertCurrencyValidator,
   cogsQueryValidator,
   deadStockQueryValidator,
+  exchangeRatesQueryValidator,
   financeValuationQueryValidator,
   grossMarginQueryValidator,
   patchNotificationSettingsValidator,
   patchTaxConfigurationValidator,
   patchValuationMethodValidator,
+  putExchangeRatesValidator,
   vatSummaryQueryValidator
 } from '../validations/financeValidators.js';
 
@@ -88,5 +94,24 @@ router.patch(
   patchNotificationSettings
 );
 router.get('/realtime-stats', getRealtimeStats);
+router.get(
+  '/exchange-rates',
+  exchangeRatesQueryValidator,
+  validateRequest,
+  getCurrencyExchangeRates
+);
+router.put(
+  '/exchange-rates',
+  requirePermission(PERMISSIONS.FINANCE_MANAGE),
+  putExchangeRatesValidator,
+  validateRequest,
+  putCurrencyExchangeRates
+);
+router.post(
+  '/convert-currency',
+  convertCurrencyValidator,
+  validateRequest,
+  postCurrencyConversion
+);
 
 export default router;

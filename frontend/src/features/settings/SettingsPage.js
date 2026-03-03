@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  getFinanceExchangeRatesRequest,
+  putFinanceExchangeRatesRequest,
+  createOnboardingWarehouseRequest,
+  createUserInviteRequest,
   getFinanceRealtimeStatsRequest,
+  getOnboardingStatusRequest,
   getObservabilityPingRequest,
   seedOnboardingSampleDataRequest,
   getSettingsRequest,
@@ -18,7 +23,7 @@ import {
   RealtimeOfflineSection,
   AuditBackupSection,
   ObservabilityPipelineSection,
-  OnboardingSampleDataSection,
+  OnboardingLaunchWizardSection,
   SettingsSaveFooter
 } from './components/SettingsSections.js';
 import {
@@ -167,6 +172,26 @@ const Settings = ({
   const [onboardingSeedResult, setOnboardingSeedResult] = useState(null);
   const [onboardingSeedError, setOnboardingSeedError] = useState('');
   const [onboardingSeeding, setOnboardingSeeding] = useState(false);
+  const [onboardingWarehouseForm, setOnboardingWarehouseForm] = useState({
+    name: '',
+    code: '',
+    region: ''
+  });
+  const [onboardingWarehouseError, setOnboardingWarehouseError] = useState('');
+  const [onboardingWarehouseResult, setOnboardingWarehouseResult] =
+    useState(null);
+  const [onboardingWarehouseCreating, setOnboardingWarehouseCreating] =
+    useState(false);
+  const [onboardingInviteEmail, setOnboardingInviteEmail] = useState('');
+  const [onboardingInviteError, setOnboardingInviteError] = useState('');
+  const [onboardingInviteResult, setOnboardingInviteResult] = useState(null);
+  const [onboardingInviting, setOnboardingInviting] = useState(false);
+  const [exchangeRateForm, setExchangeRateForm] = useState({
+    quoteCurrencyCode: '',
+    rate: ''
+  });
+  const [exchangeRateError, setExchangeRateError] = useState('');
+  const [exchangeRateNotice, setExchangeRateNotice] = useState('');
 
   const normalizedRole = String(userRole || '')
     .trim()
@@ -190,6 +215,12 @@ const Settings = ({
     queryFn: async () => getSettingsRequest(accessToken)
   });
 
+  const persistedBaseCurrencyCode = String(
+    settingsQuery.data?.companyProfile?.currencyCode || 'UGX'
+  )
+    .trim()
+    .toUpperCase();
+
   const observabilityQuery = useQuery({
     queryKey: ['observability:ping:settings', String(accessToken || '')],
     enabled: Boolean(accessToken),
@@ -208,6 +239,28 @@ const Settings = ({
     staleTime: OBS_STALE_MS,
     refetchInterval: OBS_STALE_MS,
     queryFn: async () => getFinanceRealtimeStatsRequest(accessToken)
+  });
+
+  const exchangeRatesQuery = useQuery({
+    queryKey: [
+      'finance:exchange-rates',
+      String(accessToken || ''),
+      persistedBaseCurrencyCode
+    ],
+    enabled: Boolean(accessToken),
+    staleTime: OBS_STALE_MS,
+    queryFn: async () =>
+      getFinanceExchangeRatesRequest({
+        accessToken,
+        baseCurrencyCode: persistedBaseCurrencyCode
+      })
+  });
+
+  const onboardingStatusQuery = useQuery({
+    queryKey: ['onboarding:status', String(accessToken || '')],
+    enabled: Boolean(accessToken),
+    staleTime: OBS_STALE_MS,
+    queryFn: async () => getOnboardingStatusRequest(accessToken)
   });
 
   useEffect(() => {
@@ -266,6 +319,35 @@ const Settings = ({
     onError: (error) => {
       setFormNotice('');
       setFormError(String(error?.message || 'Failed to save settings'));
+    }
+  });
+
+  const updateExchangeRatesMutation = useMutation({
+    mutationFn: async ({ quoteCurrencyCode, rate }) =>
+      putFinanceExchangeRatesRequest({
+        accessToken,
+        baseCurrencyCode: persistedBaseCurrencyCode,
+        rates: [
+          {
+            quoteCurrencyCode,
+            rate
+          }
+        ]
+      }),
+    onSuccess: () => {
+      setExchangeRateNotice('Exchange rate saved.');
+      setExchangeRateError('');
+      setExchangeRateForm({
+        quoteCurrencyCode: '',
+        rate: ''
+      });
+      exchangeRatesQuery.refetch();
+    },
+    onError: (error) => {
+      setExchangeRateNotice('');
+      setExchangeRateError(
+        String(error?.message || 'Failed to update exchange rate')
+      );
     }
   });
 
@@ -340,7 +422,52 @@ const Settings = ({
     settingsQuery.refetch();
     realtimeStatsQuery.refetch();
     observabilityQuery.refetch();
+    exchangeRatesQuery.refetch();
   };
+
+  const handleExchangeRateFieldChange = useCallback((field, value) => {
+    setExchangeRateForm((current) => ({
+      ...current,
+      [field]: value
+    }));
+    setExchangeRateError('');
+    setExchangeRateNotice('');
+  }, []);
+
+  const handleAddExchangeRate = useCallback(async () => {
+    if (!accessToken) return;
+
+    const quoteCurrencyCode = String(exchangeRateForm.quoteCurrencyCode || '')
+      .trim()
+      .toUpperCase();
+    const rate = Number(exchangeRateForm.rate);
+
+    if (!quoteCurrencyCode || quoteCurrencyCode.length !== 3) {
+      setExchangeRateError('Quote currency code must be 3 letters.');
+      return;
+    }
+    if (!Number.isFinite(rate) || rate <= 0) {
+      setExchangeRateError('Rate must be a positive number.');
+      return;
+    }
+    if (quoteCurrencyCode === persistedBaseCurrencyCode) {
+      setExchangeRateError('Quote currency must differ from base currency.');
+      return;
+    }
+
+    setExchangeRateError('');
+    setExchangeRateNotice('');
+    await updateExchangeRatesMutation.mutateAsync({
+      quoteCurrencyCode,
+      rate
+    });
+  }, [
+    accessToken,
+    exchangeRateForm.quoteCurrencyCode,
+    exchangeRateForm.rate,
+    persistedBaseCurrencyCode,
+    updateExchangeRatesMutation
+  ]);
 
   const handleCopyTraceIds = useCallback(async () => {
     const requestId = observabilityQuery.data?.trace?.requestId || '';
@@ -380,6 +507,8 @@ const Settings = ({
           force
         });
         setOnboardingSeedResult(result || null);
+        onboardingStatusQuery.refetch();
+        settingsQuery.refetch();
       } catch (error) {
         setOnboardingSeedError(
           String(error?.message || 'Failed to seed onboarding sample data')
@@ -388,8 +517,80 @@ const Settings = ({
         setOnboardingSeeding(false);
       }
     },
-    [accessToken]
+    [accessToken, onboardingStatusQuery, settingsQuery]
   );
+
+  const handleOnboardingWarehouseField = useCallback((key, value) => {
+    setOnboardingWarehouseForm((current) => ({
+      ...current,
+      [key]: value
+    }));
+  }, []);
+
+  const handleCreateOnboardingWarehouse = useCallback(async () => {
+    if (!accessToken) return;
+
+    setOnboardingWarehouseError('');
+    setOnboardingWarehouseResult(null);
+    setOnboardingWarehouseCreating(true);
+
+    try {
+      const result = await createOnboardingWarehouseRequest({
+        accessToken,
+        name: onboardingWarehouseForm.name,
+        code: onboardingWarehouseForm.code,
+        region: onboardingWarehouseForm.region
+      });
+      setOnboardingWarehouseResult(result || null);
+      setOnboardingWarehouseForm({
+        name: '',
+        code: '',
+        region: ''
+      });
+      onboardingStatusQuery.refetch();
+      settingsQuery.refetch();
+    } catch (error) {
+      setOnboardingWarehouseError(
+        String(error?.message || 'Failed to create warehouse')
+      );
+    } finally {
+      setOnboardingWarehouseCreating(false);
+    }
+  }, [
+    accessToken,
+    onboardingWarehouseForm,
+    onboardingStatusQuery,
+    settingsQuery
+  ]);
+
+  const handleCreateOnboardingInvite = useCallback(async () => {
+    if (!accessToken) return;
+    setOnboardingInviteError('');
+    setOnboardingInviteResult(null);
+
+    const normalizedEmail = String(onboardingInviteEmail || '').trim();
+    if (!normalizedEmail) {
+      setOnboardingInviteError('Invite email is required');
+      return;
+    }
+
+    setOnboardingInviting(true);
+    try {
+      const result = await createUserInviteRequest({
+        accessToken,
+        email: normalizedEmail
+      });
+      setOnboardingInviteResult(result || null);
+      setOnboardingInviteEmail('');
+      onboardingStatusQuery.refetch();
+    } catch (error) {
+      setOnboardingInviteError(
+        String(error?.message || 'Failed to create invite')
+      );
+    } finally {
+      setOnboardingInviting(false);
+    }
+  }, [accessToken, onboardingInviteEmail, onboardingStatusQuery]);
 
   const observabilityStatus = useMemo(() => {
     if (observabilityQuery.isError) return 'error';
@@ -507,6 +708,17 @@ const Settings = ({
           canManageSettings={canManageSettings}
           isSaving={saveSettingsMutation.isPending}
           setNestedField={setNestedField}
+          baseCurrencyCode={persistedBaseCurrencyCode}
+          exchangeRates={exchangeRatesQuery.data?.rates || []}
+          exchangeRatesLoading={
+            exchangeRatesQuery.isLoading || exchangeRatesQuery.isFetching
+          }
+          exchangeRateForm={exchangeRateForm}
+          onExchangeRateFieldChange={handleExchangeRateFieldChange}
+          onAddExchangeRate={handleAddExchangeRate}
+          updatingExchangeRates={updateExchangeRatesMutation.isPending}
+          exchangeRateError={exchangeRateError}
+          exchangeRateNotice={exchangeRateNotice}
         />
       );
     }
@@ -573,8 +785,25 @@ const Settings = ({
 
     if (activePageId === 'onboarding-sample') {
       return (
-        <OnboardingSampleDataSection
+        <OnboardingLaunchWizardSection
           canManageSettings={canManageSettings}
+          onboardingStatus={onboardingStatusQuery.data || null}
+          onboardingStatusLoading={
+            onboardingStatusQuery.isLoading || onboardingStatusQuery.isFetching
+          }
+          onRefreshStatus={() => onboardingStatusQuery.refetch()}
+          warehouseForm={onboardingWarehouseForm}
+          onWarehouseFieldChange={handleOnboardingWarehouseField}
+          onCreateWarehouse={handleCreateOnboardingWarehouse}
+          creatingWarehouse={onboardingWarehouseCreating}
+          warehouseError={onboardingWarehouseError}
+          warehouseResult={onboardingWarehouseResult}
+          inviteEmail={onboardingInviteEmail}
+          onInviteEmailChange={setOnboardingInviteEmail}
+          onCreateInvite={handleCreateOnboardingInvite}
+          inviting={onboardingInviting}
+          inviteError={onboardingInviteError}
+          inviteResult={onboardingInviteResult}
           isSeeding={onboardingSeeding}
           seedResult={onboardingSeedResult}
           seedError={onboardingSeedError}

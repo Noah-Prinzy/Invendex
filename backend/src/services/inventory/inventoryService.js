@@ -7,24 +7,14 @@ import { addCostLayerFromReceipt } from '../finance/valuationService.js';
 import { recordInboundTrackingForReceipt } from './trackingService.js';
 import { syncProductStockFromInventory } from './stockSyncService.js';
 import {
+  convertQuantityToBaseUnits,
+  resolvePurchaseToBaseFactor
+} from './uomConversionService.js';
+import {
   publishInventoryUpdated,
   publishValuationUpdated
 } from '../../realtime/publisher.js';
 import { logInventoryMutation } from '../../observability/inventoryMutationLogger.js';
-
-const resolvePurchaseToBaseFactor = ({ item, product }) => {
-  const itemFactor = Number(item?.purchaseToBaseFactor);
-  if (Number.isFinite(itemFactor) && itemFactor >= 1) {
-    return itemFactor;
-  }
-
-  const productFactor = Number(product?.uom?.purchaseToBaseFactor);
-  if (Number.isFinite(productFactor) && productFactor >= 1) {
-    return productFactor;
-  }
-
-  return 1;
-};
 
 /**
  * Applies inventory updates when a Purchase Order is received.
@@ -86,12 +76,14 @@ export const applyPurchaseOrderToInventory = async ({
       }
 
       const purchaseToBaseFactor = resolvePurchaseToBaseFactor({
-        item,
-        product
+        product,
+        overrideFactor: item?.purchaseToBaseFactor
       });
-      const quantityInBaseUnits = Number(
-        (Number(quantity) * purchaseToBaseFactor).toFixed(6)
-      );
+      const quantityInBaseUnits = convertQuantityToBaseUnits({
+        quantity,
+        quantityUnit: 'purchase',
+        purchaseToBaseFactor
+      });
       if (!Number.isFinite(quantityInBaseUnits) || quantityInBaseUnits <= 0) {
         throw new AppError(
           `Invalid converted quantity for inventory update (${productId})`,

@@ -3,17 +3,27 @@ import crypto from 'node:crypto';
 import User from '../models/User.js';
 import EmployeeInvite from '../models/EmployeeInvite.js';
 import OrganizationSettings from '../models/OrganizationSettings.js';
+import Organization from '../models/Organization.js';
 import { successResponse } from '../utils/response.js';
 import { AppError } from '../errors/AppError.js';
 import { logAudit } from '../utils/auditLogger.js';
+import { ROLES } from '../authorization/permissions.js';
+import {
+  getPermissionCatalog,
+  getRolePermissionMatrixForOrganization,
+  updateRolePermissionsForOrganization
+} from '../authorization/permissionPolicyService.js';
 import {
   getOnlineUsersByOrganization,
   isRealtimeEnabled
 } from '../realtime/socketServer.js';
+import { queueEmailNotification } from '../services/notifications/emailJobService.js';
 
 const DEFAULT_INVITE_TTL_HOURS = 72;
 const MIN_INVITE_TTL_HOURS = 1;
 const MAX_INVITE_TTL_HOURS = 24 * 30;
+const MUTABLE_ROLES = new Set([ROLES.STAFF, ROLES.MANAGER, ROLES.ADMIN]);
+const TOP_MANAGEMENT_ROLES = new Set([ROLES.OWNER, ROLES.ADMIN]);
 
 const normalizeEmailInput = (value) =>
   String(value || '')
@@ -117,6 +127,142 @@ export const updateOrganizationUserStatus = async (req, res, next) => {
   }
 };
 
+export const updateOrganizationUserRole = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const nextRole = String(req.body?.role || '')
+      .trim()
+      .toLowerCase();
+
+    if (!MUTABLE_ROLES.has(nextRole) && nextRole !== ROLES.OWNER) {
+      throw new AppError('Invalid role value', 400);
+    }
+
+    const actorRole = String(req.user?.role || '').toLowerCase();
+    const actorIsOwner = actorRole === ROLES.OWNER;
+
+    if (nextRole === ROLES.OWNER && !actorIsOwner) {
+      throw new AppError('Only organization owner can assign owner role', 403);
+    }
+
+    const targetUser = await User.findOne({
+      _id: id,
+      organization: req.organizationId
+    }).select('_id role email organization isActive isVerified createdAt');
+
+    if (!targetUser) {
+      throw new AppError('User not found', 404);
+    }
+
+    const currentTargetRole = String(targetUser.role || '').toLowerCase();
+    if (currentTargetRole === ROLES.OWNER && !actorIsOwner) {
+      throw new AppError(
+        'Only organization owner can modify owner account',
+        403
+      );
+    }
+
+    if (
+      String(req.user?._id || '') === String(targetUser._id || '') &&
+      actorRole !== nextRole
+    ) {
+      throw new AppError('You cannot change your own role', 400);
+    }
+
+    if (!actorIsOwner && !TOP_MANAGEMENT_ROLES.has(actorRole)) {
+      throw new AppError('Only admin/owner can change user roles', 403);
+    }
+
+    targetUser.role = nextRole;
+    await targetUser.save();
+
+    await logAudit({
+      req,
+      action: 'UPDATE_USER_ROLE',
+      resource: 'USER',
+      resourceId: targetUser._id,
+      organizationId: req.organizationId,
+      meta: {
+        previousRole: currentTargetRole,
+        role: nextRole
+      }
+    });
+
+    return successResponse(res, targetUser.toObject(), 'User role updated');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getOrganizationRolePermissionMatrix = async (req, res, next) => {
+  try {
+    const matrix = await getRolePermissionMatrixForOrganization(
+      req.organizationId
+    );
+
+    return successResponse(
+      res,
+      {
+        catalog: getPermissionCatalog(),
+        matrix
+      },
+      'Role permission matrix fetched'
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateOrganizationRolePermissionMatrix = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    const role = String(req.params?.role || '')
+      .trim()
+      .toLowerCase();
+    const permissions = Array.isArray(req.body?.permissions)
+      ? req.body.permissions
+      : [];
+
+    const updatedMatrix = await updateRolePermissionsForOrganization({
+      organizationId: req.organizationId,
+      role,
+      permissions,
+      updatedBy: req.user?._id || null
+    });
+
+    await logAudit({
+      req,
+      action: 'UPDATE_ROLE_PERMISSION_MATRIX',
+      resource: 'ROLE_PERMISSION_POLICY',
+      resourceId: req.organizationId,
+      organizationId: req.organizationId,
+      meta: {
+        role,
+        permissionCount: permissions.length
+      }
+    });
+
+    return successResponse(
+      res,
+      {
+        catalog: getPermissionCatalog(),
+        matrix: updatedMatrix
+      },
+      'Role permission matrix updated'
+    );
+  } catch (error) {
+    if (
+      String(error?.message || '').includes('Only staff, manager, or admin')
+    ) {
+      return next(new AppError(error.message, 400));
+    }
+    next(error);
+  }
+};
+
 export const listOrganizationOnlineUsers = async (req, res, next) => {
   try {
     if (!isRealtimeEnabled()) {
@@ -189,6 +335,40 @@ export const createOrganizationInvite = async (req, res, next) => {
         expiresAt: invite.expiresAt
       }
     });
+
+    if (invite.email) {
+      const organization = await Organization.findById(req.organizationId)
+        .select('name code')
+        .lean();
+      const organizationName = organization?.name || 'your organization';
+      const appUrl = String(process.env.APP_WEB_URL || '').trim();
+      const inviteMessage = [
+        `You have been invited to join ${organizationName} on Ledgerly.`,
+        `Invite code: ${inviteCode}`,
+        `Expires at: ${new Date(invite.expiresAt).toISOString()}`,
+        appUrl
+          ? `Use the employee sign-in portal at ${appUrl} and enter this code on first login.`
+          : 'Use the employee sign-in portal and enter this code on first login.'
+      ].join('\n');
+
+      try {
+        await queueEmailNotification({
+          organizationId: req.organizationId,
+          createdBy: req.user?._id || null,
+          to: invite.email,
+          subject: `${organizationName} employee invite`,
+          text: inviteMessage,
+          notificationType: 'EMPLOYEE_INVITE',
+          metadata: {
+            organizationName,
+            organizationCode: organization?.code || null,
+            expiresAt: invite.expiresAt
+          }
+        });
+      } catch {
+        // Invite creation is successful even when email delivery queueing fails.
+      }
+    }
 
     return successResponse(
       res,
@@ -277,7 +457,10 @@ export const revokeOrganizationInvite = async (req, res, next) => {
 export default {
   listOrganizationUsers,
   updateOrganizationUserStatus,
+  updateOrganizationUserRole,
   listOrganizationOnlineUsers,
+  getOrganizationRolePermissionMatrix,
+  updateOrganizationRolePermissionMatrix,
   createOrganizationInvite,
   listOrganizationInvites,
   revokeOrganizationInvite

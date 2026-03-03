@@ -18,6 +18,17 @@ const optionalIsoDateValidator = (fieldName) =>
     .isISO8601()
     .withMessage(`${fieldName} must be a valid ISO date`);
 
+const optionalCurrencyCodeQueryValidator = (fieldName = 'currencyCode') =>
+  query(fieldName)
+    .optional({ values: 'falsy' })
+    .isString()
+    .withMessage(`${fieldName} must be a string`)
+    .bail()
+    .trim()
+    .isLength({ min: 3, max: 3 })
+    .withMessage(`${fieldName} must be exactly 3 characters`)
+    .toUpperCase();
+
 const optionalDateRangeValidator = query('to').custom((to, { req }) => {
   if (!to || !req.query?.from) return true;
 
@@ -50,7 +61,8 @@ export const financeValuationQueryValidator = [
   query('method')
     .optional({ values: 'falsy' })
     .isIn(VALUATION_METHODS)
-    .withMessage('method must be FIFO, LIFO, or WEIGHTED_AVG')
+    .withMessage('method must be FIFO, LIFO, or WEIGHTED_AVG'),
+  optionalCurrencyCodeQueryValidator('currencyCode')
 ];
 
 export const patchValuationMethodValidator = [
@@ -102,7 +114,8 @@ export const cogsQueryValidator = [
         throw new Error('Warehouse not found');
       }
       return true;
-    })
+    }),
+  optionalCurrencyCodeQueryValidator('currencyCode')
 ];
 
 export const grossMarginQueryValidator = [
@@ -112,7 +125,8 @@ export const grossMarginQueryValidator = [
   query('groupBy')
     .optional({ values: 'falsy' })
     .isIn(GROSS_MARGIN_GROUP_BY)
-    .withMessage('groupBy must be day, product, or category')
+    .withMessage('groupBy must be day, product, or category'),
+  optionalCurrencyCodeQueryValidator('currencyCode')
 ];
 
 export const deadStockQueryValidator = [
@@ -136,7 +150,8 @@ export const deadStockQueryValidator = [
         throw new Error('Warehouse not found');
       }
       return true;
-    })
+    }),
+  optionalCurrencyCodeQueryValidator('currencyCode')
 ];
 
 export const patchTaxConfigurationValidator = [
@@ -198,4 +213,77 @@ export const patchNotificationSettingsValidator = [
     .bail()
     .isLength({ min: 7, max: 24 })
     .withMessage('Each SMS recipient must be between 7 and 24 characters')
+];
+
+export const exchangeRatesQueryValidator = [
+  optionalCurrencyCodeQueryValidator('baseCurrencyCode')
+];
+
+export const putExchangeRatesValidator = [
+  body('baseCurrencyCode')
+    .optional({ values: 'falsy' })
+    .isString()
+    .withMessage('baseCurrencyCode must be a string')
+    .bail()
+    .trim()
+    .isLength({ min: 3, max: 3 })
+    .withMessage('baseCurrencyCode must be exactly 3 characters')
+    .toUpperCase(),
+  body('rates')
+    .exists()
+    .withMessage('rates is required')
+    .bail()
+    .isArray({ min: 1, max: 100 })
+    .withMessage('rates must be an array between 1 and 100 items'),
+  body('rates.*.quoteCurrencyCode')
+    .exists({ checkFalsy: true })
+    .withMessage('rates[].quoteCurrencyCode is required')
+    .bail()
+    .isString()
+    .withMessage('rates[].quoteCurrencyCode must be a string')
+    .trim()
+    .isLength({ min: 3, max: 3 })
+    .withMessage('rates[].quoteCurrencyCode must be exactly 3 characters')
+    .toUpperCase(),
+  body('rates.*.rate')
+    .exists()
+    .withMessage('rates[].rate is required')
+    .bail()
+    .isFloat({ min: 0.000001 })
+    .withMessage('rates[].rate must be greater than 0')
+    .toFloat(),
+  body('rates.*.source')
+    .optional({ values: 'falsy' })
+    .isIn(['MANUAL', 'SYSTEM'])
+    .withMessage('rates[].source must be MANUAL or SYSTEM')
+];
+
+export const convertCurrencyValidator = [
+  body('amount')
+    .exists()
+    .withMessage('amount is required')
+    .bail()
+    .isFloat()
+    .withMessage('amount must be a valid number')
+    .toFloat(),
+  body('fromCurrencyCode')
+    .exists({ checkFalsy: true })
+    .withMessage('fromCurrencyCode is required')
+    .bail()
+    .isString()
+    .withMessage('fromCurrencyCode must be a string')
+    .trim()
+    .isLength({ min: 3, max: 3 })
+    .withMessage('fromCurrencyCode must be exactly 3 characters')
+    .toUpperCase(),
+  body('toCurrencyCode')
+    .exists({ checkFalsy: true })
+    .withMessage('toCurrencyCode is required')
+    .bail()
+    .isString()
+    .withMessage('toCurrencyCode must be a string')
+    .trim()
+    .isLength({ min: 3, max: 3 })
+    .withMessage('toCurrencyCode must be exactly 3 characters')
+    .toUpperCase()
 ];

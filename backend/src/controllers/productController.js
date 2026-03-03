@@ -566,7 +566,7 @@ export const permanentlyDeleteProduct = async (req, res, next) => {
 
 export const adjustProductStock = async (req, res, next) => {
   try {
-    const { amount, reason, warehouseId } = req.body;
+    const { amount, reason, warehouseId, amountUnit } = req.body;
     const idempotencyKey = extractIdempotencyKeyFromRequest(req);
 
     const operation = await runIdempotentOperation({
@@ -576,6 +576,9 @@ export const adjustProductStock = async (req, res, next) => {
       requestFingerprint: {
         productId: String(req.params.id),
         amount: Number(amount),
+        amountUnit: String(amountUnit || 'base')
+          .trim()
+          .toLowerCase(),
         reason: String(reason || ''),
         warehouseId: warehouseId ? String(warehouseId) : null
       },
@@ -584,6 +587,7 @@ export const adjustProductStock = async (req, res, next) => {
           organizationId: req.organizationId,
           productId: req.params.id,
           amount,
+          amountUnit: amountUnit || 'base',
           reason,
           warehouseId: warehouseId || null,
           actorUserId: req.user?._id || null,

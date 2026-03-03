@@ -4,8 +4,15 @@ import requireOrganization from '../middlewares/requireOrganization.js';
 import requirePermission from '../middlewares/requirePermission.js';
 import validateRequest from '../middlewares/validateRequest.js';
 import { PERMISSIONS } from '../authorization/permissions.js';
-import { seedSampleData } from '../controllers/onboardingController.js';
-import { seedSampleDataValidator } from '../validations/onboardingValidators.js';
+import {
+  createOnboardingWarehouse,
+  getOnboardingStatus,
+  seedSampleData
+} from '../controllers/onboardingController.js';
+import {
+  createOnboardingWarehouseValidator,
+  seedSampleDataValidator
+} from '../validations/onboardingValidators.js';
 
 const router = express.Router();
 
@@ -13,6 +20,15 @@ router.use(
   protect,
   requireOrganization,
   requirePermission(PERMISSIONS.USERS_MANAGE)
+);
+
+router.get('/status', getOnboardingStatus);
+
+router.post(
+  '/warehouses',
+  createOnboardingWarehouseValidator,
+  validateRequest,
+  createOnboardingWarehouse
 );
 
 router.post(

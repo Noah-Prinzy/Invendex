@@ -29,6 +29,12 @@ import {
 } from './config/envConfig.js';
 import { disconnectRateLimitStore } from './middlewares/rateLimitStore.js';
 import { raiseOperationalAlert } from './observability/opsAlerting.js';
+import {
+  getBackgroundJobQueueStatus,
+  initializeBackgroundJobQueue,
+  shutdownBackgroundJobQueue,
+  startBackgroundJobWorker
+} from './services/jobs/backgroundQueueService.js';
 
 dotenv.config();
 
@@ -39,6 +45,38 @@ async function startServer() {
     validateRuntimeEnv();
 
     await connectDB();
+    await initializeBackgroundJobQueue();
+    const inlineWorkerStarted = await startBackgroundJobWorker();
+    const backgroundJobQueueStatus = getBackgroundJobQueueStatus();
+    if (
+      backgroundJobQueueStatus.enabled &&
+      backgroundJobQueueStatus.usingBullMq
+    ) {
+      logger.info('background_job_queue_ready', {
+        queueName: backgroundJobQueueStatus.queueName,
+        inlineWorkerStarted,
+        workerReady: backgroundJobQueueStatus.workerReady
+      });
+    } else if (backgroundJobQueueStatus.enabled) {
+      logger.warn('background_job_queue_fallback_mode', {
+        reason: backgroundJobQueueStatus.reason
+      });
+    }
+
+    if (
+      String(process.env.NODE_ENV || 'development') === 'production' &&
+      backgroundJobQueueStatus.enabled &&
+      !backgroundJobQueueStatus.usingBullMq
+    ) {
+      await raiseOperationalAlert({
+        severity: 'WARN',
+        category: 'background_jobs',
+        message:
+          'Background queue enabled but BullMQ/Redis initialization failed; running inline fallback',
+        context: backgroundJobQueueStatus,
+        source: 'server_bootstrap'
+      });
+    }
 
     const httpServer = createServer(app);
     const httpServerTimeoutConfig = getHttpServerTimeoutConfig();
@@ -85,6 +123,7 @@ async function startServer() {
     const shutdown = async () => {
       try {
         logger.info('server_shutdown_started');
+        await shutdownBackgroundJobQueue();
         await disconnectSocketRedisAdapter();
         await disconnectRateLimitStore();
         await flushErrorTracker();

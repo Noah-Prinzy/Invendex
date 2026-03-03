@@ -18,6 +18,7 @@ import { logAudit } from '../utils/auditLogger.js';
 import { logger } from '../observability/logger.js';
 import { publishEmployeeSignedIn } from '../realtime/publisher.js';
 import { createInAppNotification } from '../services/notifications/inAppNotificationService.js';
+import { queueEmailNotification } from '../services/notifications/emailJobService.js';
 import {
   getRefreshCookieOptions,
   getClearRefreshCookieOptions
@@ -61,6 +62,14 @@ const TWO_FACTOR_ISSUER = String(process.env.AUTH_2FA_ISSUER || 'Ledgerly')
   .trim()
   .slice(0, 80);
 const TWO_FACTOR_RECOVERY_CODES_COUNT = 10;
+const APP_WEB_URL = String(process.env.APP_WEB_URL || '').trim();
+
+const buildEmailActionHint = (fallbackMessage = '') => {
+  if (!APP_WEB_URL) {
+    return fallbackMessage ? `\n\n${fallbackMessage}` : '';
+  }
+  return `\n\nOpen ${APP_WEB_URL} to continue.`;
+};
 
 const getTwoFactorChallengeSecret = () => {
   const explicitSecret = String(
@@ -424,6 +433,39 @@ const buildTokenDebugData = (rawToken) => {
   }
 
   return { debugToken: rawToken };
+};
+
+const queueAuthEmail = async ({
+  organizationId,
+  userId = null,
+  to,
+  subject,
+  message,
+  notificationType,
+  metadata = {}
+}) => {
+  if (!to || !subject || !message) {
+    return;
+  }
+
+  try {
+    await queueEmailNotification({
+      organizationId,
+      createdBy: userId,
+      to,
+      subject,
+      text: message,
+      notificationType,
+      metadata
+    });
+  } catch (error) {
+    logger.warn('auth_email_queue_failed', {
+      to,
+      organizationId: organizationId ? String(organizationId) : null,
+      notificationType,
+      err: error
+    });
+  }
 };
 
 const resolveOrganizationByName = async (companyName) => {
@@ -1640,6 +1682,33 @@ export const register = async (req, res, next) => {
 
     await user.save();
 
+    if (verificationRequired && verificationToken) {
+      const verificationMessage = [
+        `Hi ${normalizedEmail},`,
+        '',
+        `Welcome to ${organization.name}.`,
+        `Use this verification token to activate your Ledgerly account: ${verificationToken}`,
+        'This token expires in 24 hours.',
+        buildEmailActionHint(
+          'If you did not create this account, ignore this message.'
+        )
+      ].join('\n');
+
+      await queueAuthEmail({
+        organizationId: organization._id,
+        userId: user._id,
+        to: normalizedEmail,
+        subject: 'Verify your Ledgerly account',
+        message: verificationMessage,
+        notificationType: 'AUTH_EMAIL_VERIFICATION',
+        metadata: {
+          organizationName: organization.name,
+          organizationCode: organization.code,
+          expiresInHours: 24
+        }
+      });
+    }
+
     await logAudit({
       req,
       action: 'REGISTER',
@@ -1718,6 +1787,30 @@ export const requestEmailVerification = async (req, res, next) => {
       Date.now() + EMAIL_VERIFICATION_TTL_MS
     );
     await user.save();
+
+    const organization = await resolveOrganizationPayloadById(
+      user.organization
+    );
+    const verificationMessage = [
+      `Hi ${normalizedEmail},`,
+      '',
+      `Use this verification token to verify your Ledgerly account: ${verificationToken}`,
+      'This token expires in 24 hours.',
+      buildEmailActionHint('If you did not request this, ignore this message.')
+    ].join('\n');
+
+    await queueAuthEmail({
+      organizationId: user.organization || null,
+      userId: user._id,
+      to: normalizedEmail,
+      subject: 'Ledgerly email verification token',
+      message: verificationMessage,
+      notificationType: 'AUTH_EMAIL_VERIFICATION',
+      metadata: {
+        organizationName: organization?.name || null,
+        expiresInHours: 24
+      }
+    });
 
     return successResponse(
       res,
@@ -1800,6 +1893,30 @@ export const forgotPassword = async (req, res, next) => {
     user.passwordResetToken = hashToken(resetToken);
     user.passwordResetExpiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MS);
     await user.save();
+
+    const organization = await resolveOrganizationPayloadById(
+      user.organization
+    );
+    const resetMessage = [
+      `Hi ${normalizedEmail},`,
+      '',
+      `Use this password reset token for your Ledgerly account: ${resetToken}`,
+      'This token expires in 1 hour.',
+      buildEmailActionHint('If you did not request this, ignore this message.')
+    ].join('\n');
+
+    await queueAuthEmail({
+      organizationId: user.organization || null,
+      userId: user._id,
+      to: normalizedEmail,
+      subject: 'Ledgerly password reset token',
+      message: resetMessage,
+      notificationType: 'AUTH_PASSWORD_RESET',
+      metadata: {
+        organizationName: organization?.name || null,
+        expiresInMinutes: 60
+      }
+    });
 
     return successResponse(
       res,

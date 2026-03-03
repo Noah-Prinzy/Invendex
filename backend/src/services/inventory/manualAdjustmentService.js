@@ -11,6 +11,12 @@ import { isRoleAllowed } from '../../authorization/permissions.js';
 import { AppError } from '../../errors/AppError.js';
 import { runWithMongoTransactionFallback } from '../../utils/runWithMongoTransactionFallback.js';
 import { syncProductStockFromInventory } from './stockSyncService.js';
+import {
+  convertQuantityToBaseUnits,
+  resolvePurchaseToBaseFactor,
+  normalizeQuantityUnit,
+  INVENTORY_QUANTITY_UNITS
+} from './uomConversionService.js';
 import { logAudit } from '../../utils/auditLogger.js';
 import { logInventoryMutation } from '../../observability/inventoryMutationLogger.js';
 import { logger } from '../../observability/logger.js';
@@ -261,12 +267,14 @@ export const adjustInventoryFromManualInput = async ({
   organizationId,
   productId,
   amount,
+  amountUnit = INVENTORY_QUANTITY_UNITS.BASE,
   reason,
   warehouseId = null,
   actorUserId = null,
   actorRole = null
 }) => {
   const parsedAmount = Number(amount);
+  const normalizedAmountUnit = normalizeQuantityUnit(amountUnit);
   if (!Number.isInteger(parsedAmount) || parsedAmount === 0) {
     throw new AppError(
       'Stock adjustment amount must be a non-zero integer',
@@ -293,7 +301,8 @@ export const adjustInventoryFromManualInput = async ({
     operationMeta: {
       organizationId: String(organizationId),
       productId: String(productId),
-      amount: parsedAmount,
+      requestedAmount: parsedAmount,
+      requestedAmountUnit: normalizedAmountUnit,
       reason: normalizedReason,
       isSensitiveReason: reasonPolicy.sensitive === true,
       hasWarehouseId: Boolean(warehouseId)
@@ -310,7 +319,7 @@ export const adjustInventoryFromManualInput = async ({
       const productQuery = Product.findOne({
         _id: productId,
         organization: organizationId
-      }).select('sku price stock stockHistory averageDailyUsage');
+      }).select('sku price stock stockHistory averageDailyUsage uom');
       if (session) {
         productQuery.session(session);
       }
@@ -318,6 +327,26 @@ export const adjustInventoryFromManualInput = async ({
       if (!product) {
         throw new AppError('Product not found', 404);
       }
+
+      const purchaseToBaseFactor = resolvePurchaseToBaseFactor({
+        product
+      });
+      const amountInBaseUnits = convertQuantityToBaseUnits({
+        quantity: parsedAmount,
+        quantityUnit: normalizedAmountUnit,
+        purchaseToBaseFactor
+      });
+      if (!Number.isInteger(amountInBaseUnits) || amountInBaseUnits === 0) {
+        throw new AppError(
+          'Stock adjustment amount could not be converted to base units',
+          400
+        );
+      }
+
+      assertReasonDirection({
+        reason: normalizedReason,
+        amount: amountInBaseUnits
+      });
 
       const resolvedWarehouse = await resolveWarehouseForAdjustment({
         organizationId,
@@ -333,8 +362,8 @@ export const adjustInventoryFromManualInput = async ({
         warehouse: resolvedWarehouse.warehouseId
       };
 
-      if (parsedAmount < 0) {
-        adjustmentFilter.quantityOnHand = { $gte: Math.abs(parsedAmount) };
+      if (amountInBaseUnits < 0) {
+        adjustmentFilter.quantityOnHand = { $gte: Math.abs(amountInBaseUnits) };
       }
 
       const adjustmentOptions = {
@@ -351,7 +380,7 @@ export const adjustInventoryFromManualInput = async ({
         adjustmentFilter,
         {
           $inc: {
-            quantityOnHand: parsedAmount
+            quantityOnHand: amountInBaseUnits
           },
           $set: {
             lastMovementAt: now
@@ -397,7 +426,7 @@ export const adjustInventoryFromManualInput = async ({
                 {
                   previousStock: previousProductStock,
                   newStock: newProductStock,
-                  changeAmount: parsedAmount,
+                  changeAmount: amountInBaseUnits,
                   reason: normalizedReason,
                   changedBy: actorUserId,
                   changedAt: now
@@ -442,7 +471,10 @@ export const adjustInventoryFromManualInput = async ({
         success: true,
         meta: {
           warehouseId: String(resolvedWarehouse.warehouseId),
-          amount: parsedAmount,
+          amount: amountInBaseUnits,
+          requestedAmount: parsedAmount,
+          requestedAmountUnit: normalizedAmountUnit,
+          purchaseToBaseFactor,
           reason: normalizedReason,
           isSensitiveReason: sensitiveAccess.isSensitiveReason,
           sensitiveAdjustmentMinRole: sensitiveAccess.requiredRole,
@@ -458,13 +490,16 @@ export const adjustInventoryFromManualInput = async ({
         organizationId,
         warehouseId: resolvedWarehouse.warehouseId,
         productId,
-        quantityDelta: parsedAmount,
+        quantityDelta: amountInBaseUnits,
         quantityOnHand: inventory.quantityOnHand,
         quantityReserved: inventory.quantityReserved,
         sourceType: 'MANUAL',
         actorUserId,
         metadata: {
           reason: normalizedReason,
+          requestedAmount: parsedAmount,
+          requestedAmountUnit: normalizedAmountUnit,
+          purchaseToBaseFactor,
           usedWarehouseFallback: resolvedWarehouse.usedFallback
         }
       });
@@ -474,7 +509,10 @@ export const adjustInventoryFromManualInput = async ({
         inventory,
         warehouseId: resolvedWarehouse.warehouseId,
         usedWarehouseFallback: resolvedWarehouse.usedFallback,
-        amount: parsedAmount,
+        amount: amountInBaseUnits,
+        requestedAmount: parsedAmount,
+        requestedAmountUnit: normalizedAmountUnit,
+        purchaseToBaseFactor,
         reason: normalizedReason,
         isSensitiveReason: sensitiveAccess.isSensitiveReason,
         sensitiveAdjustmentMinRole: sensitiveAccess.requiredRole,
@@ -491,6 +529,9 @@ export const adjustInventoryFromManualInput = async ({
     data: {
       source: 'manual_stock_adjustment',
       amount: result.amount,
+      requestedAmount: result.requestedAmount,
+      requestedAmountUnit: result.requestedAmountUnit,
+      purchaseToBaseFactor: result.purchaseToBaseFactor,
       reason: result.reason,
       isSensitiveReason: result.isSensitiveReason,
       sensitiveAdjustmentMinRole: result.sensitiveAdjustmentMinRole,

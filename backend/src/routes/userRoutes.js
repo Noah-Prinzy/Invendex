@@ -8,15 +8,20 @@ import { PERMISSIONS } from '../authorization/permissions.js';
 import {
   listOrganizationUsers,
   updateOrganizationUserStatus,
+  updateOrganizationUserRole,
   listOrganizationOnlineUsers,
   createOrganizationInvite,
   listOrganizationInvites,
-  revokeOrganizationInvite
+  revokeOrganizationInvite,
+  getOrganizationRolePermissionMatrix,
+  updateOrganizationRolePermissionMatrix
 } from '../controllers/userManagementController.js';
 import {
   updateUserStatusValidator,
+  updateUserRoleValidator,
   createInviteValidator,
-  inviteIdParamValidator
+  inviteIdParamValidator,
+  updateRolePermissionMatrixValidator
 } from '../validations/userManagementValidators.js';
 import {
   createUserInviteLimiter,
@@ -49,6 +54,21 @@ router.get(
   listOrganizationOnlineUsers
 );
 router.get(
+  '/permissions/matrix',
+  auditMiddleware({
+    action: 'LIST_ROLE_PERMISSION_MATRIX',
+    resource: 'ROLE_PERMISSION_POLICY'
+  }),
+  getOrganizationRolePermissionMatrix
+);
+router.patch(
+  '/permissions/matrix/:role',
+  updateUserStatusLimiter,
+  updateRolePermissionMatrixValidator,
+  validateRequest,
+  updateOrganizationRolePermissionMatrix
+);
+router.get(
   '/invites',
   auditMiddleware({
     action: 'LIST_ORGANIZATION_INVITES',
@@ -69,6 +89,13 @@ router.patch(
   inviteIdParamValidator,
   validateRequest,
   revokeOrganizationInvite
+);
+router.patch(
+  '/:id/role',
+  updateUserStatusLimiter,
+  updateUserRoleValidator,
+  validateRequest,
+  updateOrganizationUserRole
 );
 router.patch(
   '/:id/status',
