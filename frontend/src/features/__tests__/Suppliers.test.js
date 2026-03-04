@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import Suppliers from '../Suppliers.js';
+import Suppliers from '../suppliers/SuppliersPage.js';
 import { renderWithProviders } from '../../test/renderWithProviders.js';
 import {
   getSupplierRankingsRequest,

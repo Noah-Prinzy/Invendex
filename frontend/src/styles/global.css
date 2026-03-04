@@ -243,6 +243,14 @@ select {
   font-family: var(--font-body);
 }
 
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(31, 143, 218, 0.72);
+  outline-offset: 2px;
+}
+
 .eyebrow {
   font-size: 0.76rem;
   letter-spacing: 0.12em;

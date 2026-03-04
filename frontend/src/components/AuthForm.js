@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Button from '../ui/Button.js';
 
 const AUTH_PORTALS = Object.freeze({
   ADMIN: 'admin',
@@ -178,20 +179,20 @@ const AuthForm = ({
         </div>
 
         <div className="auth-mode-actions">
-          <button
+          <Button
             type="button"
-            className="btn-primary"
+            variant="primary"
             onClick={() => setPortalMode(AUTH_PORTALS.ADMIN)}
           >
             Admin
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="btn-ghost"
+            variant="ghost"
             onClick={() => setPortalMode(AUTH_PORTALS.EMPLOYEE)}
           >
             Employee
-          </button>
+          </Button>
         </div>
       </section>
     );
@@ -209,20 +210,22 @@ const AuthForm = ({
 
       {!isTwoFactorChallengeActive ? (
         <div className="auth-mode-actions">
-          <button
+          <Button
             type="button"
-            className={`btn-ghost auth-mode-btn ${isAdminPortal ? 'active' : ''}`}
+            variant="ghost"
+            className={`auth-mode-btn ${isAdminPortal ? 'active' : ''}`}
             onClick={() => setPortalMode(AUTH_PORTALS.ADMIN)}
           >
             Admin portal
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className={`btn-ghost auth-mode-btn ${!isAdminPortal ? 'active' : ''}`}
+            variant="ghost"
+            className={`auth-mode-btn ${!isAdminPortal ? 'active' : ''}`}
             onClick={() => setPortalMode(AUTH_PORTALS.EMPLOYEE)}
           >
             Employee portal
-          </button>
+          </Button>
         </div>
       ) : null}
 
@@ -368,10 +371,18 @@ const AuthForm = ({
         </>
       ) : null}
 
-      {error ? <p className="form-error">{error}</p> : null}
-      {notice ? <p className="form-copy">{notice}</p> : null}
+      {error ? (
+        <p className="form-error" role="alert" aria-live="assertive">
+          {error}
+        </p>
+      ) : null}
+      {notice ? (
+        <p className="form-copy" id="auth-form-status" aria-live="polite">
+          {notice}
+        </p>
+      ) : null}
 
-      <button type="submit" className="btn-primary" disabled={isLoading}>
+      <Button type="submit" variant="primary" disabled={isLoading}>
         {isLoading
           ? 'Submitting...'
           : isTwoFactorChallengeActive
@@ -387,39 +398,39 @@ const AuthForm = ({
                       ? 'Verify email'
                       : 'Sign in as admin'
               : 'Sign in as employee'}
-      </button>
-      <button type="button" className="btn-ghost" onClick={resetToRoleSelector}>
+      </Button>
+      <Button type="button" variant="ghost" onClick={resetToRoleSelector}>
         Choose role again
-      </button>
+      </Button>
 
       {isAdminPortal && !isTwoFactorChallengeActive ? (
         <div className="auth-secondary-actions">
           {isAdminSignIn ? (
             <>
-              <button
+              <Button
                 type="button"
-                className="btn-ghost"
+                variant="ghost"
                 onClick={() => setAdminPortalMode(ADMIN_MODES.SIGN_UP)}
               >
                 Admin sign up
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="btn-ghost"
+                variant="ghost"
                 onClick={() => setAdminPortalMode(ADMIN_MODES.FORGOT_PASSWORD)}
               >
                 Forgot password
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="btn-ghost"
+                variant="ghost"
                 onClick={() => setAdminPortalMode(ADMIN_MODES.RESET_PASSWORD)}
               >
                 Use reset token
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="btn-ghost"
+                variant="ghost"
                 onClick={() =>
                   typeof onRequestEmailVerification === 'function'
                     ? onRequestEmailVerification({ email: formValues.email })
@@ -427,23 +438,23 @@ const AuthForm = ({
                 }
               >
                 Request verification token
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="btn-ghost"
+                variant="ghost"
                 onClick={() => setAdminPortalMode(ADMIN_MODES.VERIFY_EMAIL)}
               >
                 Verify email token
-              </button>
+              </Button>
             </>
           ) : (
-            <button
+            <Button
               type="button"
-              className="btn-ghost"
+              variant="ghost"
               onClick={() => setAdminPortalMode(ADMIN_MODES.SIGN_IN)}
             >
               Back to admin sign in
-            </button>
+            </Button>
           )}
         </div>
       ) : null}

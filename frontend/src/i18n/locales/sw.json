@@ -1,0 +1,30 @@
+{
+  "tabs": {
+    "dashboard": "Dashibodi",
+    "purchaseOrders": "Maagizo ya Ununuzi",
+    "products": "Bidhaa",
+    "stocktakes": "Ukaguzi wa Hisa",
+    "suppliers": "Wasambazaji",
+    "reports": "Ripoti",
+    "users": "Watumiaji",
+    "account": "Akaunti",
+    "settings": "Mipangilio"
+  },
+  "app": {
+    "brand": "Ledgerly",
+    "loadingSessionTitle": "Inaandaa kikao...",
+    "loadingSessionDescription": "Inathibitisha tokeni yako ya ufikiaji na muktadha wa shirika.",
+    "loadingSessionBody": "Tafadhali subiri tunaporejesha kikao chako.",
+    "authIntroTitle": "Udhibiti wa hesabu wa kisasa kwa shughuli za kasi.",
+    "authIntroDescription": "Simamia ununuzi, uhamisho wa hisa, na ishara za fedha kutoka nafasi moja yenye matukio ya moja kwa moja na udhibiti salama wa tenant.",
+    "warehouseLabel": "Ghala",
+    "warehousePlaceholder": "Kitambulisho cha ghala (si lazima)",
+    "online": "Mtandaoni",
+    "offline": "Nje ya mtandao",
+    "queue": "Foleni",
+    "signOut": "Toka",
+    "organizationFallback": "Shirika",
+    "organizationMissingTitle": "Uanachama wa shirika unahitajika",
+    "organizationMissingDescription": "Akaunti yako imethibitishwa lakini haijaunganishwa na shirika bado. Wasiliana na msimamizi kukamilisha usanidi."
+  }
+}

@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import Users from '../Users.js';
+import Users from '../users/UsersPage.js';
 import { renderWithProviders } from '../../test/renderWithProviders.js';
 import {
   createUserInviteRequest,

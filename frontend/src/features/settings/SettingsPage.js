@@ -26,6 +26,7 @@ import {
   OnboardingLaunchWizardSection,
   SettingsSaveFooter
 } from './components/SettingsSections.js';
+import SettingsLayout from '../../layouts/SettingsLayout.js';
 import {
   SETTINGS_MANAGE_ROLES,
   OBS_STALE_MS,
@@ -817,55 +818,49 @@ const Settings = ({
 
   if (!accessToken) {
     return (
-      <section className="panel">
-        <header className="panel-head">
-          <div>
-            <h2>Settings</h2>
-            <p>Sign in to view organization settings.</p>
-          </div>
-        </header>
-      </section>
+      <SettingsLayout
+        title="Settings"
+        description="Sign in to view organization settings."
+      />
     );
   }
 
-  return (
-    <section className="panel settings-panel">
-      <header className="panel-head panel-head-row">
-        <div>
-          <h2>
-            {isHubView ? 'Settings' : activePageMeta?.title || 'Settings'}
-          </h2>
-          <p>
-            {isHubView
-              ? 'Open a settings page from the hub below.'
-              : activePageMeta?.description || 'Settings page'}
-          </p>
-        </div>
-        <div className="obs-actions">
-          {!isHubView ? (
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => setActivePageId(SETTINGS_HUB_PAGE_ID)}
-            >
-              Back to settings hub
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={handleRefreshAll}
-            disabled={
-              settingsQuery.isFetching ||
-              realtimeStatsQuery.isFetching ||
-              observabilityQuery.isFetching
-            }
-          >
-            {settingsQuery.isFetching ? 'Refreshing...' : 'Refresh all'}
-          </button>
-        </div>
-      </header>
+  const settingsHeaderActions = (
+    <>
+      {!isHubView ? (
+        <button
+          type="button"
+          className="btn-ghost"
+          onClick={() => setActivePageId(SETTINGS_HUB_PAGE_ID)}
+        >
+          Back to settings hub
+        </button>
+      ) : null}
+      <button
+        type="button"
+        className="btn-ghost"
+        onClick={handleRefreshAll}
+        disabled={
+          settingsQuery.isFetching ||
+          realtimeStatsQuery.isFetching ||
+          observabilityQuery.isFetching
+        }
+      >
+        {settingsQuery.isFetching ? 'Refreshing...' : 'Refresh all'}
+      </button>
+    </>
+  );
 
+  return (
+    <SettingsLayout
+      title={isHubView ? 'Settings' : activePageMeta?.title || 'Settings'}
+      description={
+        isHubView
+          ? 'Open a settings page from the hub below.'
+          : activePageMeta?.description || 'Settings page'
+      }
+      actions={settingsHeaderActions}
+    >
       {settingsQuery.isLoading ? (
         <article className="event-card">
           <p className="event-sub">Loading organization settings...</p>
@@ -903,7 +898,7 @@ const Settings = ({
           isLoadingSettings={settingsQuery.isLoading}
         />
       ) : null}
-    </section>
+    </SettingsLayout>
   );
 };
 

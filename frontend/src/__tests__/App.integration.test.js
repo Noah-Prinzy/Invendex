@@ -278,8 +278,8 @@ describe('App integration', () => {
 
     expect(screen.getByText('Delta +5 | On hand 42')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Purchase Orders' }));
-    expect(screen.getByText('PO PO-1001')).toBeInTheDocument();
-    expect(screen.getByText('Status RECEIVED')).toBeInTheDocument();
+    expect(await screen.findByText('PO PO-1001')).toBeInTheDocument();
+    expect(await screen.findByText('Status RECEIVED')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Notifications' }));
     expect(screen.getByText('Notifications')).toBeInTheDocument();

@@ -1,0 +1,30 @@
+{
+  "tabs": {
+    "dashboard": "Tableau de bord",
+    "purchaseOrders": "Bons de commande",
+    "products": "Produits",
+    "stocktakes": "Inventaires",
+    "suppliers": "Fournisseurs",
+    "reports": "Rapports",
+    "users": "Utilisateurs",
+    "account": "Compte",
+    "settings": "Parametres"
+  },
+  "app": {
+    "brand": "Ledgerly",
+    "loadingSessionTitle": "Chargement de session...",
+    "loadingSessionDescription": "Validation du jeton d'acces et du contexte d'organisation.",
+    "loadingSessionBody": "Veuillez patienter pendant la restauration de votre session.",
+    "authIntroTitle": "Controle moderne des stocks pour les operations rapides.",
+    "authIntroDescription": "Coordonnez les achats, les mouvements de stock et les signaux financiers depuis un espace unique avec visibilite en direct et controles securises par tenant.",
+    "warehouseLabel": "Entrepot",
+    "warehousePlaceholder": "ID d'entrepot facultatif",
+    "online": "En ligne",
+    "offline": "Hors ligne",
+    "queue": "File",
+    "signOut": "Se deconnecter",
+    "organizationFallback": "Organisation",
+    "organizationMissingTitle": "Adhesion a une organisation requise",
+    "organizationMissingDescription": "Votre compte est authentifie mais pas encore lie a une organisation. Contactez un administrateur pour terminer la configuration."
+  }
+}

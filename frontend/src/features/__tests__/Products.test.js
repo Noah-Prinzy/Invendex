@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import Products from '../Products.js';
+import Products from '../products/ProductsPage.js';
 import { renderWithProviders } from '../../test/renderWithProviders.js';
 import {
   adjustProductStockRequest,

@@ -14,6 +14,7 @@ import {
   softDeleteProductRequest
 } from '../../api/client.js';
 import { createIdempotencyKey } from '../../api/idempotency.js';
+import Modal from '../../ui/Modal.js';
 
 const ROLES_WITH_LOW_STOCK_ACCESS = new Set([
   'owner',
@@ -1725,36 +1726,35 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
               {createProductMutation.isPending ? 'Saving...' : 'Add product'}
             </button>
           </form>
-          {barcodeScannerOpen ? (
-            <div className="scanner-modal" role="dialog" aria-modal="true">
-              <div className="scanner-card">
-                <div className="panel-head-row">
-                  <h3>Scan barcode</h3>
-                  <button
-                    type="button"
-                    className="btn-ghost"
-                    onClick={closeBarcodeScanner}
-                  >
-                    Close
-                  </button>
-                </div>
-                <p className="event-sub">
-                  {barcodeScannerStatus ||
-                    'Align the barcode inside the frame.'}
-                </p>
-                <video
-                  ref={barcodeVideoRef}
-                  className="scanner-video"
-                  autoPlay
-                  muted
-                  playsInline
-                />
-                {barcodeScannerError ? (
-                  <p className="form-error">{barcodeScannerError}</p>
-                ) : null}
-              </div>
+          <Modal
+            isOpen={barcodeScannerOpen}
+            title="Scan barcode"
+            onClose={closeBarcodeScanner}
+          >
+            <div className="panel-head-row">
+              <h3>Scan barcode</h3>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={closeBarcodeScanner}
+              >
+                Close
+              </button>
             </div>
-          ) : null}
+            <p className="event-sub">
+              {barcodeScannerStatus || 'Align the barcode inside the frame.'}
+            </p>
+            <video
+              ref={barcodeVideoRef}
+              className="scanner-video"
+              autoPlay
+              muted
+              playsInline
+            />
+            {barcodeScannerError ? (
+              <p className="form-error">{barcodeScannerError}</p>
+            ) : null}
+          </Modal>
         </article>
       ) : null}
 

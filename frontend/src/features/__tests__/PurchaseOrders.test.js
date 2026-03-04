@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import PurchaseOrders from '../PurchaseOrders.js';
+import PurchaseOrders from '../purchaseOrders/PurchaseOrdersPage.js';
 import { renderWithProviders } from '../../test/renderWithProviders.js';
 import {
   getPurchaseOrdersRequest,

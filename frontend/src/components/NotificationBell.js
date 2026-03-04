@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import Button from '../ui/Button.js';
 
 const formatDateTime = (value) => {
   const date = new Date(value);
@@ -15,6 +16,7 @@ const NotificationBell = ({
   onMarkRead = () => {}
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const shellRef = useRef(null);
   const unreadBadge = count > 99 ? '99+' : String(count);
   const hasItems = Array.isArray(items) && items.length > 0;
 
@@ -26,13 +28,38 @@ const NotificationBell = ({
     [count]
   );
 
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const handleClickOutside = (event) => {
+      if (!shellRef.current) return;
+      if (!shellRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isOpen]);
+
   return (
-    <div className="notification-shell">
-      <button
+    <div className="notification-shell" ref={shellRef}>
+      <Button
         type="button"
         className="notification-bell"
         aria-label="Notifications"
         aria-expanded={isOpen}
+        aria-haspopup="dialog"
         onClick={() => setIsOpen((current) => !current)}
         title={title}
       >
@@ -40,24 +67,28 @@ const NotificationBell = ({
           N
         </span>
         <span className="bell-count">{unreadBadge}</span>
-      </button>
+      </Button>
 
       {isOpen ? (
-        <section className="notification-panel" role="dialog">
+        <section
+          className="notification-panel"
+          role="dialog"
+          aria-modal="false"
+        >
           <header className="notification-panel-head">
             <h3>Notifications</h3>
             <div className="notification-panel-actions">
-              <button type="button" className="btn-ghost" onClick={onRefresh}>
+              <Button type="button" variant="ghost" onClick={onRefresh}>
                 {isLoading ? 'Loading...' : 'Refresh'}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="btn-ghost"
+                variant="ghost"
                 onClick={onMarkAllRead}
                 disabled={!count}
               >
                 Mark all read
-              </button>
+              </Button>
             </div>
           </header>
 
@@ -86,13 +117,14 @@ const NotificationBell = ({
                   </div>
                   <div className="notification-item-actions">
                     {!item?.read ? (
-                      <button
+                      <Button
                         type="button"
-                        className="btn-ghost btn-inline"
+                        variant="ghost"
+                        className="btn-inline"
                         onClick={() => onMarkRead(item?._id || item?.id)}
                       >
                         Mark read
-                      </button>
+                      </Button>
                     ) : (
                       <span className="section-note">Read</span>
                     )}

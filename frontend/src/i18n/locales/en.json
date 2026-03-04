@@ -1,0 +1,30 @@
+{
+  "tabs": {
+    "dashboard": "Dashboard",
+    "purchaseOrders": "Purchase Orders",
+    "products": "Products",
+    "stocktakes": "Stocktakes",
+    "suppliers": "Suppliers",
+    "reports": "Reports",
+    "users": "Users",
+    "account": "Account",
+    "settings": "Settings"
+  },
+  "app": {
+    "brand": "Ledgerly",
+    "loadingSessionTitle": "Loading session...",
+    "loadingSessionDescription": "Validating your access token and organization context.",
+    "loadingSessionBody": "Please wait while we restore your session.",
+    "authIntroTitle": "Modern inventory control for fast-moving operations.",
+    "authIntroDescription": "Coordinate purchasing, stock movement, and finance signals from one workspace with live event visibility and tenant-safe controls.",
+    "warehouseLabel": "Warehouse",
+    "warehousePlaceholder": "Optional warehouse id",
+    "online": "Online",
+    "offline": "Offline",
+    "queue": "Queue",
+    "signOut": "Sign out",
+    "organizationFallback": "Organization",
+    "organizationMissingTitle": "Organization membership required",
+    "organizationMissingDescription": "Your account is authenticated but not linked to an organization yet. Contact an admin to complete setup."
+  }
+}

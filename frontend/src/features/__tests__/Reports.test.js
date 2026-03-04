@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import Reports from '../Reports.js';
+import Reports from '../reports/ReportsPage.js';
 import { renderWithProviders } from '../../test/renderWithProviders.js';
 import {
   downloadInventoryReportExportJobRequest,

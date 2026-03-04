@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import AuthForm from './components/AuthForm.js';
 import NotificationBell from './components/NotificationBell.js';
 import TabBar from './components/TabBar.js';
@@ -6,17 +16,17 @@ import useAuth from './hooks/auth/useAuth.js';
 import useTabs from './hooks/ui/useTabs.js';
 import { useLedgerlyRealtime } from './hooks/realtime/useLedgerlyRealtime.js';
 import { useOfflineSync } from './hooks/offline/useOfflineSync.js';
-import Dashboard from './pages/Dashboard.js';
-import PurchaseOrders from './pages/PurchaseOrders.js';
-import Products from './pages/Products.js';
-import Suppliers from './pages/Suppliers.js';
-import Reports from './pages/Reports.js';
-import Users from './pages/Users.js';
-import Stocktakes from './pages/Stocktakes.js';
-import Account from './pages/Account.js';
-import Settings from './pages/Settings.js';
+import AuthLayout from './layouts/AuthLayout.js';
+import DashboardLayout from './layouts/DashboardLayout.js';
+import RequireAuth from './guards/RequireAuth.js';
+import RequireOrganization from './guards/RequireOrganization.js';
+import RequireRole from './guards/RequireRole.js';
+import Card from './ui/Card.js';
 import { useAppActions, useAppState } from './state/appState.js';
 import {
+  getProductsRequest,
+  getPurchaseOrdersRequest,
+  getSettingsRequest,
   getNotificationsRequest,
   markAllNotificationsReadRequest,
   markNotificationReadRequest
@@ -27,6 +37,7 @@ import {
   readThemePreference,
   writeThemePreference
 } from './themes/themePreference.js';
+
 import './styles/global.css';
 import './styles/dashboard.css';
 
@@ -55,6 +66,20 @@ const getRealtimeBaseUrl = () => {
 
   return sanitizeBaseUrl(window.location.origin);
 };
+
+const Dashboard = lazy(() => import('./features/dashboard/DashboardPage.js'));
+const PurchaseOrders = lazy(
+  () => import('./features/purchaseOrders/PurchaseOrdersPage.js')
+);
+const Products = lazy(() => import('./features/products/ProductsPage.js'));
+const Suppliers = lazy(() => import('./features/suppliers/SuppliersPage.js'));
+const Reports = lazy(() => import('./features/reports/ReportsPage.js'));
+const Users = lazy(() => import('./features/users/UsersPage.js'));
+const Stocktakes = lazy(
+  () => import('./features/stocktakes/StocktakesPage.js')
+);
+const Account = lazy(() => import('./features/account/AccountPage.js'));
+const Settings = lazy(() => import('./features/settings/SettingsPage.js'));
 
 const buildInventoryEvent = (payload, eventName) => {
   const data = payload?.data || {};
@@ -141,7 +166,18 @@ const writeTabToUrl = (tabKey) => {
   window.history.replaceState(window.history.state, '', nextPath);
 };
 
+const GuardFallback = ({ title, description }) => (
+  <section className="panel">
+    <Card className="event-card">
+      <h3>{title}</h3>
+      <p className="event-sub">{description}</p>
+    </Card>
+  </section>
+);
+
 const App = () => {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const {
     user,
     accessToken,
@@ -196,8 +232,8 @@ const App = () => {
         ? String(user.organization?.name || '').trim()
         : '';
     if (fromOrganizationObject) return fromOrganizationObject;
-    return 'Organization';
-  }, [user]);
+    return t('app.organizationFallback');
+  }, [t, user]);
 
   const refreshNotifications = useCallback(async () => {
     if (!accessToken || !isAuthenticated) return;
@@ -217,6 +253,32 @@ const App = () => {
       setNotificationsLoading(false);
     }
   }, [accessToken, isAuthenticated]);
+
+  const prefetchCoreData = useCallback(async () => {
+    if (!accessToken) return;
+
+    await Promise.allSettled([
+      queryClient.prefetchQuery({
+        queryKey: ['settings:get', String(accessToken || '')],
+        queryFn: () => getSettingsRequest(accessToken)
+      }),
+      queryClient.prefetchQuery({
+        queryKey: ['purchase-orders', String(accessToken || '')],
+        queryFn: () => getPurchaseOrdersRequest(accessToken)
+      }),
+      queryClient.prefetchQuery({
+        queryKey: [
+          'products:index',
+          String(accessToken || ''),
+          String(true),
+          String(false),
+          '',
+          ''
+        ],
+        queryFn: () => getProductsRequest(accessToken)
+      })
+    ]);
+  }, [accessToken, queryClient]);
 
   const handleMarkNotificationRead = useCallback(
     async (notificationId) => {
@@ -383,6 +445,31 @@ const App = () => {
   }, [isAuthenticated, accessToken, refreshNotifications]);
 
   useEffect(() => {
+    if (!isAuthenticated || !accessToken) return undefined;
+
+    const runPrefetch = () => {
+      prefetchCoreData();
+    };
+
+    if (
+      typeof window !== 'undefined' &&
+      typeof window.requestIdleCallback === 'function'
+    ) {
+      const callbackId = window.requestIdleCallback(runPrefetch, {
+        timeout: 1200
+      });
+      return () => {
+        window.cancelIdleCallback(callbackId);
+      };
+    }
+
+    const timeoutId = window.setTimeout(runPrefetch, 250);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isAuthenticated, accessToken, prefetchCoreData]);
+
+  useEffect(() => {
     if (!isAuthenticated) {
       hasResolvedInitialTabRef.current = false;
       return;
@@ -419,55 +506,110 @@ const App = () => {
     });
   }, [setSession, user]);
 
+  const roleGuardFallback = useMemo(
+    () => (
+      <GuardFallback
+        title="Access denied"
+        description="Your role does not have permission to open this section."
+      />
+    ),
+    []
+  );
+
+  const organizationGuardFallback = useMemo(
+    () => (
+      <GuardFallback
+        title={t('app.organizationMissingTitle')}
+        description={t('app.organizationMissingDescription')}
+      />
+    ),
+    [t]
+  );
+
   const page = useMemo(() => {
+    const role = user?.role || null;
+    const dashboardNode = (
+      <Dashboard
+        accessToken={accessToken}
+        warehouseId={activeWarehouseId || null}
+        inventoryEvents={inventoryEvents}
+        financeEvents={financeEvents}
+        authEvents={authEvents}
+      />
+    );
+
     if (activeTab === 'dashboard') {
-      return (
-        <Dashboard
-          accessToken={accessToken}
-          warehouseId={activeWarehouseId || null}
-          inventoryEvents={inventoryEvents}
-          financeEvents={financeEvents}
-          authEvents={authEvents}
-        />
-      );
+      return dashboardNode;
     }
     if (activeTab === 'purchaseOrders') {
-      return <PurchaseOrders accessToken={accessToken} poEvents={poEvents} />;
+      return (
+        <RequireRole
+          role={role}
+          allowedRoles={['owner', 'admin', 'manager']}
+          fallback={roleGuardFallback}
+        >
+          <PurchaseOrders accessToken={accessToken} poEvents={poEvents} />
+        </RequireRole>
+      );
     }
     if (activeTab === 'products') {
       return (
         <Products
           accessToken={accessToken}
-          userRole={user?.role || null}
+          userRole={role}
           warehouseId={activeWarehouseId || null}
         />
       );
     }
     if (activeTab === 'stocktakes') {
       return (
-        <Stocktakes
-          accessToken={accessToken}
-          warehouseId={activeWarehouseId || null}
-        />
+        <RequireRole
+          role={role}
+          allowedRoles={['owner', 'admin', 'manager']}
+          fallback={roleGuardFallback}
+        >
+          <Stocktakes
+            accessToken={accessToken}
+            warehouseId={activeWarehouseId || null}
+          />
+        </RequireRole>
       );
     }
     if (activeTab === 'suppliers') {
       return (
-        <Suppliers accessToken={accessToken} userRole={user?.role || null} />
+        <RequireRole
+          role={role}
+          allowedRoles={['owner', 'admin', 'manager']}
+          fallback={roleGuardFallback}
+        >
+          <Suppliers accessToken={accessToken} userRole={role} />
+        </RequireRole>
       );
     }
     if (activeTab === 'reports') {
       return (
-        <Reports accessToken={accessToken} userRole={user?.role || null} />
+        <RequireRole
+          role={role}
+          allowedRoles={['owner', 'admin', 'manager']}
+          fallback={roleGuardFallback}
+        >
+          <Reports accessToken={accessToken} userRole={role} />
+        </RequireRole>
       );
     }
     if (activeTab === 'users') {
       return (
-        <Users
-          accessToken={accessToken}
-          userRole={user?.role || null}
-          currentUserId={user?._id || null}
-        />
+        <RequireRole
+          role={role}
+          allowedRoles={['owner', 'admin']}
+          fallback={roleGuardFallback}
+        >
+          <Users
+            accessToken={accessToken}
+            userRole={role}
+            currentUserId={user?._id || null}
+          />
+        </RequireRole>
       );
     }
     if (activeTab === 'account') {
@@ -492,21 +634,13 @@ const App = () => {
       return (
         <Settings
           accessToken={accessToken}
-          userRole={user?.role || null}
+          userRole={role}
           themeId={themeId}
           onThemeChange={handleThemeChange}
         />
       );
     }
-    return (
-      <Dashboard
-        accessToken={accessToken}
-        warehouseId={activeWarehouseId || null}
-        inventoryEvents={inventoryEvents}
-        financeEvents={financeEvents}
-        authEvents={authEvents}
-      />
-    );
+    return dashboardNode;
   }, [
     activeTab,
     accessToken,
@@ -528,98 +662,97 @@ const App = () => {
     deleteOrganization,
     listSessions,
     revokeSession,
-    logoutOtherSessions
+    logoutOtherSessions,
+    roleGuardFallback
   ]);
 
   if (isInitializing) {
     return (
-      <main className="auth-layout">
-        <section className="auth-intro">
-          <p className="eyebrow">Ledgerly</p>
-          <h2>Loading session...</h2>
-          <p>Validating your access token and organization context.</p>
-        </section>
+      <AuthLayout
+        eyebrow={t('app.brand')}
+        title={t('app.loadingSessionTitle')}
+        description={t('app.loadingSessionDescription')}
+      >
         <section className="auth-card">
-          <p className="form-copy">
-            Please wait while we restore your session.
-          </p>
+          <p className="form-copy">{t('app.loadingSessionBody')}</p>
         </section>
-      </main>
+      </AuthLayout>
     );
   }
 
-  if (!isAuthenticated) {
-    return (
-      <main className="auth-layout">
-        <section className="auth-intro">
-          <p className="eyebrow">Ledgerly</p>
-          <h2>Modern inventory control for fast-moving operations.</h2>
-          <p>
-            Coordinate purchasing, stock movement, and finance signals from one
-            workspace with live event visibility and tenant-safe controls.
-          </p>
-        </section>
-        <AuthForm
-          onAdminSignIn={adminLogin}
-          onEmployeeSignIn={employeeLogin}
-          onSignUp={signup}
-          onRequestEmailVerification={requestEmailVerification}
-          onVerifyEmail={verifyEmail}
-          onRequestPasswordReset={requestPasswordReset}
-          onResetPassword={resetPassword}
-          pendingTwoFactorLogin={pendingTwoFactorLogin}
-          onVerifyTwoFactorLogin={verifyTwoFactorLogin}
-          isLoading={isLoading}
-          error={error}
-          notice={notice}
-        />
-      </main>
-    );
-  }
+  const unauthenticatedView = (
+    <AuthLayout
+      eyebrow={t('app.brand')}
+      title={t('app.authIntroTitle')}
+      description={t('app.authIntroDescription')}
+    >
+      <AuthForm
+        onAdminSignIn={adminLogin}
+        onEmployeeSignIn={employeeLogin}
+        onSignUp={signup}
+        onRequestEmailVerification={requestEmailVerification}
+        onVerifyEmail={verifyEmail}
+        onRequestPasswordReset={requestPasswordReset}
+        onResetPassword={resetPassword}
+        pendingTwoFactorLogin={pendingTwoFactorLogin}
+        onVerifyTwoFactorLogin={verifyTwoFactorLogin}
+        isLoading={isLoading}
+        error={error}
+        notice={notice}
+      />
+    </AuthLayout>
+  );
 
   return (
-    <main className="app-layout">
-      <header className="app-header">
-        <div className="brand">
-          <div className="brand-company-frame">
-            <h1 className="brand-company-name" title={companyName}>
-              {companyName}
-            </h1>
-          </div>
-        </div>
-        <div className="header-actions">
-          <label className="warehouse-filter" htmlFor="warehouseId">
-            Warehouse
-            <input
-              id="warehouseId"
-              type="text"
-              value={activeWarehouseId}
-              onChange={(event) => setActiveWarehouseId(event.target.value)}
-              placeholder="Optional warehouse id"
+    <RequireAuth
+      isAuthenticated={isAuthenticated}
+      fallback={unauthenticatedView}
+    >
+      <RequireOrganization
+        hasOrganization={Boolean(user?.organization)}
+        fallback={organizationGuardFallback}
+      >
+        <DashboardLayout
+          companyName={companyName}
+          warehouseId={activeWarehouseId}
+          warehouseLabel={t('app.warehouseLabel')}
+          warehousePlaceholder={t('app.warehousePlaceholder')}
+          statusOnlineLabel={t('app.online')}
+          statusOfflineLabel={t('app.offline')}
+          queueLabel={t('app.queue')}
+          signOutLabel={t('app.signOut')}
+          onWarehouseChange={setActiveWarehouseId}
+          isOnline={isOnline}
+          offlineQueueSize={offlineQueueSize}
+          notificationsNode={
+            <NotificationBell
+              count={unreadCount}
+              items={notifications}
+              isLoading={notificationsLoading}
+              onRefresh={refreshNotifications}
+              onMarkAllRead={handleMarkAllNotificationsRead}
+              onMarkRead={handleMarkNotificationRead}
             />
-          </label>
-          <p
-            className={`section-note status-note ${isOnline ? 'online' : 'offline'}`}
+          }
+          onLogout={logout}
+          tabBarNode={
+            <TabBar tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+          }
+        >
+          <Suspense
+            fallback={
+              <section className="panel">
+                <article className="event-card">
+                  <p className="event-sub">Loading section...</p>
+                </article>
+              </section>
+            }
           >
-            {isOnline ? 'Online' : 'Offline'} | Queue {offlineQueueSize}
-          </p>
-          <NotificationBell
-            count={unreadCount}
-            items={notifications}
-            isLoading={notificationsLoading}
-            onRefresh={refreshNotifications}
-            onMarkAllRead={handleMarkAllNotificationsRead}
-            onMarkRead={handleMarkNotificationRead}
-          />
-          <button type="button" className="btn-ghost" onClick={logout}>
-            Sign out
-          </button>
-        </div>
-      </header>
-
-      <TabBar tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
-      <section className="app-body">{page}</section>
-    </main>
+            {page}
+          </Suspense>
+        </DashboardLayout>
+      </RequireOrganization>
+    </RequireAuth>
   );
 };
 
