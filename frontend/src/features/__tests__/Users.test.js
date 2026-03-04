@@ -4,6 +4,7 @@ import { renderWithProviders } from '../../test/renderWithProviders.js';
 import {
   createUserInviteRequest,
   getOnlineUsersRequest,
+  getUserProductivityRequest,
   getUserRolePermissionsMatrixRequest,
   getUserInvitesRequest,
   getUsersRequest,
@@ -16,6 +17,7 @@ import {
 jest.mock('../../api/client.js', () => ({
   createUserInviteRequest: jest.fn(),
   getOnlineUsersRequest: jest.fn(),
+  getUserProductivityRequest: jest.fn(),
   getUserRolePermissionsMatrixRequest: jest.fn(),
   getUserInvitesRequest: jest.fn(),
   getUsersRequest: jest.fn(),
@@ -81,6 +83,26 @@ describe('Users page', () => {
         admin: ['products:view', 'products:edit'],
         owner: ['products:view', 'products:edit']
       }
+    });
+    getUserProductivityRequest.mockResolvedValueOnce({
+      days: 14,
+      summary: {
+        activeEmployees: 2
+      },
+      rows: [
+        {
+          userId: 'u-1',
+          email: 'admin@example.com',
+          role: 'admin',
+          activityScore: 12.5,
+          movementCount: 5,
+          stocktakeLinesCounted: 2,
+          stocktakeSessionsApproved: 1,
+          purchaseOrdersReceived: 1,
+          stocktakeAccuracyRatePct: 96.2,
+          errorCount: 0
+        }
+      ]
     });
     createUserInviteRequest.mockResolvedValue({
       _id: 'inv-2',

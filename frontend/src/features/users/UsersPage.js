@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createUserInviteRequest,
   getOnlineUsersRequest,
+  getUserProductivityRequest,
   getUserRolePermissionsMatrixRequest,
   getUserInvitesRequest,
   getUsersRequest,
@@ -21,6 +22,10 @@ const normalizeUsersPayload = (payload) => ({
   users: Array.isArray(payload?.users) ? payload.users : [],
   onlineUsers: Array.isArray(payload?.onlineUsers) ? payload.onlineUsers : [],
   invites: Array.isArray(payload?.invites) ? payload.invites : [],
+  productivity:
+    payload?.productivity && typeof payload.productivity === 'object'
+      ? payload.productivity
+      : { days: 7, summary: {}, rows: [] },
   rolePermissions:
     payload?.rolePermissions && typeof payload.rolePermissions === 'object'
       ? payload.rolePermissions
@@ -63,18 +68,29 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
     enabled: Boolean(accessToken) && canManageUsers,
     staleTime: USERS_QUERY_STALE_TIME_MS,
     queryFn: async () => {
-      const [usersData, onlineUsersData, invitesData, rolePermissionsData] =
-        await Promise.all([
-          getUsersRequest(accessToken),
-          getOnlineUsersRequest(accessToken),
-          getUserInvitesRequest(accessToken),
-          getUserRolePermissionsMatrixRequest(accessToken)
-        ]);
+      const [
+        usersData,
+        onlineUsersData,
+        invitesData,
+        productivityData,
+        rolePermissionsData
+      ] = await Promise.all([
+        getUsersRequest(accessToken),
+        getOnlineUsersRequest(accessToken),
+        getUserInvitesRequest(accessToken),
+        getUserProductivityRequest({
+          accessToken,
+          days: 14,
+          limit: 20
+        }),
+        getUserRolePermissionsMatrixRequest(accessToken)
+      ]);
 
       return normalizeUsersPayload({
         users: usersData,
         onlineUsers: onlineUsersData,
         invites: invitesData,
+        productivity: productivityData,
         rolePermissions: rolePermissionsData
       });
     }
@@ -88,6 +104,14 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
   const users = usersPayload.users;
   const onlineUsers = usersPayload.onlineUsers;
   const invites = usersPayload.invites;
+  const productivity = usersPayload.productivity || {
+    days: 7,
+    summary: {},
+    rows: []
+  };
+  const productivityRows = Array.isArray(productivity?.rows)
+    ? productivity.rows
+    : [];
   const rolePermissions = usersPayload.rolePermissions;
   const permissionCatalog = Array.isArray(rolePermissions?.catalog)
     ? rolePermissions.catalog
@@ -124,6 +148,15 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
     () => invites.filter((invite) => invite.status === 'ACTIVE').length,
     [invites]
   );
+
+  const averageAccuracyPct = useMemo(() => {
+    if (!productivityRows.length) return 0;
+    const total = productivityRows.reduce(
+      (sum, row) => sum + Number(row.stocktakeAccuracyRatePct || 0),
+      0
+    );
+    return Number((total / productivityRows.length).toFixed(2));
+  }, [productivityRows]);
 
   const updateUserStatusMutation = useMutation({
     mutationFn: ({ userId, isActive }) =>
@@ -502,9 +535,63 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
           <p className="metric-label">Active invites</p>
           <p className="metric-value">{activeInviteCount}</p>
         </article>
+        <article className="metric-card">
+          <p className="metric-label">Productivity rows</p>
+          <p className="metric-value">{productivityRows.length}</p>
+        </article>
+        <article className="metric-card">
+          <p className="metric-label">Avg count accuracy</p>
+          <p className="metric-value">{averageAccuracyPct}%</p>
+        </article>
       </div>
 
       {displayError ? <p className="form-error">{displayError}</p> : null}
+
+      <article className="data-card">
+        <h3>
+          Employee productivity ({Number(productivity?.days || 14)} day window)
+        </h3>
+        {productivityRows.length ? (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Activity score</th>
+                  <th>Movements</th>
+                  <th>Stocktake lines</th>
+                  <th>Approved sessions</th>
+                  <th>PO received</th>
+                  <th>Accuracy %</th>
+                  <th>Errors</th>
+                </tr>
+              </thead>
+              <tbody>
+                {productivityRows.map((row) => (
+                  <tr key={String(row.userId || row.email)}>
+                    <td>{row.email || '-'}</td>
+                    <td>{row.role || '-'}</td>
+                    <td>{Number(row.activityScore || 0).toFixed(2)}</td>
+                    <td>{Number(row.movementCount || 0)}</td>
+                    <td>{Number(row.stocktakeLinesCounted || 0)}</td>
+                    <td>{Number(row.stocktakeSessionsApproved || 0)}</td>
+                    <td>{Number(row.purchaseOrdersReceived || 0)}</td>
+                    <td>
+                      {Number(row.stocktakeAccuracyRatePct || 0).toFixed(2)}%
+                    </td>
+                    <td>{Number(row.errorCount || 0)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="muted">
+            No employee productivity activity in this period.
+          </p>
+        )}
+      </article>
 
       <article className="data-card">
         <h3>Organization users</h3>

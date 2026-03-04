@@ -4,7 +4,9 @@ import app from '../app.js';
 import User from '../models/User.js';
 import Organization from '../models/Organization.js';
 import EmployeeInvite from '../models/EmployeeInvite.js';
+import Product from '../models/Product.js';
 import RolePermissionPolicy from '../models/RolePermissionPolicy.js';
+import StockMovement from '../models/StockMovement.js';
 import { getTestDbUri } from './testDbUri.js';
 
 const originalAuthBypassValue = process.env.AUTH_TEST_BYPASS;
@@ -28,6 +30,8 @@ beforeAll(async () => {
 beforeEach(async () => {
   await Promise.all([
     EmployeeInvite.deleteMany({}),
+    StockMovement.deleteMany({}),
+    Product.deleteMany({}),
     RolePermissionPolicy.deleteMany({}),
     User.deleteMany({}),
     Organization.deleteMany({})
@@ -249,5 +253,59 @@ describe('user management api', () => {
     expect(matrixPatchResponse.body?.data?.matrix?.manager).toEqual(
       expect.arrayContaining(['dashboard:view', 'products:view'])
     );
+  });
+
+  it('returns employee productivity analytics for organization users', async () => {
+    const adminEmail = 'productivity-admin@example.com';
+    const adminPassword = 'Password123!';
+
+    const registerResponse = await request(app).post('/auth/register').send({
+      email: adminEmail,
+      password: adminPassword,
+      confirmPassword: adminPassword,
+      organizationName: 'Productivity Org'
+    });
+    expect(registerResponse.status).toBe(201);
+
+    const organizationId = registerResponse.body?.data?.organization?._id;
+    const accessToken = registerResponse.body?.data?.accessToken;
+
+    const staff = await User.create({
+      email: 'productivity-staff@example.com',
+      password: 'Password123!',
+      role: 'staff',
+      organization: organizationId,
+      isVerified: true
+    });
+
+    const product = await Product.create({
+      organization: organizationId,
+      name: 'Productivity Widget',
+      sku: `PROD-${Date.now()}`,
+      price: 12,
+      stock: 0
+    });
+
+    await StockMovement.create({
+      organization: organizationId,
+      movementType: 'ADJUSTMENT',
+      product: product._id,
+      quantity: 5,
+      referenceType: 'MANUAL',
+      movedBy: staff._id,
+      movedAt: new Date()
+    });
+
+    const productivityResponse = await request(app)
+      .get('/api/users/productivity?days=14&limit=10')
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    expect(productivityResponse.status).toBe(200);
+    expect(Array.isArray(productivityResponse.body?.data?.rows)).toBe(true);
+    expect(
+      productivityResponse.body?.data?.rows.some(
+        (row) => row.email === 'productivity-staff@example.com'
+      )
+    ).toBe(true);
   });
 });

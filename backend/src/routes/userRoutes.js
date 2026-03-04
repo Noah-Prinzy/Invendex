@@ -7,6 +7,7 @@ import { auditMiddleware } from '../middlewares/auditMiddleware.js';
 import { PERMISSIONS } from '../authorization/permissions.js';
 import {
   listOrganizationUsers,
+  getOrganizationEmployeeProductivity,
   updateOrganizationUserStatus,
   updateOrganizationUserRole,
   listOrganizationOnlineUsers,
@@ -52,6 +53,14 @@ router.get(
     resource: 'USER'
   }),
   listOrganizationOnlineUsers
+);
+router.get(
+  '/productivity',
+  auditMiddleware({
+    action: 'LIST_ORGANIZATION_EMPLOYEE_PRODUCTIVITY',
+    resource: 'USER'
+  }),
+  getOrganizationEmployeeProductivity
 );
 router.get(
   '/permissions/matrix',

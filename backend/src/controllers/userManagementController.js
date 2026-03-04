@@ -13,6 +13,7 @@ import {
   getRolePermissionMatrixForOrganization,
   updateRolePermissionsForOrganization
 } from '../authorization/permissionPolicyService.js';
+import { getEmployeeProductivitySummary } from '../services/userProductivityService.js';
 import {
   getOnlineUsersByOrganization,
   isRealtimeEnabled
@@ -280,6 +281,24 @@ export const listOrganizationOnlineUsers = async (req, res, next) => {
   }
 };
 
+export const getOrganizationEmployeeProductivity = async (req, res, next) => {
+  try {
+    const data = await getEmployeeProductivitySummary({
+      organizationId: req.organizationId,
+      days: req.query.days || 7,
+      limit: req.query.limit || 25
+    });
+
+    return successResponse(
+      res,
+      data,
+      'Employee productivity analytics fetched'
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const createOrganizationInvite = async (req, res, next) => {
   try {
     const normalizedEmail = normalizeEmailInput(req.body?.email);
@@ -459,6 +478,7 @@ export default {
   updateOrganizationUserStatus,
   updateOrganizationUserRole,
   listOrganizationOnlineUsers,
+  getOrganizationEmployeeProductivity,
   getOrganizationRolePermissionMatrix,
   updateOrganizationRolePermissionMatrix,
   createOrganizationInvite,
