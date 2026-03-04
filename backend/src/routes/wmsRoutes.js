@@ -4,6 +4,8 @@ import {
   completePickWorkflowTicket,
   createBin,
   createPickWorkflowTicket,
+  getBinInventory,
+  getBinMovements,
   getBins,
   getWarehouseTransferLedger,
   getMovementLedger,
@@ -22,6 +24,8 @@ import validateRequest from '../middlewares/validateRequest.js';
 import { PERMISSIONS } from '../authorization/permissions.js';
 import {
   allocateBinStockValidator,
+  binInventoryQueryValidator,
+  binMovementQueryValidator,
   createBinValidator,
   createPickTicketValidator,
   listBinsQueryValidator,
@@ -54,6 +58,18 @@ router.post(
   createBin
 );
 router.get('/bins', listBinsQueryValidator, validateRequest, getBins);
+router.get(
+  '/bins/:binId/inventory',
+  binInventoryQueryValidator,
+  validateRequest,
+  getBinInventory
+);
+router.get(
+  '/bins/:binId/movements',
+  binMovementQueryValidator,
+  validateRequest,
+  getBinMovements
+);
 router.patch(
   '/bins/:binId/rules',
   wmsMutationLimiter,

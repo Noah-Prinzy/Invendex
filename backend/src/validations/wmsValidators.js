@@ -170,6 +170,58 @@ export const listBinsQueryValidator = [
     .toBoolean()
 ];
 
+export const binInventoryQueryValidator = [
+  param('binId')
+    .isMongoId()
+    .withMessage('binId must be a valid ID')
+    .bail()
+    .custom(async (binId, { req }) => {
+      const organizationId = ensureOrganizationContext(req);
+      const exists = await WarehouseBin.exists({
+        _id: binId,
+        organization: organizationId
+      });
+      if (!exists) {
+        throw new Error('Bin not found');
+      }
+      return true;
+    }),
+  optionalWarehouseQueryValidator('warehouseId'),
+  query('limit')
+    .optional({ values: 'falsy' })
+    .isInt({ min: 1, max: 1000 })
+    .withMessage('limit must be an integer between 1 and 1000')
+    .toInt()
+];
+
+export const binMovementQueryValidator = [
+  param('binId')
+    .isMongoId()
+    .withMessage('binId must be a valid ID')
+    .bail()
+    .custom(async (binId, { req }) => {
+      const organizationId = ensureOrganizationContext(req);
+      const exists = await WarehouseBin.exists({
+        _id: binId,
+        organization: organizationId
+      });
+      if (!exists) {
+        throw new Error('Bin not found');
+      }
+      return true;
+    }),
+  optionalWarehouseQueryValidator('warehouseId'),
+  query('type')
+    .optional({ values: 'falsy' })
+    .isIn(STOCK_MOVEMENT_TYPES)
+    .withMessage(`type must be one of: ${STOCK_MOVEMENT_TYPES.join(', ')}`),
+  query('limit')
+    .optional({ values: 'falsy' })
+    .isInt({ min: 1, max: 1000 })
+    .withMessage('limit must be an integer between 1 and 1000')
+    .toInt()
+];
+
 export const updateBinRulesValidator = [
   param('binId')
     .isMongoId()

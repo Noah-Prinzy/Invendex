@@ -4,6 +4,8 @@ import {
   completePickTicket,
   createPickTicket,
   createWarehouseBin,
+  getBinInventoryContents,
+  getBinMovementHistory,
   getReplenishmentRecommendations,
   listWarehouseTransfers,
   listStockMovements,
@@ -58,6 +60,37 @@ export const getBins = async (req, res, next) => {
     });
 
     return successResponse(res, bins, 'Warehouse bins retrieved');
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getBinInventory = async (req, res, next) => {
+  try {
+    const data = await getBinInventoryContents({
+      organizationId: req.organizationId,
+      binId: req.params.binId,
+      warehouseId: req.query.warehouseId || null,
+      limit: req.query.limit || 200
+    });
+
+    return successResponse(res, data, 'Bin inventory retrieved');
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getBinMovements = async (req, res, next) => {
+  try {
+    const data = await getBinMovementHistory({
+      organizationId: req.organizationId,
+      binId: req.params.binId,
+      warehouseId: req.query.warehouseId || null,
+      movementType: req.query.type || null,
+      limit: req.query.limit || 200
+    });
+
+    return successResponse(res, data, 'Bin movements retrieved');
   } catch (err) {
     next(err);
   }

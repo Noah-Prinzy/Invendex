@@ -504,6 +504,207 @@ export const getDeletedProductsRequest = (accessToken) =>
     accessToken
   }).then(readData);
 
+export const getProductsHealthScoreRequest = (accessToken) =>
+  request({
+    method: 'GET',
+    path: API_ENDPOINTS.PRODUCTS_HEALTH_SCORE,
+    accessToken
+  }).then(readData);
+
+export const getDashboardTopSellingItemsRequest = ({
+  accessToken,
+  days = 30,
+  limit = 10
+}) => {
+  const query = new URLSearchParams();
+  query.set('days', String(days));
+  query.set('limit', String(limit));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.DASHBOARD_TOP_SELLING_ITEMS}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const getDashboardTurnoverSkusRequest = ({
+  accessToken,
+  days = 30,
+  limit = 20
+}) => {
+  const query = new URLSearchParams();
+  query.set('days', String(days));
+  query.set('limit', String(limit));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.DASHBOARD_TURNOVER_SKUS}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const getDashboardSlowMovingSkusRequest = ({
+  accessToken,
+  days = 60,
+  limit = 20
+}) => {
+  const query = new URLSearchParams();
+  query.set('days', String(days));
+  query.set('limit', String(limit));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.DASHBOARD_SLOW_MOVING_SKUS}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const getDashboardStockAgingBucketsRequest = (accessToken) =>
+  request({
+    method: 'GET',
+    path: API_ENDPOINTS.DASHBOARD_STOCK_AGING_BUCKETS,
+    accessToken
+  }).then(readData);
+
+export const getDashboardSupplierRankingRequest = ({
+  accessToken,
+  days = 180
+}) => {
+  const query = new URLSearchParams();
+  query.set('days', String(days));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.DASHBOARD_SUPPLIER_RANKING}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const getDashboardDeadStockRequest = ({
+  accessToken,
+  days = 90,
+  warehouseId = null,
+  limit = 100
+}) => {
+  const query = new URLSearchParams();
+  query.set('days', String(days));
+  query.set('limit', String(limit));
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.DASHBOARD_DEAD_STOCK}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const getDashboardInventoryAdvisorRequest = ({
+  accessToken,
+  days = 30,
+  warehouseId = null,
+  limit = 25
+}) => {
+  const query = new URLSearchParams();
+  query.set('days', String(days));
+  query.set('limit', String(limit));
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.DASHBOARD_INVENTORY_ADVISOR}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const getDashboardDeadStockRescueRequest = ({
+  accessToken,
+  days = 90,
+  warehouseId = null,
+  limit = 50
+}) => {
+  const query = new URLSearchParams();
+  query.set('days', String(days));
+  query.set('limit', String(limit));
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.DASHBOARD_DEAD_STOCK_RESCUE}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const getDashboardDigitalTwinRequest = ({
+  accessToken,
+  warehouseId = null,
+  zoneLimit = 12,
+  binLimitPerZone = 120
+}) => {
+  const query = new URLSearchParams();
+  query.set('zoneLimit', String(zoneLimit));
+  query.set('binLimitPerZone', String(binLimitPerZone));
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.DASHBOARD_DIGITAL_TWIN}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const getAiDemandAnomaliesRequest = ({
+  accessToken,
+  productId,
+  days = 180,
+  zThreshold = 2.5,
+  minDemand = 1
+}) => {
+  const normalizedProductId = String(productId || '').trim();
+  if (!normalizedProductId) {
+    return Promise.resolve({
+      productId: null,
+      anomalyCount: 0,
+      anomalies: [],
+      status: 'missing_product'
+    });
+  }
+
+  const query = new URLSearchParams();
+  query.set('days', String(days));
+  query.set('zThreshold', String(zThreshold));
+  query.set('minDemand', String(minDemand));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.AI_ANOMALIES}/${normalizedProductId}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const getAiSupplierReliabilityRequest = ({
+  accessToken,
+  days = 180
+}) => {
+  const query = new URLSearchParams();
+  query.set('days', String(days));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.AI_SUPPLIER_RELIABILITY}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
 export const createProductRequest = ({
   accessToken,
   name,
@@ -608,6 +809,26 @@ export const permanentlyDeleteProductRequest = ({ accessToken, productId }) =>
     path: `${API_ENDPOINTS.PRODUCTS}/${productId}/permanent`,
     accessToken
   }).then(readData);
+
+export const downloadProductLabelRequest = ({
+  accessToken,
+  productId,
+  type = 'auto',
+  scale = 3,
+  includeText = true
+}) => {
+  const query = new URLSearchParams();
+  if (String(type || '').trim()) query.set('type', String(type || '').trim());
+  if (Number.isFinite(Number(scale))) query.set('scale', String(scale));
+  query.set('includeText', includeText === false ? 'false' : 'true');
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return requestBinary({
+    method: 'GET',
+    path: `${API_ENDPOINTS.PRODUCTS_LABEL}/${productId}/label${suffix}`,
+    accessToken
+  });
+};
 
 export const getPurchaseOrdersRequest = (accessToken) =>
   request({
@@ -899,6 +1120,23 @@ export const getOnlineUsersRequest = (accessToken) =>
     accessToken
   }).then(readData);
 
+export const getUserProductivityRequest = ({
+  accessToken,
+  days = 7,
+  limit = 25
+}) => {
+  const query = new URLSearchParams();
+  query.set('days', String(days));
+  query.set('limit', String(limit));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.USERS_PRODUCTIVITY}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
 export const getUserInvitesRequest = (accessToken) =>
   request({
     method: 'GET',
@@ -1077,6 +1315,34 @@ export const approveInventoryStocktakeSessionRequest = ({
     accessToken
   }).then(readData);
 
+export const scanInventoryStocktakeImageRequest = ({
+  accessToken,
+  sessionId,
+  imageDataUrl = '',
+  imageBase64 = '',
+  maxDetections = 50,
+  confidenceThreshold = 0.35
+}) =>
+  request({
+    method: 'POST',
+    path: `${API_ENDPOINTS.INVENTORY_STOCKTAKES}/${sessionId}/vision-scan`,
+    accessToken,
+    body: {
+      ...(String(imageDataUrl || '').trim()
+        ? { imageDataUrl: String(imageDataUrl || '').trim() }
+        : {}),
+      ...(String(imageBase64 || '').trim()
+        ? { imageBase64: String(imageBase64 || '').trim() }
+        : {}),
+      ...(Number.isFinite(Number(maxDetections))
+        ? { maxDetections: Number(maxDetections) }
+        : {}),
+      ...(Number.isFinite(Number(confidenceThreshold))
+        ? { confidenceThreshold: Number(confidenceThreshold) }
+        : {})
+    }
+  }).then(readData);
+
 export const receivePurchaseOrderRequest = ({
   accessToken,
   purchaseOrderId,
@@ -1120,6 +1386,74 @@ export const getWmsMovementLedgerRequest = ({
   return request({
     method: 'GET',
     path: `${API_ENDPOINTS.WMS_MOVEMENTS}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const getWmsBinInventoryRequest = ({
+  accessToken,
+  binId,
+  warehouseId = null,
+  limit = 200
+}) => {
+  const normalizedBinId = String(binId || '').trim();
+  if (!normalizedBinId) {
+    return Promise.resolve({
+      bin: null,
+      totals: {
+        lines: 0,
+        quantityOnHand: 0,
+        quantityReserved: 0,
+        quantityAvailable: 0,
+        inventoryValue: 0
+      },
+      items: []
+    });
+  }
+
+  const query = new URLSearchParams();
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  query.set('limit', String(limit));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.WMS_BINS}/${normalizedBinId}/inventory${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const getWmsBinMovementsRequest = ({
+  accessToken,
+  binId,
+  warehouseId = null,
+  type = null,
+  limit = 200
+}) => {
+  const normalizedBinId = String(binId || '').trim();
+  if (!normalizedBinId) {
+    return Promise.resolve({
+      bin: null,
+      totals: {
+        count: 0,
+        quantity: 0,
+        inboundQuantity: 0,
+        outboundQuantity: 0,
+        byType: {}
+      },
+      movements: []
+    });
+  }
+
+  const query = new URLSearchParams();
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  if (String(type || '').trim()) query.set('type', String(type || '').trim());
+  query.set('limit', String(limit));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.WMS_BINS}/${normalizedBinId}/movements${suffix}`,
     accessToken
   }).then(readData);
 };
@@ -1462,6 +1796,7 @@ export default {
   getFinanceGrossMarginRequest,
   getFinanceDeadStockRequest,
   getOnlineUsersRequest,
+  getUserProductivityRequest,
   getUserInvitesRequest,
   createUserInviteRequest,
   revokeUserInviteRequest,
@@ -1470,6 +1805,18 @@ export default {
   getPurchaseOrdersRequest,
   getProductsRequest,
   getDeletedProductsRequest,
+  getProductsHealthScoreRequest,
+  getDashboardTopSellingItemsRequest,
+  getDashboardTurnoverSkusRequest,
+  getDashboardSlowMovingSkusRequest,
+  getDashboardStockAgingBucketsRequest,
+  getDashboardSupplierRankingRequest,
+  getDashboardDeadStockRequest,
+  getDashboardInventoryAdvisorRequest,
+  getDashboardDeadStockRescueRequest,
+  getDashboardDigitalTwinRequest,
+  getAiDemandAnomaliesRequest,
+  getAiSupplierReliabilityRequest,
   createProductRequest,
   createProductsBulkImportRequest,
   createProductsBulkImportJobRequest,
@@ -1477,6 +1824,7 @@ export default {
   softDeleteProductRequest,
   restoreDeletedProductRequest,
   permanentlyDeleteProductRequest,
+  downloadProductLabelRequest,
   getProductsLowStockSummaryRequest,
   adjustProductStockRequest,
   listInventoryStocktakesRequest,
@@ -1484,9 +1832,12 @@ export default {
   createInventoryStocktakeSessionRequest,
   submitInventoryStocktakeCountsRequest,
   approveInventoryStocktakeSessionRequest,
+  scanInventoryStocktakeImageRequest,
   receivePurchaseOrderRequest,
   getSuppliersRequest,
   getSupplierRankingsRequest,
+  getWmsBinInventoryRequest,
+  getWmsBinMovementsRequest,
   getWmsMovementLedgerRequest,
   getAuditLogsRequest,
   getReportPurchaseOrderStatusSummaryRequest,

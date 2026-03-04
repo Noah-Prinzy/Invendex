@@ -5,9 +5,26 @@ import { useLedgerlyRealtime } from '../hooks/realtime/useLedgerlyRealtime.js';
 import { useOfflineSync } from '../hooks/offline/useOfflineSync.js';
 import { renderWithProviders } from '../test/renderWithProviders.js';
 import {
+  getWmsBinMovementsRequest,
+  getWmsBinInventoryRequest,
+  getAiDemandAnomaliesRequest,
+  getAiSupplierReliabilityRequest,
+  getDashboardDeadStockRequest,
+  getDashboardDeadStockRescueRequest,
+  getDashboardDigitalTwinRequest,
+  getDashboardInventoryAdvisorRequest,
+  getDashboardSlowMovingSkusRequest,
+  getDashboardStockAgingBucketsRequest,
+  getDashboardSupplierRankingRequest,
+  getDashboardTopSellingItemsRequest,
+  getDashboardTurnoverSkusRequest,
+  getFinanceNotificationSettingsRequest,
   getNotificationsRequest,
+  getFinanceTaxConfigRequest,
   markNotificationReadRequest,
   markAllNotificationsReadRequest,
+  patchFinanceNotificationSettingsRequest,
+  patchFinanceTaxConfigRequest,
   seedOnboardingSampleDataRequest,
   getFinanceRealtimeStatsRequest,
   getObservabilityPingRequest,
@@ -31,9 +48,26 @@ jest.mock('../hooks/offline/useOfflineSync.js', () => ({
 }));
 
 jest.mock('../api/client.js', () => ({
+  getWmsBinMovementsRequest: jest.fn(),
+  getWmsBinInventoryRequest: jest.fn(),
+  getAiDemandAnomaliesRequest: jest.fn(),
+  getAiSupplierReliabilityRequest: jest.fn(),
+  getDashboardDeadStockRequest: jest.fn(),
+  getDashboardDeadStockRescueRequest: jest.fn(),
+  getDashboardDigitalTwinRequest: jest.fn(),
+  getDashboardInventoryAdvisorRequest: jest.fn(),
+  getDashboardSlowMovingSkusRequest: jest.fn(),
+  getDashboardStockAgingBucketsRequest: jest.fn(),
+  getDashboardSupplierRankingRequest: jest.fn(),
+  getDashboardTopSellingItemsRequest: jest.fn(),
+  getDashboardTurnoverSkusRequest: jest.fn(),
+  getFinanceNotificationSettingsRequest: jest.fn(),
   getNotificationsRequest: jest.fn(),
+  getFinanceTaxConfigRequest: jest.fn(),
   markNotificationReadRequest: jest.fn(),
   markAllNotificationsReadRequest: jest.fn(),
+  patchFinanceNotificationSettingsRequest: jest.fn(),
+  patchFinanceTaxConfigRequest: jest.fn(),
   seedOnboardingSampleDataRequest: jest.fn(),
   getPurchaseOrdersRequest: jest.fn(),
   getSettingsRequest: jest.fn(),
@@ -102,6 +136,81 @@ describe('App integration', () => {
       organizationName: 'Test Org',
       organizationCode: 'TEST'
     });
+    getDashboardTopSellingItemsRequest.mockResolvedValue([]);
+    getDashboardTurnoverSkusRequest.mockResolvedValue([]);
+    getDashboardSlowMovingSkusRequest.mockResolvedValue([]);
+    getDashboardStockAgingBucketsRequest.mockResolvedValue({
+      summary: {}
+    });
+    getDashboardSupplierRankingRequest.mockResolvedValue([]);
+    getDashboardDeadStockRequest.mockResolvedValue({
+      items: [],
+      count: 0,
+      totalValue: 0,
+      thresholdDays: 90
+    });
+    getDashboardInventoryAdvisorRequest.mockResolvedValue({
+      totals: {
+        recommendations: 0
+      },
+      recommendations: []
+    });
+    getDashboardDeadStockRescueRequest.mockResolvedValue({
+      totals: {
+        items: 0
+      },
+      actions: []
+    });
+    getWmsBinInventoryRequest.mockResolvedValue({
+      bin: null,
+      totals: {
+        lines: 0,
+        quantityOnHand: 0,
+        quantityReserved: 0,
+        quantityAvailable: 0,
+        inventoryValue: 0
+      },
+      items: []
+    });
+    getWmsBinMovementsRequest.mockResolvedValue({
+      bin: null,
+      totals: {
+        count: 0,
+        quantity: 0,
+        inboundQuantity: 0,
+        outboundQuantity: 0,
+        byType: {}
+      },
+      movements: []
+    });
+    getDashboardDigitalTwinRequest.mockResolvedValue({
+      totals: {
+        warehouses: 0,
+        zones: 0,
+        bins: 0
+      },
+      warehouses: []
+    });
+    getAiDemandAnomaliesRequest.mockResolvedValue({
+      productId: null,
+      anomalyCount: 0,
+      anomalies: [],
+      status: 'normal'
+    });
+    getAiSupplierReliabilityRequest.mockResolvedValue([]);
+    getFinanceTaxConfigRequest.mockResolvedValue({
+      taxInclusivePricing: false,
+      importTaxEnabled: false,
+      importTaxRate: 0
+    });
+    getFinanceNotificationSettingsRequest.mockResolvedValue({
+      smsLowStockEnabled: false,
+      smsLowStockRecipients: [],
+      whatsappLowStockEnabled: false,
+      whatsappLowStockRecipients: []
+    });
+    patchFinanceTaxConfigRequest.mockResolvedValue({});
+    patchFinanceNotificationSettingsRequest.mockResolvedValue({});
     getObservabilityPingRequest.mockResolvedValue({
       trace: { requestId: 'req-1', clientTraceId: 'trace-1' },
       realtime: { enabled: true },

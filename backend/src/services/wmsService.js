@@ -293,6 +293,245 @@ export const listWarehouseBins = async ({
     .lean();
 };
 
+export const getBinInventoryContents = async ({
+  organizationId,
+  binId,
+  warehouseId = null,
+  limit = 200
+}) => {
+  const parsedLimit = Math.min(Math.max(Number(limit) || 200, 1), 1000);
+
+  const binQuery = {
+    _id: binId,
+    organization: organizationId,
+    isActive: true
+  };
+  if (warehouseId) {
+    binQuery.warehouse = warehouseId;
+  }
+
+  const bin = await WarehouseBin.findOne(binQuery)
+    .populate('warehouse', 'name code region')
+    .lean();
+
+  if (!bin) {
+    throw new AppError('Bin not found in your organization', 404);
+  }
+
+  const rows = await BinInventory.find({
+    organization: organizationId,
+    warehouse: bin.warehouse?._id || bin.warehouse,
+    bin: bin._id,
+    quantityOnHand: { $gt: 0 }
+  })
+    .sort({ quantityOnHand: -1, updatedAt: -1 })
+    .limit(parsedLimit)
+    .populate('product', 'name sku barcode category price')
+    .lean();
+
+  const items = rows.map((row) => {
+    const quantityOnHand = Number(row.quantityOnHand || 0);
+    const quantityReserved = Number(row.quantityReserved || 0);
+    const quantityAvailable = Math.max(quantityOnHand - quantityReserved, 0);
+
+    return {
+      inventoryId: String(row._id),
+      productId: row.product?._id ? String(row.product._id) : null,
+      sku: row.product?.sku || null,
+      productName: row.product?.name || null,
+      barcode: row.product?.barcode || null,
+      category: row.product?.category || null,
+      unitPrice: Number(row.product?.price || 0),
+      quantityOnHand,
+      quantityReserved,
+      quantityAvailable,
+      updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null
+    };
+  });
+
+  const totals = items.reduce(
+    (acc, row) => {
+      acc.lines += 1;
+      acc.quantityOnHand += Number(row.quantityOnHand || 0);
+      acc.quantityReserved += Number(row.quantityReserved || 0);
+      acc.quantityAvailable += Number(row.quantityAvailable || 0);
+      acc.inventoryValue +=
+        Number(row.quantityOnHand || 0) * Number(row.unitPrice || 0);
+      return acc;
+    },
+    {
+      lines: 0,
+      quantityOnHand: 0,
+      quantityReserved: 0,
+      quantityAvailable: 0,
+      inventoryValue: 0
+    }
+  );
+
+  return {
+    generatedAt: new Date().toISOString(),
+    bin: {
+      binId: String(bin._id),
+      code: bin.code || null,
+      zone: bin.zone || null,
+      aisle: bin.aisle || null,
+      rack: bin.rack || null,
+      shelf: bin.shelf || null,
+      binType: bin.binType || null,
+      maxCapacityUnits:
+        bin.maxCapacityUnits == null ? null : Number(bin.maxCapacityUnits),
+      warehouseId: bin.warehouse?._id
+        ? String(bin.warehouse._id)
+        : String(bin.warehouse || ''),
+      warehouseCode: bin.warehouse?.code || null,
+      warehouseName: bin.warehouse?.name || null,
+      warehouseRegion: bin.warehouse?.region || null
+    },
+    totals: {
+      lines: Number(totals.lines || 0),
+      quantityOnHand: Number(totals.quantityOnHand.toFixed(2)),
+      quantityReserved: Number(totals.quantityReserved.toFixed(2)),
+      quantityAvailable: Number(totals.quantityAvailable.toFixed(2)),
+      inventoryValue: Number(totals.inventoryValue.toFixed(2))
+    },
+    items
+  };
+};
+
+export const getBinMovementHistory = async ({
+  organizationId,
+  binId,
+  warehouseId = null,
+  movementType = null,
+  limit = 200
+}) => {
+  const parsedLimit = Math.min(Math.max(Number(limit) || 200, 1), 1000);
+
+  const binQuery = {
+    _id: binId,
+    organization: organizationId,
+    isActive: true
+  };
+  if (warehouseId) {
+    binQuery.warehouse = warehouseId;
+  }
+
+  const bin = await WarehouseBin.findOne(binQuery)
+    .populate('warehouse', 'name code region')
+    .lean();
+
+  if (!bin) {
+    throw new AppError('Bin not found in your organization', 404);
+  }
+
+  const movementQuery = {
+    organization: organizationId,
+    $or: [{ binFrom: bin._id }, { binTo: bin._id }]
+  };
+
+  if (movementType) {
+    movementQuery.movementType = movementType;
+  }
+
+  const rows = await StockMovement.find(movementQuery)
+    .sort({ movedAt: -1 })
+    .limit(parsedLimit)
+    .populate('product', 'name sku')
+    .populate('warehouseFrom warehouseTo', 'name code')
+    .populate('binFrom binTo', 'code zone aisle rack shelf')
+    .populate('movedBy', 'email role')
+    .lean();
+
+  const binIdString = String(bin._id);
+  const movements = rows.map((row) => {
+    const fromBinId = row.binFrom?._id ? String(row.binFrom._id) : null;
+    const toBinId = row.binTo?._id ? String(row.binTo._id) : null;
+
+    let direction = 'INTERNAL';
+    if (toBinId === binIdString && fromBinId !== binIdString) {
+      direction = 'IN';
+    } else if (fromBinId === binIdString && toBinId !== binIdString) {
+      direction = 'OUT';
+    }
+
+    return {
+      movementId: String(row._id),
+      movedAt: row.movedAt ? new Date(row.movedAt).toISOString() : null,
+      movementType: row.movementType || null,
+      direction,
+      quantity: Number(row.quantity || 0),
+      productId: row.product?._id ? String(row.product._id) : null,
+      sku: row.product?.sku || null,
+      productName: row.product?.name || null,
+      referenceType: row.referenceType || null,
+      referenceId: row.referenceId ? String(row.referenceId) : null,
+      reason: row.reason || null,
+      warehouseFromId: row.warehouseFrom?._id
+        ? String(row.warehouseFrom._id)
+        : null,
+      warehouseFromCode: row.warehouseFrom?.code || null,
+      warehouseToId: row.warehouseTo?._id ? String(row.warehouseTo._id) : null,
+      warehouseToCode: row.warehouseTo?.code || null,
+      binFromId: fromBinId,
+      binFromCode: row.binFrom?.code || null,
+      binToId: toBinId,
+      binToCode: row.binTo?.code || null,
+      movedById: row.movedBy?._id ? String(row.movedBy._id) : null,
+      movedByEmail: row.movedBy?.email || null
+    };
+  });
+
+  const totals = movements.reduce(
+    (acc, row) => {
+      acc.count += 1;
+      acc.quantity += Number(row.quantity || 0);
+      if (row.direction === 'IN') {
+        acc.inboundQuantity += Number(row.quantity || 0);
+      } else if (row.direction === 'OUT') {
+        acc.outboundQuantity += Number(row.quantity || 0);
+      }
+
+      const movementKey = String(row.movementType || 'UNKNOWN');
+      acc.byType[movementKey] = (acc.byType[movementKey] || 0) + 1;
+      return acc;
+    },
+    {
+      count: 0,
+      quantity: 0,
+      inboundQuantity: 0,
+      outboundQuantity: 0,
+      byType: {}
+    }
+  );
+
+  return {
+    generatedAt: new Date().toISOString(),
+    bin: {
+      binId: String(bin._id),
+      code: bin.code || null,
+      zone: bin.zone || null,
+      aisle: bin.aisle || null,
+      rack: bin.rack || null,
+      shelf: bin.shelf || null,
+      binType: bin.binType || null,
+      warehouseId: bin.warehouse?._id
+        ? String(bin.warehouse._id)
+        : String(bin.warehouse || ''),
+      warehouseCode: bin.warehouse?.code || null,
+      warehouseName: bin.warehouse?.name || null,
+      warehouseRegion: bin.warehouse?.region || null
+    },
+    totals: {
+      count: Number(totals.count || 0),
+      quantity: Number(totals.quantity.toFixed(2)),
+      inboundQuantity: Number(totals.inboundQuantity.toFixed(2)),
+      outboundQuantity: Number(totals.outboundQuantity.toFixed(2)),
+      byType: totals.byType
+    },
+    movements
+  };
+};
+
 export const allocateStockToBin = async ({
   organizationId,
   warehouseId,
@@ -1665,6 +1904,8 @@ export const getReplenishmentRecommendations = async ({
 export default {
   createWarehouseBin,
   listWarehouseBins,
+  getBinInventoryContents,
+  getBinMovementHistory,
   allocateStockToBin,
   transferStockBetweenBins,
   transferStockBetweenWarehouses,
