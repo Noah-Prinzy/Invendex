@@ -14,6 +14,7 @@
   overflow: hidden;
   box-shadow: 0 12px 24px rgba(13, 32, 62, 0.09);
   animation: rise-in 0.52s ease both;
+  isolation: isolate;
   transition:
     transform 0.2s ease,
     box-shadow 0.25s ease,
@@ -23,15 +24,24 @@
 .metric-card::before {
   content: '';
   position: absolute;
-  top: -22px;
-  right: -20px;
-  width: 86px;
-  height: 86px;
-  border-radius: 999px;
-  background: radial-gradient(
-    circle,
-    rgba(103, 183, 255, 0.28) 0%,
-    rgba(103, 183, 255, 0) 70%
+  top: -18px;
+  right: -16px;
+  width: 84px;
+  height: 84px;
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% 36%,
+    64% 36%,
+    64% 64%,
+    36% 64%,
+    36% 100%,
+    0 100%
+  );
+  background: linear-gradient(
+    145deg,
+    rgba(103, 183, 255, 0.24) 0%,
+    rgba(103, 183, 255, 0.05) 76%
   );
   pointer-events: none;
 }
@@ -119,10 +129,25 @@
   overflow: hidden;
   box-shadow: 0 12px 24px rgba(11, 27, 52, 0.09);
   animation: rise-in 0.62s ease both;
+  position: relative;
+  isolation: isolate;
   transition:
     transform 0.2s ease,
     border-color 0.22s ease,
     box-shadow 0.24s ease;
+}
+
+.event-card::before,
+.data-card::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(130, 174, 225, 0.26);
+  clip-path: polygon(0 0, 100% 0, 100% 42%, 42% 42%, 42% 100%, 0 100%);
+  pointer-events: none;
 }
 
 .event-card:hover,
@@ -160,6 +185,20 @@
   border-color: rgba(145, 185, 230, 0.46);
   background: linear-gradient(180deg, #ffffff 0%, #f5f9fd 100%);
   box-shadow: 0 14px 26px rgba(15, 38, 72, 0.08);
+  position: relative;
+  isolation: isolate;
+}
+
+.settings-card::before {
+  content: '';
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(130, 174, 225, 0.22);
+  clip-path: polygon(0 0, 100% 0, 100% 48%, 48% 48%, 48% 100%, 0 100%);
+  pointer-events: none;
 }
 
 .settings-grid {
@@ -232,7 +271,7 @@
 
 .settings-action-row {
   border: 1px solid var(--border-soft);
-  border-radius: 12px;
+  border-radius: 8px;
   background: #f5f8fc;
   padding: 0.7rem 0.78rem;
   display: flex;
@@ -256,7 +295,7 @@
 .settings-hub-card {
   width: 100%;
   border: 1px solid var(--border-soft);
-  border-radius: 12px;
+  border-radius: 8px;
   background: linear-gradient(180deg, #ffffff 0%, #f3f7fc 100%);
   padding: 0.72rem 0.78rem;
   text-align: left;
@@ -291,7 +330,7 @@
   display: inline-flex;
   align-items: center;
   border: 1px solid rgba(47, 132, 210, 0.34);
-  border-radius: 999px;
+  border-radius: 6px;
   background: rgba(47, 132, 210, 0.08);
   color: var(--accent-strong);
   font-size: 0.66rem;
@@ -311,7 +350,7 @@
 .theme-option-card {
   width: 100%;
   border: 1px solid var(--border-soft);
-  border-radius: 12px;
+  border-radius: 8px;
   background: #f6f9fd;
   padding: 0.64rem 0.7rem;
   text-align: left;
@@ -351,7 +390,7 @@
 
 .theme-option-badge {
   border: 1px solid rgba(47, 132, 210, 0.42);
-  border-radius: 999px;
+  border-radius: 6px;
   background: rgba(47, 132, 210, 0.1);
   color: var(--accent-strong);
   font-size: 0.68rem;
@@ -377,7 +416,7 @@
 .theme-swatch {
   width: 22px;
   height: 22px;
-  border-radius: 999px;
+  border-radius: 4px;
   border: 1px solid rgba(15, 33, 58, 0.18);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
@@ -570,7 +609,7 @@
 .scanner-card {
   width: min(520px, 100%);
   border: 1px solid var(--border-soft);
-  border-radius: 14px;
+  border-radius: 10px;
   background: linear-gradient(180deg, #ffffff 0%, #f2f7fd 100%);
   box-shadow: 0 22px 40px rgba(11, 27, 52, 0.25);
   padding: 0.9rem;
@@ -579,7 +618,7 @@
 .scanner-video {
   margin-top: 0.6rem;
   width: 100%;
-  border-radius: 12px;
+  border-radius: 8px;
   border: 1px solid var(--border-soft);
   background: #0e1a2f;
   min-height: 220px;
@@ -608,9 +647,23 @@
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--border-soft);
-  border-radius: 12px;
+  border-radius: 8px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
   background: #ffffff;
+  position: relative;
+  isolation: isolate;
+}
+
+.table-wrap::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(123, 168, 221, 0.24);
+  clip-path: polygon(0 0, 100% 0, 100% 46%, 46% 46%, 46% 100%, 0 100%);
+  pointer-events: none;
 }
 
 .data-table {
@@ -657,7 +710,7 @@
   justify-content: space-between;
   gap: 0.6rem;
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 0.56rem 0.66rem;
   background: #f4f8fd;
 }
@@ -689,6 +742,7 @@
 .pagination-controls {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.45rem;
 }
 
@@ -696,6 +750,17 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
+}
+
+.obs-actions .btn-primary,
+.obs-actions .btn-ghost,
+.pagination-controls .btn-primary,
+.pagination-controls .btn-ghost,
+.action-row .btn-primary,
+.action-row .btn-ghost,
+.notification-panel-actions .btn-primary,
+.notification-panel-actions .btn-ghost {
+  margin-top: 0;
 }
 
 .pagination-text {
@@ -714,7 +779,7 @@
 
 .event-item {
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
+  border-radius: 8px;
   background: #f4f8fd;
   padding: 0.54rem 0.62rem;
   display: flex;
@@ -755,7 +820,7 @@
   font-size: 0.82rem;
   color: var(--ink-muted);
   border: 1px dashed var(--border-soft);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 0.66rem 0.72rem;
   background: #f4f8fd;
 }
@@ -764,7 +829,7 @@
   text-transform: uppercase;
   font-size: 0.7rem;
   letter-spacing: 0.06em;
-  border-radius: 999px;
+  border-radius: 6px;
   border: 1px solid var(--border-soft);
   padding: 0.22rem 0.5rem;
   font-weight: 700;
@@ -791,7 +856,7 @@
 .event-card pre {
   margin: 0;
   padding: 0.74rem;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #112740;
   color: #e1edfe;
   font-family: var(--font-mono);
@@ -812,7 +877,7 @@
 
 .obs-item {
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
+  border-radius: 8px;
   background: #f4f8fd;
   padding: 0.52rem 0.62rem;
   transition:
@@ -853,7 +918,7 @@
 
 .account-kv-item {
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
+  border-radius: 8px;
   background: #f4f8fd;
   padding: 0.62rem 0.68rem;
   transition:
