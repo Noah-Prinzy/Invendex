@@ -538,7 +538,7 @@ const Account = ({
           </label>
         </div>
 
-        <div className="obs-actions">
+        <div className="obs-actions account-twofactor-actions">
           <button
             type="button"
             className="btn-ghost"
@@ -633,7 +633,7 @@ const Account = ({
           </label>
         </div>
 
-        <div className="obs-actions">
+        <div className="obs-actions account-compliance-actions">
           <button
             type="button"
             className="btn-ghost"
