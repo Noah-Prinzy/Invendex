@@ -3,6 +3,7 @@ import {
   getProducts,
   getDeletedProducts,
   getProductById,
+  downloadProductLabel,
   createProduct,
   createProductsBulk,
   updateProduct,
@@ -13,6 +14,7 @@ import {
   getLowStockProducts,
   getLowStockSummary,
   getInventoryHealthOverview,
+  getInventoryHealthScore,
   getReorderRecommendations,
   getProductStockHistory
 } from '../controllers/productController.js';
@@ -69,9 +71,21 @@ router.get(
 );
 
 router.get(
+  '/inventory/health-score',
+  requirePermission(PERMISSIONS.PRODUCTS_VIEW),
+  getInventoryHealthScore
+);
+
+router.get(
   '/inventory/reorder-recommendations',
   requirePermission(PERMISSIONS.PRODUCTS_VIEW),
   getReorderRecommendations
+);
+
+router.get(
+  '/:id/label',
+  requirePermission(PERMISSIONS.PRODUCTS_VIEW),
+  downloadProductLabel
 );
 
 router.get(

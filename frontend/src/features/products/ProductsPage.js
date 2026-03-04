@@ -5,8 +5,10 @@ import {
   createProductRequest,
   createProductsBulkImportRequest,
   createProductsBulkImportJobRequest,
+  downloadProductLabelRequest,
   getDeletedProductsRequest,
   getProductsBulkImportJobStatusRequest,
+  getProductsHealthScoreRequest,
   getProductsLowStockSummaryRequest,
   getProductsRequest,
   permanentlyDeleteProductRequest,
@@ -14,6 +16,7 @@ import {
   softDeleteProductRequest
 } from '../../api/client.js';
 import { createIdempotencyKey } from '../../api/idempotency.js';
+import { readCachedData, writeCachedData } from '../../offline/dataCache.js';
 import Modal from '../../ui/Modal.js';
 
 const ROLES_WITH_LOW_STOCK_ACCESS = new Set([
@@ -256,6 +259,18 @@ const downloadTextFile = ({ filename, content, mimeType }) => {
   URL.revokeObjectURL(url);
 };
 
+const downloadBlobFile = ({ blob, filename }) => {
+  if (!blob) return;
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = String(filename || 'download.bin');
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(objectUrl);
+};
+
 const readSavedProductViews = () => {
   if (typeof window === 'undefined') return [];
   try {
@@ -420,8 +435,20 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
     enabled: Boolean(accessToken),
     staleTime: PRODUCTS_QUERY_STALE_TIME_MS,
     queryFn: async () => {
-      const [productsData, lowStockData, deletedProductsData] =
-        await Promise.all([
+      const cacheKey = `products:list:${String(searchTerm || '')
+        .trim()
+        .toLowerCase()}:${String(skuFilter || '')
+        .trim()
+        .toLowerCase()}:${String(canReadLowStockSummary)}:${String(
+        canReviewDeletedProducts
+      )}`;
+      try {
+        const [
+          productsData,
+          lowStockData,
+          deletedProductsData,
+          healthScoreData
+        ] = await Promise.all([
           getProductsRequest(accessToken, {
             q: String(searchTerm || '').trim(),
             sku: String(skuFilter || '').trim()
@@ -431,16 +458,36 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
             : Promise.resolve([]),
           canReviewDeletedProducts
             ? getDeletedProductsRequest(accessToken)
-            : Promise.resolve([])
+            : Promise.resolve([]),
+          canReadLowStockSummary
+            ? getProductsHealthScoreRequest(accessToken)
+            : Promise.resolve(null)
         ]);
 
-      return {
-        products: Array.isArray(productsData) ? productsData : [],
-        lowStockSummary: Array.isArray(lowStockData) ? lowStockData : [],
-        deletedProducts: Array.isArray(deletedProductsData)
-          ? deletedProductsData
-          : []
-      };
+        const payload = {
+          products: Array.isArray(productsData) ? productsData : [],
+          lowStockSummary: Array.isArray(lowStockData) ? lowStockData : [],
+          deletedProducts: Array.isArray(deletedProductsData)
+            ? deletedProductsData
+            : [],
+          healthScore:
+            healthScoreData && typeof healthScoreData === 'object'
+              ? healthScoreData
+              : null
+        };
+        writeCachedData(cacheKey, payload);
+        return payload;
+      } catch (queryError) {
+        if (Number(queryError?.statusCode || 0) === 0) {
+          const cached = readCachedData(cacheKey, {
+            maxAgeMs: 60 * 60 * 1000
+          });
+          if (cached) {
+            return cached;
+          }
+        }
+        throw queryError;
+      }
     }
   });
 
@@ -872,6 +919,12 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
     () => (Array.isArray(data?.deletedProducts) ? data.deletedProducts : []),
     [data]
   );
+  const healthScore = useMemo(() => {
+    if (!data?.healthScore || typeof data.healthScore !== 'object') {
+      return null;
+    }
+    return data.healthScore;
+  }, [data]);
   const errorMessage = String(error?.message || '').trim();
   const canAdjustStock = Boolean(accessToken);
   const normalizedWarehouseId = String(warehouseId || '').trim();
@@ -1303,6 +1356,44 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
     await permanentDeleteProductMutation.mutateAsync(productId);
   };
 
+  const handleDownloadProductLabel = useCallback(
+    async (product) => {
+      const productId = resolveProductId(product);
+      if (!accessToken || !productId) return;
+
+      try {
+        const preferredType =
+          String(product?.barcodeType || '')
+            .trim()
+            .toUpperCase() === 'QR'
+            ? 'qr'
+            : 'auto';
+        const file = await downloadProductLabelRequest({
+          accessToken,
+          productId,
+          type: preferredType,
+          scale: 3,
+          includeText: true
+        });
+        const fallbackFileName = `product-label-${String(
+          product?.sku || productId
+        )
+          .trim()
+          .replace(/[^a-zA-Z0-9._-]/g, '-')}.png`;
+        downloadBlobFile({
+          blob: file?.blob,
+          filename: file?.fileName || fallbackFileName
+        });
+        setManagementNotice('Product label downloaded.');
+      } catch (error) {
+        setManagementNotice(
+          String(error?.message || 'Unable to download product label')
+        );
+      }
+    },
+    [accessToken]
+  );
+
   const stats = useMemo(() => {
     const total = products.length;
     const lowStockCount = lowStockSummary.length;
@@ -1444,6 +1535,17 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
         <article className="metric-card">
           <p className="metric-label">Average price</p>
           <p className="metric-value">{formatCurrency(stats.avgPrice)}</p>
+        </article>
+        <article className="metric-card">
+          <p className="metric-label">Inventory health score</p>
+          <p className="metric-value">
+            {healthScore
+              ? `${Number(healthScore.score || 0).toFixed(1)} / 100`
+              : '-'}
+          </p>
+          <p className="event-sub">
+            {healthScore?.band || 'No score available'}
+          </p>
         </article>
         {canReviewDeletedProducts ? (
           <article className="metric-card">
@@ -1764,7 +1866,7 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
           <p className="muted">
             Upload a CSV file, map the columns, then import products in one run.
           </p>
-          <div className="pagination-row compact">
+          <div className="pagination-row compact bulk-template-row">
             <p className="muted">
               Use the template to get the expected column headers.
             </p>
@@ -2102,14 +2204,25 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
                       <td>{formatCurrency(product.price)}</td>
                       {canManageProducts ? (
                         <td>
-                          <button
-                            type="button"
-                            className="btn-ghost"
-                            onClick={() => handleSoftDeleteProduct(productId)}
-                            disabled={softDeleteProductMutation.isPending}
-                          >
-                            Remove
-                          </button>
+                          <div className="action-row">
+                            <button
+                              type="button"
+                              className="btn-ghost"
+                              onClick={() =>
+                                handleDownloadProductLabel(product)
+                              }
+                            >
+                              Download label
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-ghost"
+                              onClick={() => handleSoftDeleteProduct(productId)}
+                              disabled={softDeleteProductMutation.isPending}
+                            >
+                              Remove
+                            </button>
+                          </div>
                         </td>
                       ) : null}
                     </tr>

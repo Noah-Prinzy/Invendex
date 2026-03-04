@@ -4,7 +4,9 @@ import { renderWithProviders } from '../../test/renderWithProviders.js';
 import {
   adjustProductStockRequest,
   createProductRequest,
+  downloadProductLabelRequest,
   getDeletedProductsRequest,
+  getProductsHealthScoreRequest,
   getProductsLowStockSummaryRequest,
   getProductsRequest,
   permanentlyDeleteProductRequest,
@@ -15,7 +17,9 @@ import {
 jest.mock('../../api/client.js', () => ({
   adjustProductStockRequest: jest.fn(),
   createProductRequest: jest.fn(),
+  downloadProductLabelRequest: jest.fn(),
   getDeletedProductsRequest: jest.fn(),
+  getProductsHealthScoreRequest: jest.fn(),
   getProductsRequest: jest.fn(),
   getProductsLowStockSummaryRequest: jest.fn(),
   permanentlyDeleteProductRequest: jest.fn(),
@@ -46,6 +50,15 @@ describe('Products page', () => {
     restoreDeletedProductRequest.mockResolvedValue({});
     permanentlyDeleteProductRequest.mockResolvedValue({});
     getDeletedProductsRequest.mockResolvedValue([]);
+    getProductsHealthScoreRequest.mockResolvedValue({
+      score: 91,
+      band: 'EXCELLENT'
+    });
+    downloadProductLabelRequest.mockResolvedValue({
+      blob: new Blob(['x'], { type: 'image/png' }),
+      fileName: 'label.png',
+      contentType: 'image/png'
+    });
   });
 
   it('shows loading and renders error state on failed fetch', async () => {

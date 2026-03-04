@@ -1,9 +1,11 @@
 import Product from '../models/Product.js';
+import ReorderAlert from '../models/ReorderAlert.js';
 import OrganizationSettings from '../models/OrganizationSettings.js';
 import { successResponse } from '../utils/response.js';
 import { AppError } from '../errors/AppError.js';
 import { logAudit } from '../utils/auditLogger.js';
 import mongoose from 'mongoose';
+import bwipjs from 'bwip-js';
 import { adjustInventoryFromManualInput } from '../services/inventory/manualAdjustmentService.js';
 import {
   generateUniqueSku,
@@ -59,6 +61,47 @@ const normalizeBarcodeType = (value) => {
   return normalized || null;
 };
 
+const clampInteger = (value, min, max, fallback) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  const normalized = Math.trunc(parsed);
+  if (normalized < min) return min;
+  if (normalized > max) return max;
+  return normalized;
+};
+
+const sanitizeFileToken = (value, fallback = 'label') => {
+  const normalized = String(value || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  return normalized || fallback;
+};
+
+const resolveBarcodeBcid = ({ requestedType, barcodeType }) => {
+  const normalizedRequestedType = String(requestedType || '')
+    .trim()
+    .toLowerCase();
+  if (normalizedRequestedType === 'qr' || normalizedRequestedType === 'qrcode')
+    return 'qrcode';
+  if (
+    normalizedRequestedType === 'code128' ||
+    normalizedRequestedType === 'barcode'
+  )
+    return 'code128';
+  if (normalizedRequestedType === 'ean13') return 'ean13';
+  if (normalizedRequestedType === 'upc') return 'upca';
+
+  const normalizedBarcodeType = String(barcodeType || '')
+    .trim()
+    .toUpperCase();
+  if (normalizedBarcodeType === 'QR') return 'qrcode';
+  if (normalizedBarcodeType === 'EAN13') return 'ean13';
+  if (normalizedBarcodeType === 'UPC') return 'upca';
+  return 'code128';
+};
+
 const normalizeVariantAttributes = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
@@ -92,6 +135,24 @@ const normalizeUomConfig = (value) => {
     purchaseToBaseFactor:
       Number.isInteger(factor) && factor >= 1 ? Number(factor) : 1
   };
+};
+
+const getLastStockMovementDate = (product) => {
+  const history = Array.isArray(product?.stockHistory)
+    ? product.stockHistory
+    : [];
+  if (history.length) {
+    const latestFromHistory = history.reduce((latest, entry) => {
+      const asDate = new Date(entry?.changedAt || 0);
+      if (Number.isNaN(asDate.getTime())) return latest;
+      return !latest || asDate > latest ? asDate : latest;
+    }, null);
+    if (latestFromHistory) return latestFromHistory;
+  }
+
+  const fallbackDate = new Date(product?.updatedAt || product?.createdAt || 0);
+  if (!Number.isNaN(fallbackDate.getTime())) return fallbackDate;
+  return null;
 };
 
 const assertParentProductIfProvided = async ({
@@ -212,6 +273,56 @@ export const getProductById = async (req, res, next) => {
     });
     if (!product) throw new AppError('Product not found', 404);
     return successResponse(res, product, 'Product fetched');
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const downloadProductLabel = async (req, res, next) => {
+  try {
+    const product = await Product.findOne({
+      _id: req.params.id,
+      organization: req.organizationId,
+      isActive: true
+    }).lean();
+
+    if (!product) {
+      throw new AppError('Product not found', 404);
+    }
+
+    const encodedText = String(product.barcode || product.sku || '').trim();
+    if (!encodedText) {
+      throw new AppError(
+        'Product does not have a barcode or SKU for label generation',
+        400
+      );
+    }
+
+    const bcid = resolveBarcodeBcid({
+      requestedType: req.query?.type,
+      barcodeType: product.barcodeType
+    });
+    const scale = clampInteger(req.query?.scale, 1, 6, 3);
+    const includeText = String(req.query?.includeText || 'true')
+      .trim()
+      .toLowerCase();
+    const showHumanText = includeText !== 'false' && bcid !== 'qrcode';
+
+    const pngBuffer = await bwipjs.toBuffer({
+      bcid,
+      text: encodedText,
+      scale,
+      height: bcid === 'qrcode' ? undefined : 16,
+      includetext: showHumanText,
+      textxalign: 'center',
+      paddingwidth: 10,
+      paddingheight: 10
+    });
+
+    const fileName = `product-label-${sanitizeFileToken(product.sku || product.name || product._id)}.png`;
+    res.setHeader('content-type', 'image/png');
+    res.setHeader('content-disposition', `attachment; filename="${fileName}"`);
+    return res.status(200).send(pngBuffer);
   } catch (err) {
     next(err);
   }
@@ -667,6 +778,143 @@ export const getInventoryHealthOverview = async (req, res, next) => {
     }));
 
     return successResponse(res, overview, 'Inventory health overview fetched');
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getInventoryHealthScore = async (req, res, next) => {
+  try {
+    const [products, settings, activeAlertsCount] = await Promise.all([
+      Product.find({
+        organization: req.organizationId,
+        isActive: true
+      })
+        .select(
+          'sku stock lowStockThreshold stockHistory createdAt updatedAt averageDailyUsage'
+        )
+        .lean(),
+      OrganizationSettings.findOne({
+        organization: req.organizationId
+      })
+        .select('inventory.deadStockThresholdDays')
+        .lean(),
+      ReorderAlert.countDocuments({
+        organization: req.organizationId,
+        resolved: false,
+        status: 'ACTIVE'
+      })
+    ]);
+
+    const deadStockDays = Math.max(
+      1,
+      Number(settings?.inventory?.deadStockThresholdDays || 90)
+    );
+
+    if (!products.length) {
+      return successResponse(
+        res,
+        {
+          score: 100,
+          band: 'EXCELLENT',
+          deadStockThresholdDays: deadStockDays,
+          totals: {
+            products: 0,
+            lowStock: 0,
+            stockouts: 0,
+            staleStock: 0,
+            activeAlerts: Number(activeAlertsCount || 0)
+          },
+          ratios: {
+            lowStockRatio: 0,
+            stockoutRatio: 0,
+            staleStockRatio: 0,
+            alertPressure: 0
+          }
+        },
+        'Inventory health score generated'
+      );
+    }
+
+    const nowMs = Date.now();
+    let lowStockCount = 0;
+    let stockoutCount = 0;
+    let staleStockCount = 0;
+
+    for (const product of products) {
+      const stock = Number(product?.stock || 0);
+      const threshold = Number(product?.lowStockThreshold || 0);
+
+      if (stock <= threshold) {
+        lowStockCount += 1;
+      }
+      if (stock <= 0) {
+        stockoutCount += 1;
+      }
+
+      if (stock > 0) {
+        const lastMovement = getLastStockMovementDate(product);
+        if (lastMovement) {
+          const ageDays =
+            (nowMs - lastMovement.getTime()) / (1000 * 60 * 60 * 24);
+          if (ageDays >= deadStockDays) {
+            staleStockCount += 1;
+          }
+        }
+      }
+    }
+
+    const totalProducts = products.length;
+    const lowStockRatio = lowStockCount / totalProducts;
+    const stockoutRatio = stockoutCount / totalProducts;
+    const staleStockRatio = staleStockCount / totalProducts;
+    const alertPressure = Math.min(
+      1,
+      Number(activeAlertsCount || 0) / Math.max(totalProducts, 1)
+    );
+
+    const penaltyScore =
+      lowStockRatio * 35 +
+      stockoutRatio * 35 +
+      staleStockRatio * 20 +
+      alertPressure * 10;
+
+    const score = Math.max(
+      0,
+      Math.min(100, Number((100 - penaltyScore).toFixed(2)))
+    );
+
+    const band =
+      score >= 85
+        ? 'EXCELLENT'
+        : score >= 70
+          ? 'GOOD'
+          : score >= 50
+            ? 'WARNING'
+            : 'CRITICAL';
+
+    return successResponse(
+      res,
+      {
+        score,
+        band,
+        deadStockThresholdDays: deadStockDays,
+        totals: {
+          products: totalProducts,
+          lowStock: lowStockCount,
+          stockouts: stockoutCount,
+          staleStock: staleStockCount,
+          activeAlerts: Number(activeAlertsCount || 0)
+        },
+        ratios: {
+          lowStockRatio: Number((lowStockRatio * 100).toFixed(2)),
+          stockoutRatio: Number((stockoutRatio * 100).toFixed(2)),
+          staleStockRatio: Number((staleStockRatio * 100).toFixed(2)),
+          alertPressure: Number((alertPressure * 100).toFixed(2))
+        }
+      },
+      'Inventory health score generated'
+    );
   } catch (err) {
     next(err);
   }
