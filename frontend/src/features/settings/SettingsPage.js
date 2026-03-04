@@ -2,7 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getFinanceExchangeRatesRequest,
+  getFinanceNotificationSettingsRequest,
   putFinanceExchangeRatesRequest,
+  getFinanceTaxConfigRequest,
+  patchFinanceNotificationSettingsRequest,
+  patchFinanceTaxConfigRequest,
   createOnboardingWarehouseRequest,
   createUserInviteRequest,
   getFinanceRealtimeStatsRequest,
@@ -33,6 +37,7 @@ import {
   SETTINGS_QUERY_STALE_MS,
   mapApiSettingsToForm,
   mapFormToApiPayload,
+  normalizeRecipients,
   parseRecipientsText,
   recipientsToText,
   getDefaultSettings,
@@ -153,6 +158,39 @@ const writeSettingsPageToUrl = (pageId) => {
   window.history.replaceState(window.history.state, '', nextPath);
 };
 
+const applyTaxConfigToForm = (baseForm, taxConfig) => ({
+  ...baseForm,
+  finance: {
+    ...(baseForm.finance || {}),
+    taxInclusivePricing:
+      typeof taxConfig?.taxInclusivePricing === 'boolean'
+        ? taxConfig.taxInclusivePricing
+        : Boolean(baseForm.finance?.taxInclusivePricing),
+    importTaxEnabled: Boolean(taxConfig?.importTaxEnabled),
+    importTaxRate: Number(taxConfig?.importTaxRate || 0)
+  }
+});
+
+const applyNotificationSettingsToForm = (baseForm, notificationSettings) => ({
+  ...baseForm,
+  notifications: {
+    ...(baseForm.notifications || {}),
+    lowStockSmsEnabled:
+      typeof notificationSettings?.smsLowStockEnabled === 'boolean'
+        ? notificationSettings.smsLowStockEnabled
+        : Boolean(baseForm.notifications?.lowStockSmsEnabled),
+    lowStockSmsRecipients: normalizeRecipients(
+      notificationSettings?.smsLowStockRecipients
+    ),
+    lowStockWhatsappEnabled: Boolean(
+      notificationSettings?.whatsappLowStockEnabled
+    ),
+    lowStockWhatsappRecipients: normalizeRecipients(
+      notificationSettings?.whatsappLowStockRecipients
+    )
+  }
+});
+
 const Settings = ({
   accessToken = null,
   userRole = null,
@@ -164,7 +202,9 @@ const Settings = ({
     readSettingsPageFromUrl()
   );
   const [form, setForm] = useState(getDefaultSettings());
-  const [recipientsText, setRecipientsText] = useState('');
+  const [emailRecipientsText, setEmailRecipientsText] = useState('');
+  const [smsRecipientsText, setSmsRecipientsText] = useState('');
+  const [whatsappRecipientsText, setWhatsappRecipientsText] = useState('');
   const [formNotice, setFormNotice] = useState('');
   const [formError, setFormError] = useState('');
   const [isDirty, setIsDirty] = useState(false);
@@ -214,6 +254,23 @@ const Settings = ({
     enabled: Boolean(accessToken),
     staleTime: SETTINGS_QUERY_STALE_MS,
     queryFn: async () => getSettingsRequest(accessToken)
+  });
+
+  const financeTaxConfigQuery = useQuery({
+    queryKey: ['finance:tax-config:settings', String(accessToken || '')],
+    enabled: Boolean(accessToken),
+    staleTime: SETTINGS_QUERY_STALE_MS,
+    queryFn: async () => getFinanceTaxConfigRequest(accessToken)
+  });
+
+  const financeNotificationSettingsQuery = useQuery({
+    queryKey: [
+      'finance:notification-settings:settings',
+      String(accessToken || '')
+    ],
+    enabled: Boolean(accessToken),
+    staleTime: SETTINGS_QUERY_STALE_MS,
+    queryFn: async () => getFinanceNotificationSettingsRequest(accessToken)
   });
 
   const persistedBaseCurrencyCode = String(
@@ -266,12 +323,56 @@ const Settings = ({
 
   useEffect(() => {
     const mapped = mapApiSettingsToForm(settingsQuery.data);
-    setForm(mapped);
-    setRecipientsText(
+    setForm((current) => ({
+      ...mapped,
+      notifications: {
+        ...mapped.notifications,
+        lowStockSmsRecipients: normalizeRecipients(
+          current.notifications?.lowStockSmsRecipients
+        ),
+        lowStockWhatsappEnabled: Boolean(
+          current.notifications?.lowStockWhatsappEnabled
+        ),
+        lowStockWhatsappRecipients: normalizeRecipients(
+          current.notifications?.lowStockWhatsappRecipients
+        )
+      },
+      finance: {
+        ...mapped.finance,
+        importTaxEnabled: Boolean(current.finance?.importTaxEnabled),
+        importTaxRate: Number(current.finance?.importTaxRate || 0)
+      }
+    }));
+    setEmailRecipientsText(
       recipientsToText(mapped.notifications.lowStockRecipients)
     );
     setIsDirty(false);
   }, [settingsQuery.data]);
+
+  useEffect(() => {
+    if (!financeTaxConfigQuery.data) return;
+    setForm((current) =>
+      applyTaxConfigToForm(current, financeTaxConfigQuery.data)
+    );
+  }, [financeTaxConfigQuery.data]);
+
+  useEffect(() => {
+    if (!financeNotificationSettingsQuery.data) return;
+    const smsRecipients = normalizeRecipients(
+      financeNotificationSettingsQuery.data.smsLowStockRecipients
+    );
+    const whatsappRecipients = normalizeRecipients(
+      financeNotificationSettingsQuery.data.whatsappLowStockRecipients
+    );
+    setForm((current) =>
+      applyNotificationSettingsToForm(
+        current,
+        financeNotificationSettingsQuery.data
+      )
+    );
+    setSmsRecipientsText(recipientsToText(smsRecipients));
+    setWhatsappRecipientsText(recipientsToText(whatsappRecipients));
+  }, [financeNotificationSettingsQuery.data]);
 
   useEffect(() => {
     const syncFromUrl = () => {
@@ -309,8 +410,27 @@ const Settings = ({
         ['settings:get', String(accessToken || '')],
         updated
       );
-      setForm(mapped);
-      setRecipientsText(
+      setForm((current) => ({
+        ...mapped,
+        notifications: {
+          ...mapped.notifications,
+          lowStockSmsRecipients: normalizeRecipients(
+            current.notifications?.lowStockSmsRecipients
+          ),
+          lowStockWhatsappEnabled: Boolean(
+            current.notifications?.lowStockWhatsappEnabled
+          ),
+          lowStockWhatsappRecipients: normalizeRecipients(
+            current.notifications?.lowStockWhatsappRecipients
+          )
+        },
+        finance: {
+          ...mapped.finance,
+          importTaxEnabled: Boolean(current.finance?.importTaxEnabled),
+          importTaxRate: Number(current.finance?.importTaxRate || 0)
+        }
+      }));
+      setEmailRecipientsText(
         recipientsToText(mapped.notifications.lowStockRecipients)
       );
       setIsDirty(false);
@@ -321,6 +441,22 @@ const Settings = ({
       setFormNotice('');
       setFormError(String(error?.message || 'Failed to save settings'));
     }
+  });
+
+  const saveFinanceTaxConfigMutation = useMutation({
+    mutationFn: async (payload) =>
+      patchFinanceTaxConfigRequest({
+        accessToken,
+        payload
+      })
+  });
+
+  const saveFinanceNotificationSettingsMutation = useMutation({
+    mutationFn: async (payload) =>
+      patchFinanceNotificationSettingsRequest({
+        accessToken,
+        payload
+      })
   });
 
   const updateExchangeRatesMutation = useMutation({
@@ -351,6 +487,11 @@ const Settings = ({
       );
     }
   });
+
+  const isSavingSettings =
+    saveSettingsMutation.isPending ||
+    saveFinanceTaxConfigMutation.isPending ||
+    saveFinanceNotificationSettingsMutation.isPending;
 
   const setTopField = (key, value) => {
     setForm((current) => ({
@@ -391,11 +532,29 @@ const Settings = ({
     setIsDirty(true);
   };
 
-  const handleRecipientsChange = (value) => {
-    setRecipientsText(value);
+  const handleEmailRecipientsChange = (value) => {
+    setEmailRecipientsText(value);
     setNestedField(
       'notifications',
       'lowStockRecipients',
+      parseRecipientsText(value)
+    );
+  };
+
+  const handleSmsRecipientsChange = (value) => {
+    setSmsRecipientsText(value);
+    setNestedField(
+      'notifications',
+      'lowStockSmsRecipients',
+      parseRecipientsText(value)
+    );
+  };
+
+  const handleWhatsappRecipientsChange = (value) => {
+    setWhatsappRecipientsText(value);
+    setNestedField(
+      'notifications',
+      'lowStockWhatsappRecipients',
       parseRecipientsText(value)
     );
   };
@@ -405,14 +564,61 @@ const Settings = ({
     setFormNotice('');
     setFormError('');
     const payload = mapFormToApiPayload(form);
-    await saveSettingsMutation.mutateAsync(payload);
+    const financeTaxPayload = {
+      taxInclusivePricing: Boolean(form.finance?.taxInclusivePricing),
+      importTaxEnabled: Boolean(form.finance?.importTaxEnabled),
+      importTaxRate: Number(form.finance?.importTaxRate || 0)
+    };
+    const financeNotificationPayload = {
+      smsLowStockEnabled: Boolean(form.notifications?.lowStockSmsEnabled),
+      smsLowStockRecipients: normalizeRecipients(
+        form.notifications?.lowStockSmsRecipients
+      ),
+      whatsappLowStockEnabled: Boolean(
+        form.notifications?.lowStockWhatsappEnabled
+      ),
+      whatsappLowStockRecipients: normalizeRecipients(
+        form.notifications?.lowStockWhatsappRecipients
+      )
+    };
+
+    try {
+      await Promise.all([
+        saveSettingsMutation.mutateAsync(payload),
+        saveFinanceTaxConfigMutation.mutateAsync(financeTaxPayload),
+        saveFinanceNotificationSettingsMutation.mutateAsync(
+          financeNotificationPayload
+        )
+      ]);
+      await Promise.all([
+        settingsQuery.refetch(),
+        financeTaxConfigQuery.refetch(),
+        financeNotificationSettingsQuery.refetch()
+      ]);
+      setFormNotice('Settings saved.');
+      setFormError('');
+      setIsDirty(false);
+    } catch (error) {
+      setFormNotice('');
+      setFormError(String(error?.message || 'Failed to save settings'));
+    }
   };
 
   const handleReset = () => {
-    const mapped = mapApiSettingsToForm(settingsQuery.data);
-    setForm(mapped);
-    setRecipientsText(
-      recipientsToText(mapped.notifications.lowStockRecipients)
+    const mappedSettings = mapApiSettingsToForm(settingsQuery.data);
+    const mappedTax = financeTaxConfigQuery.data;
+    const mappedNotification = financeNotificationSettingsQuery.data;
+    const withTax = applyTaxConfigToForm(mappedSettings, mappedTax);
+    const merged = applyNotificationSettingsToForm(withTax, mappedNotification);
+    setForm(merged);
+    setEmailRecipientsText(
+      recipientsToText(merged.notifications.lowStockRecipients)
+    );
+    setSmsRecipientsText(
+      recipientsToText(merged.notifications.lowStockSmsRecipients)
+    );
+    setWhatsappRecipientsText(
+      recipientsToText(merged.notifications.lowStockWhatsappRecipients)
     );
     setFormNotice('');
     setFormError('');
@@ -421,6 +627,8 @@ const Settings = ({
 
   const handleRefreshAll = () => {
     settingsQuery.refetch();
+    financeTaxConfigQuery.refetch();
+    financeNotificationSettingsQuery.refetch();
     realtimeStatsQuery.refetch();
     observabilityQuery.refetch();
     exchangeRatesQuery.refetch();
@@ -670,7 +878,7 @@ const Settings = ({
         <CompanyProfileSection
           form={form}
           canManageSettings={canManageSettings}
-          isSaving={saveSettingsMutation.isPending}
+          isSaving={isSavingSettings}
           setTopField={setTopField}
           setNestedField={setNestedField}
         />
@@ -681,12 +889,16 @@ const Settings = ({
       return (
         <NotificationRulesSection
           form={form}
-          recipientsText={recipientsText}
+          emailRecipientsText={emailRecipientsText}
+          smsRecipientsText={smsRecipientsText}
+          whatsappRecipientsText={whatsappRecipientsText}
           canManageSettings={canManageSettings}
-          isSaving={saveSettingsMutation.isPending}
+          isSaving={isSavingSettings}
           setNestedField={setNestedField}
           setDoubleNestedField={setDoubleNestedField}
-          handleRecipientsChange={handleRecipientsChange}
+          handleEmailRecipientsChange={handleEmailRecipientsChange}
+          handleSmsRecipientsChange={handleSmsRecipientsChange}
+          handleWhatsappRecipientsChange={handleWhatsappRecipientsChange}
         />
       );
     }
@@ -696,7 +908,7 @@ const Settings = ({
         <InventoryControlsSection
           form={form}
           canManageSettings={canManageSettings}
-          isSaving={saveSettingsMutation.isPending}
+          isSaving={isSavingSettings}
           setNestedField={setNestedField}
         />
       );
@@ -707,7 +919,7 @@ const Settings = ({
         <FinanceDefaultsSection
           form={form}
           canManageSettings={canManageSettings}
-          isSaving={saveSettingsMutation.isPending}
+          isSaving={isSavingSettings}
           setNestedField={setNestedField}
           baseCurrencyCode={persistedBaseCurrencyCode}
           exchangeRates={exchangeRatesQuery.data?.rates || []}
@@ -729,7 +941,7 @@ const Settings = ({
         <UserAccessPolicySection
           form={form}
           canManageSettings={canManageSettings}
-          isSaving={saveSettingsMutation.isPending}
+          isSaving={isSavingSettings}
           setNestedField={setNestedField}
         />
       );
@@ -740,7 +952,7 @@ const Settings = ({
         <SecuritySessionSection
           form={form}
           canManageSettings={canManageSettings}
-          isSaving={saveSettingsMutation.isPending}
+          isSaving={isSavingSettings}
           setNestedField={setNestedField}
         />
       );
@@ -751,7 +963,7 @@ const Settings = ({
         <RealtimeOfflineSection
           form={form}
           canManageSettings={canManageSettings}
-          isSaving={saveSettingsMutation.isPending}
+          isSaving={isSavingSettings}
           setNestedField={setNestedField}
           realtimeEventStats={realtimeEventStats}
         />
@@ -763,7 +975,7 @@ const Settings = ({
         <AuditBackupSection
           form={form}
           canManageSettings={canManageSettings}
-          isSaving={saveSettingsMutation.isPending}
+          isSaving={isSavingSettings}
           setNestedField={setNestedField}
         />
       );
@@ -842,6 +1054,8 @@ const Settings = ({
         onClick={handleRefreshAll}
         disabled={
           settingsQuery.isFetching ||
+          financeTaxConfigQuery.isFetching ||
+          financeNotificationSettingsQuery.isFetching ||
           realtimeStatsQuery.isFetching ||
           observabilityQuery.isFetching
         }
@@ -894,7 +1108,7 @@ const Settings = ({
           handleReset={handleReset}
           handleSave={handleSave}
           canManageSettings={canManageSettings}
-          isSaving={saveSettingsMutation.isPending}
+          isSaving={isSavingSettings}
           isLoadingSettings={settingsQuery.isLoading}
         />
       ) : null}

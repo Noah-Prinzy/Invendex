@@ -3,7 +3,11 @@
  * Email / SMS / Webhook ready
  */
 import nodemailer from 'nodemailer';
-import { getDefaultLowStockRecipients, sendBulkSms } from './smsService.js';
+import {
+  getDefaultLowStockRecipients,
+  sendBulkSms,
+  sendBulkWhatsApp
+} from './smsService.js';
 import { logger } from '../../observability/logger.js';
 
 const parseBooleanEnv = (value, fallback = false) => {
@@ -211,8 +215,53 @@ export const sendLowStockSmsNotification = async ({
   };
 };
 
+export const sendLowStockWhatsappNotification = async ({
+  organizationName = 'Organization',
+  sku,
+  productName,
+  currentStock,
+  reorderLevel,
+  recipients = []
+}) => {
+  const targetRecipients = Array.from(
+    new Set(
+      (Array.isArray(recipients) ? recipients : [])
+        .map((entry) => String(entry || '').trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (!targetRecipients.length) {
+    return {
+      success: false,
+      channel: 'whatsapp',
+      skipped: true,
+      reason: 'No low-stock WhatsApp recipients configured'
+    };
+  }
+
+  const message = [
+    `Ledgerly low-stock alert (${organizationName})`,
+    `${productName || 'Product'} [${sku || 'N/A'}]`,
+    `Stock: ${Number(currentStock || 0)} | Reorder: ${Number(reorderLevel || 0)}`
+  ].join(' | ');
+
+  const whatsappResult = await sendBulkWhatsApp({
+    recipients: targetRecipients,
+    message
+  });
+
+  return {
+    success: whatsappResult.deliveredCount > 0,
+    channel: 'whatsapp',
+    recipients: targetRecipients,
+    ...whatsappResult
+  };
+};
+
 export default {
   sendEmailNotification,
   sendSupplierNotification,
-  sendLowStockSmsNotification
+  sendLowStockSmsNotification,
+  sendLowStockWhatsappNotification
 };

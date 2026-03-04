@@ -26,6 +26,14 @@ const organizationSchema = new mongoose.Schema(
       type: [String],
       default: []
     },
+    whatsappLowStockEnabled: {
+      type: Boolean,
+      default: false
+    },
+    whatsappLowStockRecipients: {
+      type: [String],
+      default: []
+    },
     onboardingSampleSeededAt: {
       type: Date,
       default: null

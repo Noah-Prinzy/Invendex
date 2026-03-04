@@ -44,6 +44,9 @@ export const getDefaultSettings = () => ({
     lowStockEmailEnabled: false,
     lowStockSmsEnabled: false,
     lowStockRecipients: [],
+    lowStockSmsRecipients: [],
+    lowStockWhatsappEnabled: false,
+    lowStockWhatsappRecipients: [],
     quietHours: {
       enabled: false,
       start: '22:00',
@@ -59,7 +62,9 @@ export const getDefaultSettings = () => ({
   },
   finance: {
     valuationMethod: 'WEIGHTED_AVG',
-    taxInclusivePricing: false
+    taxInclusivePricing: false,
+    importTaxEnabled: false,
+    importTaxRate: 0
   },
   userAccess: {
     defaultInviteExpiryHours: 72,
@@ -108,6 +113,16 @@ export const mapApiSettingsToForm = (payload) => {
       ...(payload.notifications || {}),
       lowStockRecipients: normalizeRecipients(
         payload.notifications?.lowStockRecipients
+      ),
+      lowStockSmsRecipients: normalizeRecipients(
+        payload.notifications?.lowStockSmsRecipients ||
+          payload.notifications?.lowStockRecipients
+      ),
+      lowStockWhatsappEnabled: Boolean(
+        payload.notifications?.lowStockWhatsappEnabled
+      ),
+      lowStockWhatsappRecipients: normalizeRecipients(
+        payload.notifications?.lowStockWhatsappRecipients
       ),
       quietHours: {
         ...defaults.notifications.quietHours,

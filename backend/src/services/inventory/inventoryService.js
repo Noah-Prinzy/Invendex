@@ -15,6 +15,7 @@ import {
   publishValuationUpdated
 } from '../../realtime/publisher.js';
 import { logInventoryMutation } from '../../observability/inventoryMutationLogger.js';
+import { getOrCreateTaxConfiguration } from '../finance/taxService.js';
 
 /**
  * Applies inventory updates when a Purchase Order is received.
@@ -39,6 +40,17 @@ export const applyPurchaseOrderToInventory = async ({
   }
 
   const pendingInventoryRealtimeEvents = [];
+  const taxConfiguration = await getOrCreateTaxConfiguration(
+    purchaseOrder.organization,
+    {
+      session
+    }
+  );
+  const importTaxRate = Number(taxConfiguration?.importTaxRate || 0);
+  const importTaxMultiplier =
+    taxConfiguration?.importTaxEnabled && importTaxRate > 0
+      ? 1 + importTaxRate / 100
+      : 1;
 
   for (const item of purchaseOrder.items) {
     const {
@@ -92,6 +104,9 @@ export const applyPurchaseOrderToInventory = async ({
       }
       const unitCostPerBaseUnit = Number(
         (Number(item.unitCost || 0) / purchaseToBaseFactor).toFixed(6)
+      );
+      const landedUnitCostPerBaseUnit = Number(
+        (unitCostPerBaseUnit * importTaxMultiplier).toFixed(6)
       );
 
       const now = new Date();
@@ -182,7 +197,7 @@ export const applyPurchaseOrderToInventory = async ({
         warehouseId: purchaseOrder.warehouse,
         sourceType: 'PURCHASE_ORDER',
         sourceId: purchaseOrder._id,
-        unitCost: unitCostPerBaseUnit,
+        unitCost: landedUnitCostPerBaseUnit,
         quantity: quantityInBaseUnits,
         receivedAt: now,
         session
@@ -243,6 +258,10 @@ export const applyPurchaseOrderToInventory = async ({
           quantityDelta: quantityInBaseUnits,
           purchaseQuantity: Number(quantity),
           purchaseToBaseFactor,
+          unitCostPerBaseUnit,
+          landedUnitCostPerBaseUnit,
+          importTaxApplied: importTaxMultiplier > 1,
+          importTaxRate: importTaxMultiplier > 1 ? importTaxRate : 0,
           quantityOnHand: inventory.quantityOnHand,
           previousStock,
           newStock

@@ -3,7 +3,10 @@ import ReorderAlert from '../models/ReorderAlert.js';
 import SupplierProduct from '../models/SupplierProduct.js';
 import Organization from '../models/Organization.js';
 import { getAverageDailyDemandPerSku } from './inventoryMetricsService.js';
-import { sendLowStockSmsNotification } from './notifications/notificationService.js';
+import {
+  sendLowStockSmsNotification,
+  sendLowStockWhatsappNotification
+} from './notifications/notificationService.js';
 import { createInAppNotification } from './notifications/inAppNotificationService.js';
 
 const ENGINE_VERSION = 'v1.3';
@@ -57,7 +60,9 @@ export const runReorderEngine = async ({
 
   const alertsCreated = [];
   const organization = await Organization.findById(organizationId)
-    .select('name smsLowStockEnabled smsLowStockRecipients')
+    .select(
+      'name smsLowStockEnabled smsLowStockRecipients whatsappLowStockEnabled whatsappLowStockRecipients'
+    )
     .lean();
 
   for (const product of products) {
@@ -166,6 +171,18 @@ export const runReorderEngine = async ({
       recipients:
         organization?.smsLowStockEnabled === true
           ? organization?.smsLowStockRecipients || []
+          : []
+    }).catch(() => {});
+
+    sendLowStockWhatsappNotification({
+      organizationName: organization?.name || 'Organization',
+      sku: product.sku,
+      productName: product.name,
+      currentStock: product.stock,
+      reorderLevel,
+      recipients:
+        organization?.whatsappLowStockEnabled === true
+          ? organization?.whatsappLowStockRecipients || []
           : []
     }).catch(() => {});
   }

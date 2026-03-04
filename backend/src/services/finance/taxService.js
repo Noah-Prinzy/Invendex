@@ -60,6 +60,8 @@ export const updateTaxConfiguration = async ({
   organizationId,
   vatEnabled,
   vatRate,
+  importTaxEnabled,
+  importTaxRate,
   taxInclusivePricing,
   countryCode,
   currencyCode,
@@ -79,6 +81,12 @@ export const updateTaxConfiguration = async ({
   }
   if (vatRate !== undefined) {
     config.vatRate = normalizeRate(vatRate);
+  }
+  if (typeof importTaxEnabled === 'boolean') {
+    config.importTaxEnabled = importTaxEnabled;
+  }
+  if (importTaxRate !== undefined) {
+    config.importTaxRate = normalizeRate(importTaxRate);
   }
   if (typeof taxInclusivePricing === 'boolean') {
     config.taxInclusivePricing = taxInclusivePricing;

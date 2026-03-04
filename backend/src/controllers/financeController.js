@@ -288,6 +288,8 @@ export const patchTaxConfiguration = async (req, res, next) => {
       organizationId: req.organizationId,
       vatEnabled: req.body.vatEnabled,
       vatRate: req.body.vatRate,
+      importTaxEnabled: req.body.importTaxEnabled,
+      importTaxRate: req.body.importTaxRate,
       taxInclusivePricing: req.body.taxInclusivePricing,
       countryCode: req.body.countryCode,
       currencyCode: req.body.currencyCode,
@@ -320,7 +322,9 @@ export const getVatSummary = async (req, res, next) => {
 export const getNotificationSettings = async (req, res, next) => {
   try {
     const organization = await Organization.findById(req.organizationId)
-      .select('smsLowStockEnabled smsLowStockRecipients')
+      .select(
+        'smsLowStockEnabled smsLowStockRecipients whatsappLowStockEnabled whatsappLowStockRecipients'
+      )
       .lean();
 
     return successResponse(
@@ -331,6 +335,12 @@ export const getNotificationSettings = async (req, res, next) => {
           organization?.smsLowStockRecipients
         )
           ? organization.smsLowStockRecipients
+          : [],
+        whatsappLowStockEnabled: Boolean(organization?.whatsappLowStockEnabled),
+        whatsappLowStockRecipients: Array.isArray(
+          organization?.whatsappLowStockRecipients
+        )
+          ? organization.whatsappLowStockRecipients
           : []
       },
       'Notification settings retrieved'
@@ -346,8 +356,14 @@ export const patchNotificationSettings = async (req, res, next) => {
     if (typeof req.body.smsLowStockEnabled === 'boolean') {
       update.smsLowStockEnabled = req.body.smsLowStockEnabled;
     }
+    if (typeof req.body.whatsappLowStockEnabled === 'boolean') {
+      update.whatsappLowStockEnabled = req.body.whatsappLowStockEnabled;
+    }
     if (Array.isArray(req.body.smsLowStockRecipients)) {
       update.smsLowStockRecipients = req.body.smsLowStockRecipients;
+    }
+    if (Array.isArray(req.body.whatsappLowStockRecipients)) {
+      update.whatsappLowStockRecipients = req.body.whatsappLowStockRecipients;
     }
 
     const organization = await Organization.findByIdAndUpdate(
@@ -359,7 +375,9 @@ export const patchNotificationSettings = async (req, res, next) => {
         new: true
       }
     )
-      .select('smsLowStockEnabled smsLowStockRecipients')
+      .select(
+        'smsLowStockEnabled smsLowStockRecipients whatsappLowStockEnabled whatsappLowStockRecipients'
+      )
       .lean();
 
     return successResponse(res, organization, 'Notification settings updated');

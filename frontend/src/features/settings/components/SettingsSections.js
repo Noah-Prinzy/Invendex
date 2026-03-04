@@ -150,12 +150,16 @@ export const CompanyProfileSection = ({
 
 export const NotificationRulesSection = ({
   form,
-  recipientsText,
+  emailRecipientsText,
+  smsRecipientsText,
+  whatsappRecipientsText,
   canManageSettings,
   isSaving,
   setNestedField,
   setDoubleNestedField,
-  handleRecipientsChange
+  handleEmailRecipientsChange,
+  handleSmsRecipientsChange,
+  handleWhatsappRecipientsChange
 }) => (
   <article className="data-card settings-card">
     <h3>2. Notification Rules</h3>
@@ -191,13 +195,50 @@ export const NotificationRulesSection = ({
         <span>Low-stock SMS alerts</span>
       </label>
       <label className="settings-field settings-field-full">
-        <span>Low-stock recipients (one per line)</span>
+        <span>Low-stock email recipients (one per line)</span>
         <textarea
           rows={4}
-          value={recipientsText}
-          onChange={(event) => handleRecipientsChange(event.target.value)}
+          value={emailRecipientsText}
+          onChange={(event) => handleEmailRecipientsChange(event.target.value)}
           disabled={isDisabled(canManageSettings, isSaving)}
-          placeholder="email@company.com or +256700000000"
+          placeholder="email@company.com"
+        />
+      </label>
+      <label className="settings-field settings-field-full">
+        <span>Low-stock SMS recipients (one per line)</span>
+        <textarea
+          rows={4}
+          value={smsRecipientsText}
+          onChange={(event) => handleSmsRecipientsChange(event.target.value)}
+          disabled={isDisabled(canManageSettings, isSaving)}
+          placeholder="+256700000000"
+        />
+      </label>
+      <label className="settings-toggle">
+        <input
+          type="checkbox"
+          checked={Boolean(form.notifications.lowStockWhatsappEnabled)}
+          onChange={(event) =>
+            setNestedField(
+              'notifications',
+              'lowStockWhatsappEnabled',
+              event.target.checked
+            )
+          }
+          disabled={isDisabled(canManageSettings, isSaving)}
+        />
+        <span>Low-stock WhatsApp alerts</span>
+      </label>
+      <label className="settings-field settings-field-full">
+        <span>Low-stock WhatsApp recipients (one per line)</span>
+        <textarea
+          rows={4}
+          value={whatsappRecipientsText}
+          onChange={(event) =>
+            handleWhatsappRecipientsChange(event.target.value)
+          }
+          disabled={isDisabled(canManageSettings, isSaving)}
+          placeholder="+256700000000"
         />
       </label>
       <label className="settings-toggle">
@@ -389,6 +430,35 @@ export const FinanceDefaultsSection = ({
           disabled={isDisabled(canManageSettings, isSaving)}
         />
         <span>Tax-inclusive pricing</span>
+      </label>
+      <label className="settings-toggle">
+        <input
+          type="checkbox"
+          checked={Boolean(form.finance.importTaxEnabled)}
+          onChange={(event) =>
+            setNestedField('finance', 'importTaxEnabled', event.target.checked)
+          }
+          disabled={isDisabled(canManageSettings, isSaving)}
+        />
+        <span>Apply import tax to landed cost</span>
+      </label>
+      <label className="settings-field">
+        <span>Import tax rate (%)</span>
+        <input
+          type="number"
+          min="0"
+          max="100"
+          step="0.01"
+          value={Number(form.finance.importTaxRate || 0)}
+          onChange={(event) =>
+            setNestedField(
+              'finance',
+              'importTaxRate',
+              Number(event.target.value || 0)
+            )
+          }
+          disabled={isDisabled(canManageSettings, isSaving)}
+        />
       </label>
       <div className="settings-field settings-field-full">
         <p className="event-sub">

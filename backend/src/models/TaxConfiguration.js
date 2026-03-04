@@ -29,6 +29,16 @@ const taxConfigurationSchema = new mongoose.Schema(
       min: 0,
       max: 100
     },
+    importTaxEnabled: {
+      type: Boolean,
+      default: false
+    },
+    importTaxRate: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100
+    },
     taxInclusivePricing: {
       type: Boolean,
       default: false

@@ -165,6 +165,16 @@ export const patchTaxConfigurationValidator = [
     .isFloat({ min: 0, max: 100 })
     .withMessage('vatRate must be between 0 and 100')
     .toFloat(),
+  body('importTaxEnabled')
+    .optional()
+    .isBoolean()
+    .withMessage('importTaxEnabled must be a boolean')
+    .toBoolean(),
+  body('importTaxRate')
+    .optional()
+    .isFloat({ min: 0, max: 100 })
+    .withMessage('importTaxRate must be between 0 and 100')
+    .toFloat(),
   body('taxInclusivePricing')
     .optional()
     .isBoolean()
@@ -230,6 +240,11 @@ export const patchNotificationSettingsValidator = [
     .isBoolean()
     .withMessage('smsLowStockEnabled must be a boolean')
     .toBoolean(),
+  body('whatsappLowStockEnabled')
+    .optional()
+    .isBoolean()
+    .withMessage('whatsappLowStockEnabled must be a boolean')
+    .toBoolean(),
   body('smsLowStockRecipients')
     .optional()
     .isArray({ max: 20 })
@@ -240,7 +255,20 @@ export const patchNotificationSettingsValidator = [
     .withMessage('Each SMS recipient must be a string')
     .bail()
     .isLength({ min: 7, max: 24 })
-    .withMessage('Each SMS recipient must be between 7 and 24 characters')
+    .withMessage('Each SMS recipient must be between 7 and 24 characters'),
+  body('whatsappLowStockRecipients')
+    .optional()
+    .isArray({ max: 20 })
+    .withMessage(
+      'whatsappLowStockRecipients must be an array with up to 20 items'
+    ),
+  body('whatsappLowStockRecipients.*')
+    .optional()
+    .isString()
+    .withMessage('Each WhatsApp recipient must be a string')
+    .bail()
+    .isLength({ min: 7, max: 24 })
+    .withMessage('Each WhatsApp recipient must be between 7 and 24 characters')
 ];
 
 export const exchangeRatesQueryValidator = [

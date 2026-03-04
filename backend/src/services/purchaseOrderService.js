@@ -18,7 +18,8 @@ import {
 export const generatePurchaseOrdersFromAlerts = async ({
   createdByUserId,
   warehouseId,
-  organizationId
+  organizationId,
+  autoSend = false
 } = {}) => {
   if (!createdByUserId) {
     throw new AppError(
@@ -46,7 +47,8 @@ export const generatePurchaseOrdersFromAlerts = async ({
     operationMeta: {
       organizationId: String(organizationId),
       warehouseId: String(warehouseId),
-      createdByUserId: String(createdByUserId)
+      createdByUserId: String(createdByUserId),
+      autoSend: autoSend === true
     },
     runWithSession: async (session) => {
       const alertsQuery = ReorderAlert.find({
@@ -94,10 +96,12 @@ export const generatePurchaseOrdersFromAlerts = async ({
                 supplier: supplierId,
                 warehouse: warehouseId,
                 items,
-                status: 'DRAFT',
+                status: autoSend === true ? 'SENT' : 'DRAFT',
                 source: 'REORDER_ENGINE',
                 reorderAlerts: supplierAlerts.map((a) => a._id),
-                createdBy: createdByUserId
+                createdBy: createdByUserId,
+                sentAt: autoSend === true ? new Date() : null,
+                sentBy: autoSend === true ? createdByUserId : null
               }
             ],
             { session }
@@ -108,10 +112,12 @@ export const generatePurchaseOrdersFromAlerts = async ({
             supplier: supplierId,
             warehouse: warehouseId,
             items,
-            status: 'DRAFT',
+            status: autoSend === true ? 'SENT' : 'DRAFT',
             source: 'REORDER_ENGINE',
             reorderAlerts: supplierAlerts.map((a) => a._id),
-            createdBy: createdByUserId
+            createdBy: createdByUserId,
+            sentAt: autoSend === true ? new Date() : null,
+            sentBy: autoSend === true ? createdByUserId : null
           });
         }
 
@@ -148,7 +154,8 @@ export const generatePurchaseOrdersFromAlerts = async ({
             supplierId: String(supplierId),
             warehouseId: String(warehouseId),
             itemCount: items.length,
-            createdBy: String(createdByUserId)
+            createdBy: String(createdByUserId),
+            autoSend: autoSend === true
           },
           session,
           silent: true

@@ -11,25 +11,59 @@ const resolveSmsProvider = () =>
     .trim()
     .toLowerCase();
 
+const resolveWhatsAppProvider = () =>
+  String(process.env.WHATSAPP_PROVIDER || process.env.SMS_PROVIDER || 'none')
+    .trim()
+    .toLowerCase();
+
 const normalizePhone = (value) =>
   String(value || '')
     .replace(/\s+/g, '')
     .trim();
 
-const sendViaTwilio = async ({ to, message }) => {
-  const accountSid = String(process.env.SMS_TWILIO_ACCOUNT_SID || '').trim();
-  const authToken = String(process.env.SMS_TWILIO_AUTH_TOKEN || '').trim();
-  const fromNumber = String(process.env.SMS_TWILIO_FROM || '').trim();
+const normalizeWhatsapp = (value) =>
+  String(value || '')
+    .replace(/^whatsapp:/i, '')
+    .replace(/\s+/g, '')
+    .trim();
 
-  if (!accountSid || !authToken || !fromNumber) {
+const applyChannelPrefix = ({ value, prefix = '' }) => {
+  const normalizedValue = String(value || '').trim();
+  if (!normalizedValue) return '';
+  const normalizedPrefix = String(prefix || '').trim();
+  if (!normalizedPrefix) return normalizedValue;
+  if (
+    normalizedValue.toLowerCase().startsWith(normalizedPrefix.toLowerCase())
+  ) {
+    return normalizedValue;
+  }
+  return `${normalizedPrefix}${normalizedValue}`;
+};
+
+const sendViaTwilioMessage = async ({
+  to,
+  message,
+  accountSid,
+  authToken,
+  fromNumber,
+  toPrefix = '',
+  fromPrefix = ''
+}) => {
+  const normalizedTo = applyChannelPrefix({ value: to, prefix: toPrefix });
+  const normalizedFrom = applyChannelPrefix({
+    value: fromNumber,
+    prefix: fromPrefix
+  });
+
+  if (!accountSid || !authToken || !normalizedFrom) {
     throw new Error(
       'Twilio SMS configuration missing: SMS_TWILIO_ACCOUNT_SID, SMS_TWILIO_AUTH_TOKEN, SMS_TWILIO_FROM'
     );
   }
 
   const form = new URLSearchParams({
-    To: to,
-    From: fromNumber,
+    To: normalizedTo,
+    From: normalizedFrom,
     Body: message
   });
 
@@ -57,8 +91,50 @@ const sendViaTwilio = async ({ to, message }) => {
   return {
     provider: 'twilio',
     sid: payload?.sid || null,
-    status: payload?.status || null
+    status: payload?.status || null,
+    to: normalizedTo,
+    from: normalizedFrom
   };
+};
+
+const sendViaTwilio = async ({ to, message }) => {
+  const accountSid = String(process.env.SMS_TWILIO_ACCOUNT_SID || '').trim();
+  const authToken = String(process.env.SMS_TWILIO_AUTH_TOKEN || '').trim();
+  const fromNumber = String(process.env.SMS_TWILIO_FROM || '').trim();
+
+  return sendViaTwilioMessage({
+    to,
+    message,
+    accountSid,
+    authToken,
+    fromNumber
+  });
+};
+
+const sendViaTwilioWhatsapp = async ({ to, message }) => {
+  const accountSid = String(
+    process.env.WHATSAPP_TWILIO_ACCOUNT_SID ||
+      process.env.SMS_TWILIO_ACCOUNT_SID ||
+      ''
+  ).trim();
+  const authToken = String(
+    process.env.WHATSAPP_TWILIO_AUTH_TOKEN ||
+      process.env.SMS_TWILIO_AUTH_TOKEN ||
+      ''
+  ).trim();
+  const fromNumber = String(
+    process.env.WHATSAPP_TWILIO_FROM || process.env.SMS_TWILIO_FROM || ''
+  ).trim();
+
+  return sendViaTwilioMessage({
+    to,
+    message,
+    accountSid,
+    authToken,
+    fromNumber,
+    toPrefix: 'whatsapp:',
+    fromPrefix: 'whatsapp:'
+  });
 };
 
 export const sendSms = async ({ to, message }) => {
@@ -144,11 +220,96 @@ export const sendBulkSms = async ({ recipients = [], message }) => {
   };
 };
 
+export const sendWhatsApp = async ({ to, message }) => {
+  const provider = resolveWhatsAppProvider();
+  const normalizedTo = normalizeWhatsapp(to);
+  const normalizedMessage = String(message || '').trim();
+
+  if (!normalizedTo) {
+    throw new Error('WhatsApp recipient phone number is required');
+  }
+  if (!normalizedMessage) {
+    throw new Error('WhatsApp message body is required');
+  }
+
+  if (provider === 'none') {
+    logger.info('whatsapp_send_skipped_provider_none', {
+      to: normalizedTo
+    });
+    return {
+      delivered: false,
+      provider: 'none',
+      reason: 'WHATSAPP_PROVIDER=none'
+    };
+  }
+
+  if (provider !== 'twilio') {
+    throw new Error(`Unsupported WhatsApp provider: ${provider}`);
+  }
+
+  const result = await sendViaTwilioWhatsapp({
+    to: normalizedTo,
+    message: normalizedMessage
+  });
+
+  logger.info('whatsapp_sent', {
+    provider: result.provider,
+    to: normalizedTo,
+    sid: result.sid || null
+  });
+
+  return {
+    delivered: true,
+    provider: result.provider,
+    metadata: result
+  };
+};
+
+export const sendBulkWhatsApp = async ({ recipients = [], message }) => {
+  const uniqueRecipients = Array.from(
+    new Set(
+      recipients
+        .map((entry) => normalizeWhatsapp(entry))
+        .filter((entry) => Boolean(entry))
+    )
+  );
+
+  const results = [];
+  for (const recipient of uniqueRecipients) {
+    try {
+      const outcome = await sendWhatsApp({ to: recipient, message });
+      results.push({
+        recipient,
+        ok: true,
+        ...outcome
+      });
+    } catch (error) {
+      logger.warn('whatsapp_send_failed', {
+        recipient,
+        reason: error?.message || 'Unknown WhatsApp error'
+      });
+      results.push({
+        recipient,
+        ok: false,
+        error: error?.message || 'Unknown WhatsApp error'
+      });
+    }
+  }
+
+  return {
+    count: results.length,
+    deliveredCount: results.filter((row) => row.ok && row.delivered).length,
+    results
+  };
+};
+
 export const getDefaultLowStockRecipients = () =>
   parseCsv(process.env.SMS_LOW_STOCK_RECIPIENTS);
 
 export default {
   sendSms,
   sendBulkSms,
+  sendWhatsApp,
+  sendBulkWhatsApp,
   getDefaultLowStockRecipients
 };

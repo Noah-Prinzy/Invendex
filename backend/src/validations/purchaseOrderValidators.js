@@ -233,5 +233,10 @@ export const generatePurchaseOrdersFromAlertsValidator = [
         throw new Error('Warehouse not found');
       }
       return true;
-    })
+    }),
+  body('autoSend')
+    .optional()
+    .isBoolean()
+    .withMessage('autoSend must be a boolean')
+    .toBoolean()
 ];

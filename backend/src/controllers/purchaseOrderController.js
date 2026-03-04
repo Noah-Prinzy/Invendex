@@ -320,7 +320,8 @@ export const generatePurchaseOrdersFromAlerts = async (req, res, next) => {
     const orders = await generatePOsFromAlertsService({
       createdByUserId: req.user?._id,
       warehouseId: req.body?.warehouse,
-      organizationId: req.organizationId
+      organizationId: req.organizationId,
+      autoSend: req.body?.autoSend === true
     });
 
     for (const order of orders) {
@@ -335,7 +336,10 @@ export const generatePurchaseOrdersFromAlerts = async (req, res, next) => {
         actorUserId: req.user?._id || null,
         type: 'purchase_order_created',
         title: `PO ${order.poNumber || order._id} auto-generated`,
-        message: 'Reorder engine generated a purchase order draft.',
+        message:
+          order?.status === 'SENT'
+            ? 'Reorder engine generated and sent a purchase order.'
+            : 'Reorder engine generated a purchase order draft.',
         severity: 'warning',
         entityType: 'PURCHASE_ORDER',
         entityId: order._id,
