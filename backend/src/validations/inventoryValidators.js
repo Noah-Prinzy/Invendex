@@ -128,6 +128,51 @@ export const submitStocktakeCountsValidator = [
     .withMessage('counts[].countedQuantity must be a non-negative integer')
 ];
 
+export const stocktakeVisionScanValidator = [
+  param('sessionId').isMongoId().withMessage('Invalid stocktake session ID'),
+
+  body()
+    .custom((payload) => {
+      const hasDataUrl = Boolean(
+        String(payload?.imageDataUrl || '').trim().length
+      );
+      const hasBase64 = Boolean(
+        String(payload?.imageBase64 || '').trim().length
+      );
+      if (!hasDataUrl && !hasBase64) {
+        throw new Error('imageDataUrl or imageBase64 is required');
+      }
+      return true;
+    })
+    .withMessage('imageDataUrl or imageBase64 is required'),
+
+  body('imageDataUrl')
+    .optional({ values: 'falsy' })
+    .isString()
+    .withMessage('imageDataUrl must be a string')
+    .bail()
+    .isLength({ max: 12_000_000 })
+    .withMessage('imageDataUrl is too large'),
+
+  body('imageBase64')
+    .optional({ values: 'falsy' })
+    .isString()
+    .withMessage('imageBase64 must be a string')
+    .bail()
+    .isLength({ max: 10_000_000 })
+    .withMessage('imageBase64 is too large'),
+
+  body('maxDetections')
+    .optional({ values: 'falsy' })
+    .isInt({ min: 1, max: 200 })
+    .withMessage('maxDetections must be an integer between 1 and 200'),
+
+  body('confidenceThreshold')
+    .optional({ values: 'falsy' })
+    .isFloat({ min: 0, max: 1 })
+    .withMessage('confidenceThreshold must be between 0 and 1')
+];
+
 export const stocktakeListQueryValidator = [
   query('warehouseId')
     .optional({ values: 'falsy' })

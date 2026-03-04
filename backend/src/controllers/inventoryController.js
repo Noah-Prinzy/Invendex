@@ -14,6 +14,7 @@ import {
   listStocktakeSessions,
   submitStocktakeCounts
 } from '../services/inventory/stocktakeService.js';
+import { analyzeStocktakeImageCounts } from '../services/inventory/stocktakeVisionService.js';
 
 /* ======================================================
    INVENTORY SNAPSHOTS
@@ -525,6 +526,27 @@ export const approveInventoryStocktakeSession = async (req, res, next) => {
     });
 
     return successResponse(res, session, 'Stocktake session approved');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const scanInventoryStocktakeImage = async (req, res, next) => {
+  try {
+    const result = await analyzeStocktakeImageCounts({
+      organizationId: req.organizationId,
+      stocktakeSessionId: req.params.sessionId,
+      imageDataUrl: req.body?.imageDataUrl || '',
+      imageBase64: req.body?.imageBase64 || '',
+      maxDetections: req.body?.maxDetections,
+      confidenceThreshold: req.body?.confidenceThreshold
+    });
+
+    return successResponse(
+      res,
+      result,
+      'Stocktake vision scan completed successfully'
+    );
   } catch (error) {
     next(error);
   }

@@ -16,7 +16,8 @@ import {
   listInventoryStocktakeSessions,
   getInventoryStocktakeSession,
   submitInventoryStocktakeCounts,
-  approveInventoryStocktakeSession
+  approveInventoryStocktakeSession,
+  scanInventoryStocktakeImage
 } from '../controllers/inventoryController.js';
 
 import { protect } from '../middlewares/authMiddleware.js';
@@ -33,6 +34,7 @@ import {
   reorderIntelligenceQueryValidator,
   resolveReorderAlertParamValidator,
   stocktakeSessionIdParamValidator,
+  stocktakeVisionScanValidator,
   submitStocktakeCountsValidator,
   stocktakeListQueryValidator
 } from '../validations/inventoryValidators.js';
@@ -246,6 +248,18 @@ router.post(
     resource: 'INVENTORY'
   }),
   approveInventoryStocktakeSession
+);
+
+router.post(
+  '/stocktakes/:sessionId/vision-scan',
+  requirePermission(PERMISSIONS.INVENTORY_MANAGE),
+  stocktakeVisionScanValidator,
+  validateRequest,
+  auditMiddleware({
+    action: 'SCAN_STOCKTAKE_IMAGE',
+    resource: 'INVENTORY'
+  }),
+  scanInventoryStocktakeImage
 );
 
 export default router;

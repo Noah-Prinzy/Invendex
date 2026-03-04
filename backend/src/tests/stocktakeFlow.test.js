@@ -122,4 +122,63 @@ describe('inventory stocktake flow', () => {
     }).lean();
     expect(Number(refreshedProduct?.stock || 0)).toBe(7);
   });
+
+  it('returns stocktake vision-scan count estimates for captured shelf image payload', async () => {
+    const warehouse = await Warehouse.create({
+      organization: TEST_ORG_ID,
+      name: 'Vision Warehouse',
+      code: 'VISION-1',
+      isActive: true,
+      isArchived: false
+    });
+
+    const product = await Product.create({
+      organization: TEST_ORG_ID,
+      name: 'Vision Item',
+      sku: 'VISION-001',
+      price: 9,
+      stock: 15,
+      lowStockThreshold: 2
+    });
+
+    await Inventory.create({
+      organization: TEST_ORG_ID,
+      product: product._id,
+      warehouse: warehouse._id,
+      quantityOnHand: 15,
+      quantityReserved: 0
+    });
+
+    const createResponse = await request(app)
+      .post('/api/inventory/stocktakes')
+      .send({
+        warehouseId: String(warehouse._id),
+        title: 'Vision Count Session'
+      });
+
+    expect(createResponse.status).toBe(201);
+    const sessionId = String(createResponse.body?.data?._id || '');
+    expect(sessionId).toBeTruthy();
+
+    const fakeImageBase64 = Buffer.from('vision-scan-frame').toString('base64');
+    const scanResponse = await request(app)
+      .post(`/api/inventory/stocktakes/${sessionId}/vision-scan`)
+      .send({
+        imageDataUrl: `data:image/jpeg;base64,${fakeImageBase64}`,
+        maxDetections: 20,
+        confidenceThreshold: 0.2
+      });
+
+    expect(scanResponse.status).toBe(200);
+    expect(scanResponse.body?.success).toBe(true);
+    expect(scanResponse.body?.data?.provider).toBeTruthy();
+    expect(Array.isArray(scanResponse.body?.data?.counts)).toBe(true);
+    expect(scanResponse.body?.data?.counts?.length).toBeGreaterThan(0);
+    expect(scanResponse.body?.data?.policy).toBeDefined();
+    expect(Array.isArray(scanResponse.body?.data?.eligibleCounts)).toBe(true);
+    expect(Array.isArray(scanResponse.body?.data?.reviewRequiredCounts)).toBe(
+      true
+    );
+    expect(scanResponse.body?.data?.counts?.[0]?.sku).toBe('VISION-001');
+  });
 });
