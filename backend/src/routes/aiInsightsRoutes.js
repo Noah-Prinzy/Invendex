@@ -1,5 +1,6 @@
 import express from 'express';
 import {
+  getProductDemandAnomalies,
   getProductSeasonality,
   getPromotionForecast,
   getSupplierLeadTimeVariability,
@@ -19,6 +20,7 @@ router.use(
 );
 
 router.get('/seasonality/:productId', getProductSeasonality);
+router.get('/anomalies/:productId', getProductDemandAnomalies);
 router.post('/promotion-forecast', getPromotionForecast);
 router.get(
   '/lead-time-variability/:supplierId',

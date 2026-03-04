@@ -1,5 +1,6 @@
 import { successResponse } from '../utils/response.js';
 import {
+  getDemandAnomalyInsight,
   getLeadTimeVariabilityInsight,
   getSeasonalityInsight,
   getSupplierReliabilityScores,
@@ -60,6 +61,22 @@ export const getSupplierReliability = async (req, res, next) => {
     });
 
     return successResponse(res, data, 'Supplier reliability scoring generated');
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getProductDemandAnomalies = async (req, res, next) => {
+  try {
+    const data = await getDemandAnomalyInsight({
+      organizationId: req.organizationId,
+      productId: req.params.productId,
+      lookbackDays: req.query.days || 180,
+      zThreshold: req.query.zThreshold || 2.5,
+      minDemand: req.query.minDemand || 1
+    });
+
+    return successResponse(res, data, 'Demand anomaly insight generated');
   } catch (err) {
     next(err);
   }

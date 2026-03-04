@@ -347,9 +347,115 @@ export const getSupplierReliabilityScores = async ({
   return ranking;
 };
 
+export const getDemandAnomalyInsight = async ({
+  organizationId,
+  productId,
+  lookbackDays = 180,
+  zThreshold = 2.5,
+  minDemand = 1
+}) => {
+  const normalizedLookbackDays = Math.max(14, Number(lookbackDays) || 180);
+  const normalizedZThreshold = Math.max(
+    1.5,
+    Math.min(6, Number(zThreshold) || 2.5)
+  );
+  const normalizedMinDemand = Math.max(0, Number(minDemand) || 1);
+
+  const since = new Date();
+  since.setDate(since.getDate() - normalizedLookbackDays);
+
+  const snapshots = await InventorySnapshot.find({
+    organization: organizationId,
+    product: productId,
+    recordedAt: { $gte: since }
+  })
+    .sort({ recordedAt: 1 })
+    .select('recordedAt stock')
+    .lean();
+
+  if (snapshots.length < 3) {
+    return {
+      productId,
+      lookbackDays: normalizedLookbackDays,
+      zThreshold: normalizedZThreshold,
+      sampleSize: 0,
+      anomalyCount: 0,
+      anomalies: [],
+      status: 'insufficient_data'
+    };
+  }
+
+  const demandSeries = [];
+  for (let idx = 1; idx < snapshots.length; idx += 1) {
+    const previous = snapshots[idx - 1];
+    const current = snapshots[idx];
+    const demand = Number(previous.stock || 0) - Number(current.stock || 0);
+    if (!Number.isFinite(demand) || demand < normalizedMinDemand) continue;
+
+    demandSeries.push({
+      recordedAt: current.recordedAt,
+      demand
+    });
+  }
+
+  if (!demandSeries.length) {
+    return {
+      productId,
+      lookbackDays: normalizedLookbackDays,
+      zThreshold: normalizedZThreshold,
+      sampleSize: 0,
+      anomalyCount: 0,
+      anomalies: [],
+      status: 'no_demand_points'
+    };
+  }
+
+  const demandValues = demandSeries.map((entry) => entry.demand);
+  const meanDemand =
+    demandValues.reduce((sum, value) => sum + value, 0) / demandValues.length;
+  const demandStdDev = stdDev(demandValues);
+
+  const anomalies =
+    demandStdDev <= 0
+      ? []
+      : demandSeries
+          .map((entry) => {
+            const zScore = (entry.demand - meanDemand) / demandStdDev;
+            return {
+              date: new Date(entry.recordedAt).toISOString().slice(0, 10),
+              demand: Number(entry.demand.toFixed(2)),
+              zScore: Number(zScore.toFixed(2)),
+              severity:
+                zScore >= normalizedZThreshold + 1
+                  ? 'HIGH'
+                  : zScore >= normalizedZThreshold
+                    ? 'MEDIUM'
+                    : 'LOW'
+            };
+          })
+          .filter((entry) => entry.zScore >= normalizedZThreshold)
+          .sort((a, b) => b.zScore - a.zScore);
+
+  return {
+    productId,
+    lookbackDays: normalizedLookbackDays,
+    zThreshold: normalizedZThreshold,
+    sampleSize: demandSeries.length,
+    baseline: {
+      avgDemand: Number(meanDemand.toFixed(2)),
+      stdDev: Number(demandStdDev.toFixed(2)),
+      p95Demand: Number(percentile(demandValues, 95).toFixed(2))
+    },
+    anomalyCount: anomalies.length,
+    anomalies,
+    status: anomalies.length ? 'anomalies_detected' : 'normal'
+  };
+};
+
 export default {
   getSeasonalityInsight,
   projectPromotionAwareDemand,
   getLeadTimeVariabilityInsight,
-  getSupplierReliabilityScores
+  getSupplierReliabilityScores,
+  getDemandAnomalyInsight
 };

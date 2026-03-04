@@ -1,7 +1,10 @@
 import express from 'express';
 import {
   getDashboardDeadStock,
+  getDashboardDeadStockRescue,
+  getDashboardDigitalTwin,
   getDashboardFastestMovingSkus,
+  getDashboardInventoryAdvisor,
   getDashboardSlowMovingSkus,
   getDashboardStockAgingBuckets,
   getDashboardSupplierReliability,
@@ -36,6 +39,9 @@ router.get(
 );
 router.get('/slow-moving-skus', dashboardCache, getDashboardSlowMovingSkus);
 router.get('/dead-stock', dashboardCache, getDashboardDeadStock);
+router.get('/dead-stock-rescue', dashboardCache, getDashboardDeadStockRescue);
+router.get('/inventory-advisor', dashboardCache, getDashboardInventoryAdvisor);
+router.get('/digital-twin', dashboardCache, getDashboardDigitalTwin);
 router.get(
   '/stock-aging-buckets',
   dashboardCache,
