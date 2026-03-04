@@ -20,6 +20,22 @@
     border-color 0.25s ease;
 }
 
+.metric-card::before {
+  content: '';
+  position: absolute;
+  top: -22px;
+  right: -20px;
+  width: 86px;
+  height: 86px;
+  border-radius: 999px;
+  background: radial-gradient(
+    circle,
+    rgba(103, 183, 255, 0.28) 0%,
+    rgba(103, 183, 255, 0) 70%
+  );
+  pointer-events: none;
+}
+
 .metric-card::after {
   content: '';
   position: absolute;
@@ -103,6 +119,17 @@
   overflow: hidden;
   box-shadow: 0 12px 24px rgba(11, 27, 52, 0.09);
   animation: rise-in 0.62s ease both;
+  transition:
+    transform 0.2s ease,
+    border-color 0.22s ease,
+    box-shadow 0.24s ease;
+}
+
+.event-card:hover,
+.data-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(144, 176, 216, 0.58);
+  box-shadow: 0 16px 30px rgba(11, 27, 52, 0.12);
 }
 
 .event-card h3,
@@ -132,6 +159,7 @@
 .settings-card {
   border-color: rgba(145, 185, 230, 0.46);
   background: linear-gradient(180deg, #ffffff 0%, #f5f9fd 100%);
+  box-shadow: 0 14px 26px rgba(15, 38, 72, 0.08);
 }
 
 .settings-grid {
@@ -582,6 +610,7 @@
   border: 1px solid var(--border-soft);
   border-radius: 12px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  background: #ffffff;
 }
 
 .data-table {
@@ -605,7 +634,7 @@
 
 .data-table th {
   color: #3f5878;
-  background: #edf3fa;
+  background: linear-gradient(180deg, #edf3fa 0%, #e5edf7 100%);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -692,6 +721,16 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.62rem;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.18s ease;
+}
+
+.event-item:hover {
+  border-color: rgba(153, 182, 220, 0.76);
+  background: #f8fbff;
+  transform: translateY(-1px);
 }
 
 .event-title {
@@ -776,6 +815,14 @@
   border-radius: 10px;
   background: #f4f8fd;
   padding: 0.52rem 0.62rem;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.22s ease;
+}
+
+.obs-item:hover {
+  border-color: rgba(151, 180, 217, 0.74);
+  box-shadow: 0 10px 20px rgba(13, 32, 62, 0.09);
 }
 
 .obs-value {
@@ -809,6 +856,14 @@
   border-radius: 10px;
   background: #f4f8fd;
   padding: 0.62rem 0.68rem;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.22s ease;
+}
+
+.account-kv-item:hover {
+  border-color: rgba(152, 180, 217, 0.72);
+  box-shadow: 0 10px 20px rgba(13, 32, 62, 0.08);
 }
 
 .account-kv-label {
