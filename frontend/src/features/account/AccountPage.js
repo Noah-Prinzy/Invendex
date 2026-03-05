@@ -393,7 +393,7 @@ const Account = ({
           <div className="obs-actions">
             <button
               type="button"
-              className="btn-ghost"
+              className="btn-ghost aligned-action-btn"
               onClick={loadSessions}
               disabled={sessionsLoading}
             >
@@ -472,7 +472,7 @@ const Account = ({
           <div className="obs-actions">
             <button
               type="button"
-              className="btn-ghost"
+              className="btn-ghost aligned-action-btn"
               onClick={loadTwoFactorStatus}
               disabled={twoFactorLoading}
             >

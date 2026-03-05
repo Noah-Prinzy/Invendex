@@ -4,6 +4,9 @@ import {
   login,
   adminLogin,
   employeeLogin,
+  requestEmployeeSignup,
+  approveEmployeeSignupRequest,
+  declineEmployeeSignupRequest,
   getMe,
   updateMePreferences,
   refreshToken,
@@ -23,13 +26,18 @@ import {
   verifyTwoFactorLogin
 } from '../controllers/authController.js';
 import { protect } from '../middlewares/authMiddleware.js';
+import requireOrganization from '../middlewares/requireOrganization.js';
+import requireRoles from '../middlewares/requireRoles.js';
 import { loginLimiter } from '../middlewares/loginLimiter.js';
 import validateRequest from '../middlewares/validateRequest.js';
 import { issueCsrfToken, requireCsrf } from '../middlewares/csrfProtection.js';
 import {
   registerValidator,
   loginValidator,
+  adminLoginValidator,
   employeeLoginValidator,
+  employeeSignupRequestValidator,
+  employeeSignupRequestDecisionValidator,
   updateMePreferencesValidator,
   sessionIdParamValidator,
   requestEmailVerificationValidator,
@@ -51,7 +59,7 @@ router.post('/login', loginLimiter, loginValidator, validateRequest, login);
 router.post(
   '/admin/login',
   loginLimiter,
-  loginValidator,
+  adminLoginValidator,
   validateRequest,
   adminLogin
 );
@@ -61,6 +69,31 @@ router.post(
   employeeLoginValidator,
   validateRequest,
   employeeLogin
+);
+router.post(
+  '/employee/signup',
+  loginLimiter,
+  employeeSignupRequestValidator,
+  validateRequest,
+  requestEmployeeSignup
+);
+router.post(
+  '/employee/signup-requests/:id/approve',
+  protect,
+  requireOrganization,
+  requireRoles('owner', 'admin'),
+  employeeSignupRequestDecisionValidator,
+  validateRequest,
+  approveEmployeeSignupRequest
+);
+router.post(
+  '/employee/signup-requests/:id/decline',
+  protect,
+  requireOrganization,
+  requireRoles('owner', 'admin'),
+  employeeSignupRequestDecisionValidator,
+  validateRequest,
+  declineEmployeeSignupRequest
 );
 router.post(
   '/verify-email/request',

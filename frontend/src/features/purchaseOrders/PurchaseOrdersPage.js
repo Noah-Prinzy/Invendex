@@ -109,7 +109,7 @@ const PurchaseOrders = ({ accessToken, poEvents = [] }) => {
         </div>
         <button
           type="button"
-          className="btn-ghost"
+          className="btn-ghost aligned-action-btn"
           onClick={() => refetchOrders()}
           disabled={!accessToken || ordersLoading || ordersFetching}
         >

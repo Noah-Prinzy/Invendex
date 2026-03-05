@@ -506,7 +506,7 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
         </div>
         <button
           type="button"
-          className="btn-ghost"
+          className="btn-ghost aligned-action-btn"
           onClick={() => usersQuery.refetch()}
           disabled={isLoading}
         >

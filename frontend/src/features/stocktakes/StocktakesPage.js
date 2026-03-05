@@ -4,6 +4,7 @@ import {
   approveInventoryStocktakeSessionRequest,
   createInventoryStocktakeSessionRequest,
   getInventoryStocktakeSessionRequest,
+  getWarehousesRequest,
   listInventoryStocktakesRequest,
   scanInventoryStocktakeImageRequest,
   submitInventoryStocktakeCountsRequest
@@ -34,7 +35,11 @@ const normalizeScanToken = (value) =>
 const toCompactScanToken = (value) =>
   normalizeScanToken(value).replace(/[^A-Z0-9]/g, '');
 
-const StocktakesPage = ({ accessToken, warehouseId = null }) => {
+const StocktakesPage = ({
+  accessToken,
+  warehouseId = null,
+  activeWarehouseLabel = 'All warehouses'
+}) => {
   const queryClient = useQueryClient();
   const [filterWarehouseId, setFilterWarehouseId] = useState(
     String(warehouseId || '').trim()
@@ -76,15 +81,60 @@ const StocktakesPage = ({ accessToken, warehouseId = null }) => {
     return Boolean(navigator?.mediaDevices?.getUserMedia);
   }, []);
 
+  const warehousesQuery = useQuery({
+    queryKey: ['stocktakes:warehouses', String(accessToken || '')],
+    enabled: Boolean(accessToken),
+    staleTime: 30 * 1000,
+    queryFn: async () =>
+      getWarehousesRequest(accessToken, {
+        includeInactive: false,
+        includeArchived: false
+      })
+  });
+
+  const warehouseOptions = useMemo(() => {
+    const rows = Array.isArray(warehousesQuery.data)
+      ? warehousesQuery.data
+      : [];
+    return rows.map((warehouse) => ({
+      value: String(warehouse?._id || ''),
+      label: `${String(warehouse?.name || 'Warehouse')} (${String(warehouse?.code || '-')})`
+    }));
+  }, [warehousesQuery.data]);
+
+  const warehouseOptionValues = useMemo(
+    () => new Set(warehouseOptions.map((option) => option.value)),
+    [warehouseOptions]
+  );
+
   useEffect(() => {
     const normalized = String(warehouseId || '').trim();
-    if (normalized && !filterWarehouseId) {
-      setFilterWarehouseId(normalized);
+    if (normalized) {
+      if (!filterWarehouseId) {
+        setFilterWarehouseId(normalized);
+      }
+      if (!createWarehouseId) {
+        setCreateWarehouseId(normalized);
+      }
+      return;
     }
-    if (normalized && !createWarehouseId) {
-      setCreateWarehouseId(normalized);
+
+    if (!createWarehouseId && warehouseOptions.length) {
+      setCreateWarehouseId(warehouseOptions[0].value);
     }
-  }, [warehouseId, filterWarehouseId, createWarehouseId]);
+  }, [warehouseId, filterWarehouseId, createWarehouseId, warehouseOptions]);
+
+  useEffect(() => {
+    if (!createWarehouseId) return;
+    if (warehouseOptionValues.has(String(createWarehouseId))) return;
+    setCreateWarehouseId(warehouseOptions[0]?.value || '');
+  }, [createWarehouseId, warehouseOptions, warehouseOptionValues]);
+
+  useEffect(() => {
+    if (!filterWarehouseId) return;
+    if (warehouseOptionValues.has(String(filterWarehouseId))) return;
+    setFilterWarehouseId('');
+  }, [filterWarehouseId, warehouseOptionValues]);
 
   const sessionsQuery = useQuery({
     queryKey: [
@@ -583,9 +633,7 @@ const StocktakesPage = ({ accessToken, warehouseId = null }) => {
     setCreateNotice('');
     const normalizedWarehouseId = String(createWarehouseId || '').trim();
     if (!normalizedWarehouseId) {
-      setCreateNotice(
-        'Warehouse ID is required to create a stocktake session.'
-      );
+      setCreateNotice('Warehouse is required to create a stocktake session.');
       return;
     }
 
@@ -734,10 +782,14 @@ const StocktakesPage = ({ accessToken, warehouseId = null }) => {
             Create cycle-count sessions, submit counted quantities, and approve
             variances.
           </p>
+          <p className="muted">
+            Selected warehouse:{' '}
+            <strong>{activeWarehouseLabel || 'All warehouses'}</strong>
+          </p>
         </div>
         <button
           type="button"
-          className="btn-ghost"
+          className="btn-ghost aligned-action-btn"
           onClick={() => sessionsQuery.refetch()}
           disabled={sessionsQuery.isFetching}
         >
@@ -749,13 +801,24 @@ const StocktakesPage = ({ accessToken, warehouseId = null }) => {
         <h3>Create stocktake session</h3>
         <form className="control-row" onSubmit={handleCreateSession}>
           <label className="control-field">
-            <span>Warehouse ID</span>
-            <input
-              type="text"
+            <span>Warehouse</span>
+            <select
               value={createWarehouseId}
               onChange={(event) => setCreateWarehouseId(event.target.value)}
-              placeholder="Required warehouse id"
-            />
+              disabled={warehousesQuery.isLoading || createMutation.isPending}
+              title="Choose the warehouse this stocktake session will count."
+            >
+              <option value="">
+                {warehousesQuery.isLoading
+                  ? 'Loading warehouses...'
+                  : 'Select warehouse'}
+              </option>
+              {warehouseOptions.map((option) => (
+                <option key={`create-${option.value}`} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="control-field">
             <span>Title (optional)</span>
@@ -783,6 +846,13 @@ const StocktakesPage = ({ accessToken, warehouseId = null }) => {
             {createMutation.isPending ? 'Creating...' : 'Create session'}
           </button>
         </form>
+        {warehousesQuery.error ? (
+          <p className="form-error">
+            {String(
+              warehousesQuery.error?.message || 'Unable to load warehouses'
+            )}
+          </p>
+        ) : null}
         {createNotice ? <p className="section-note">{createNotice}</p> : null}
       </article>
 
@@ -790,13 +860,20 @@ const StocktakesPage = ({ accessToken, warehouseId = null }) => {
         <h3>Session list</h3>
         <div className="control-row compact">
           <label className="control-field">
-            <span>Warehouse filter</span>
-            <input
-              type="text"
+            <span>Warehouse</span>
+            <select
               value={filterWarehouseId}
               onChange={(event) => setFilterWarehouseId(event.target.value)}
-              placeholder="Optional warehouse id"
-            />
+              disabled={warehousesQuery.isLoading}
+              title="Filter stocktake sessions by warehouse."
+            >
+              <option value="">All warehouses</option>
+              {warehouseOptions.map((option) => (
+                <option key={`filter-${option.value}`} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="control-field">
             <span>Status filter</span>

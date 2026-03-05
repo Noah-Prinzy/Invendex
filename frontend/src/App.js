@@ -7,9 +7,10 @@ import {
   useRef,
   useState
 } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import AuthForm from './components/AuthForm.js';
+import AuthIntroLanding from './components/AuthIntroLanding.js';
 import NotificationBell from './components/NotificationBell.js';
 import TabBar from './components/TabBar.js';
 import useAuth from './hooks/auth/useAuth.js';
@@ -26,6 +27,7 @@ import { useAppActions, useAppState } from './state/appState.js';
 import {
   getProductsRequest,
   getPurchaseOrdersRequest,
+  getWarehousesRequest,
   getSettingsRequest,
   getNotificationsRequest,
   markAllNotificationsReadRequest,
@@ -77,6 +79,9 @@ const Reports = lazy(() => import('./features/reports/ReportsPage.js'));
 const Users = lazy(() => import('./features/users/UsersPage.js'));
 const Stocktakes = lazy(
   () => import('./features/stocktakes/StocktakesPage.js')
+);
+const Warehouses = lazy(
+  () => import('./features/warehouses/WarehousesPage.js')
 );
 const Account = lazy(() => import('./features/account/AccountPage.js'));
 const Settings = lazy(() => import('./features/settings/SettingsPage.js'));
@@ -189,6 +194,8 @@ const App = () => {
     adminLogin,
     employeeLogin,
     signup,
+    employeeSignup,
+    reviewEmployeeSignupRequest,
     requestEmailVerification,
     verifyEmail,
     requestPasswordReset,
@@ -217,13 +224,21 @@ const App = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationActionBusyId, setNotificationActionBusyId] = useState('');
   const [inventoryEvents, setInventoryEvents] = useState([]);
   const [financeEvents, setFinanceEvents] = useState([]);
   const [authEvents, setAuthEvents] = useState([]);
   const [poEvents, setPoEvents] = useState([]);
   const [themeId, setThemeId] = useState(() => readThemePreference());
+  const [showAuthPortal, setShowAuthPortal] = useState(false);
 
   const realtimeBaseUrl = useMemo(() => getRealtimeBaseUrl(), []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      setShowAuthPortal(false);
+    }
+  }, [isAuthenticated]);
   const companyName = useMemo(() => {
     const fromProfile = String(user?.organizationName || '').trim();
     if (fromProfile) return fromProfile;
@@ -234,6 +249,85 @@ const App = () => {
     if (fromOrganizationObject) return fromOrganizationObject;
     return t('app.organizationFallback');
   }, [t, user]);
+
+  const warehousesQuery = useQuery({
+    queryKey: ['warehouses:list', String(accessToken || '')],
+    enabled: Boolean(accessToken) && isAuthenticated,
+    staleTime: 30 * 1000,
+    queryFn: async () =>
+      getWarehousesRequest(accessToken, {
+        includeInactive: false,
+        includeArchived: false
+      })
+  });
+
+  const warehouseOptions = useMemo(() => {
+    const allWarehousesOption = {
+      value: '',
+      label: t('app.warehouseAllOption')
+    };
+
+    const warehouseItems = Array.isArray(warehousesQuery.data)
+      ? warehousesQuery.data
+      : [];
+
+    if (!warehouseItems.length) {
+      if (warehousesQuery.isLoading || warehousesQuery.isFetching) {
+        return [
+          {
+            value: '',
+            label: t('app.warehouseLoadingOption')
+          }
+        ];
+      }
+
+      return [allWarehousesOption];
+    }
+
+    return [
+      allWarehousesOption,
+      ...warehouseItems.map((warehouse) => ({
+        value: String(warehouse?._id || ''),
+        label: `${String(warehouse?.name || 'Warehouse')} (${String(warehouse?.code || '-')})`
+      }))
+    ];
+  }, [
+    t,
+    warehousesQuery.data,
+    warehousesQuery.isFetching,
+    warehousesQuery.isLoading
+  ]);
+
+  const selectedWarehouseLabel = useMemo(() => {
+    if (!activeWarehouseId) {
+      return t('app.warehouseAllOption');
+    }
+
+    const selectedOption = warehouseOptions.find(
+      (option) => String(option?.value || '') === String(activeWarehouseId)
+    );
+
+    if (selectedOption?.label) {
+      return selectedOption.label;
+    }
+
+    return t('app.warehouseSelectedFallback');
+  }, [activeWarehouseId, t, warehouseOptions]);
+
+  const refreshWarehouses = useCallback(() => {
+    warehousesQuery.refetch();
+  }, [warehousesQuery]);
+
+  useEffect(() => {
+    if (!activeWarehouseId) return;
+    const exists = warehouseOptions.some(
+      (option) => String(option.value || '') === String(activeWarehouseId)
+    );
+
+    if (!exists) {
+      setActiveWarehouseId('');
+    }
+  }, [activeWarehouseId, setActiveWarehouseId, warehouseOptions]);
 
   const refreshNotifications = useCallback(async () => {
     if (!accessToken || !isAuthenticated) return;
@@ -310,6 +404,44 @@ const App = () => {
       // no-op
     }
   }, [accessToken, refreshNotifications]);
+
+  const handleEmployeeSignupDecision = useCallback(
+    async ({ notificationId, requestId, decision }) => {
+      if (!accessToken) return;
+      const normalizedNotificationId = String(notificationId || '').trim();
+      const normalizedRequestId = String(requestId || '').trim();
+      const normalizedDecision = String(decision || '')
+        .trim()
+        .toLowerCase();
+      if (
+        !normalizedNotificationId ||
+        !normalizedRequestId ||
+        (normalizedDecision !== 'approve' && normalizedDecision !== 'decline')
+      ) {
+        return;
+      }
+
+      setNotificationActionBusyId(normalizedNotificationId);
+      try {
+        const result = await reviewEmployeeSignupRequest({
+          requestId: normalizedRequestId,
+          decision: normalizedDecision
+        });
+        if (!result?.success) return;
+
+        await markNotificationReadRequest({
+          accessToken,
+          notificationId: normalizedNotificationId
+        });
+        await refreshNotifications();
+      } catch {
+        // no-op
+      } finally {
+        setNotificationActionBusyId('');
+      }
+    },
+    [accessToken, refreshNotifications, reviewEmployeeSignupRequest]
+  );
 
   const handleInventoryUpdated = useCallback((payload) => {
     setInventoryEvents((current) =>
@@ -532,6 +664,7 @@ const App = () => {
       <Dashboard
         accessToken={accessToken}
         warehouseId={activeWarehouseId || null}
+        activeWarehouseLabel={selectedWarehouseLabel}
         inventoryEvents={inventoryEvents}
         financeEvents={financeEvents}
         authEvents={authEvents}
@@ -558,6 +691,7 @@ const App = () => {
           accessToken={accessToken}
           userRole={role}
           warehouseId={activeWarehouseId || null}
+          activeWarehouseLabel={selectedWarehouseLabel}
         />
       );
     }
@@ -571,6 +705,22 @@ const App = () => {
           <Stocktakes
             accessToken={accessToken}
             warehouseId={activeWarehouseId || null}
+            activeWarehouseLabel={selectedWarehouseLabel}
+          />
+        </RequireRole>
+      );
+    }
+    if (activeTab === 'warehouses') {
+      return (
+        <RequireRole
+          role={role}
+          allowedRoles={['owner', 'admin']}
+          fallback={roleGuardFallback}
+        >
+          <Warehouses
+            accessToken={accessToken}
+            userRole={role}
+            onWarehousesChanged={refreshWarehouses}
           />
         </RequireRole>
       );
@@ -646,6 +796,7 @@ const App = () => {
     accessToken,
     user,
     activeWarehouseId,
+    selectedWarehouseLabel,
     inventoryEvents,
     financeEvents,
     authEvents,
@@ -663,6 +814,7 @@ const App = () => {
     listSessions,
     revokeSession,
     logoutOtherSessions,
+    refreshWarehouses,
     roleGuardFallback
   ]);
 
@@ -680,15 +832,12 @@ const App = () => {
     );
   }
 
-  const unauthenticatedView = (
-    <AuthLayout
-      eyebrow={t('app.brand')}
-      title={t('app.authIntroTitle')}
-      description={t('app.authIntroDescription')}
-    >
+  const unauthenticatedView = showAuthPortal ? (
+    <main className="auth-layout auth-layout-single">
       <AuthForm
         onAdminSignIn={adminLogin}
         onEmployeeSignIn={employeeLogin}
+        onEmployeeSignUp={employeeSignup}
         onSignUp={signup}
         onRequestEmailVerification={requestEmailVerification}
         onVerifyEmail={verifyEmail}
@@ -696,11 +845,19 @@ const App = () => {
         onResetPassword={resetPassword}
         pendingTwoFactorLogin={pendingTwoFactorLogin}
         onVerifyTwoFactorLogin={verifyTwoFactorLogin}
+        onBackToIntro={() => setShowAuthPortal(false)}
         isLoading={isLoading}
         error={error}
         notice={notice}
       />
-    </AuthLayout>
+    </main>
+  ) : (
+    <AuthIntroLanding
+      eyebrow={t('app.brand')}
+      title="Welcome to Ledgerly"
+      description={t('app.authIntroDescription')}
+      onGetStarted={() => setShowAuthPortal(true)}
+    />
   );
 
   return (
@@ -715,6 +872,10 @@ const App = () => {
         <DashboardLayout
           companyName={companyName}
           warehouseId={activeWarehouseId}
+          warehouseOptions={warehouseOptions}
+          warehouseDisabled={
+            warehousesQuery.isLoading || warehousesQuery.isFetching
+          }
           warehouseLabel={t('app.warehouseLabel')}
           warehousePlaceholder={t('app.warehousePlaceholder')}
           statusOnlineLabel={t('app.online')}
@@ -729,9 +890,12 @@ const App = () => {
               count={unreadCount}
               items={notifications}
               isLoading={notificationsLoading}
+              actionBusyNotificationId={notificationActionBusyId}
+              currentUserRole={String(user?.role || '').toLowerCase()}
               onRefresh={refreshNotifications}
               onMarkAllRead={handleMarkAllNotificationsRead}
               onMarkRead={handleMarkNotificationRead}
+              onEmployeeSignupDecision={handleEmployeeSignupDecision}
             />
           }
           onLogout={logout}

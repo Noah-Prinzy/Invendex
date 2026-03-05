@@ -4,6 +4,9 @@ import {
   authLoginRequest,
   authAdminLoginRequest,
   authEmployeeLoginRequest,
+  authEmployeeSignupRequest,
+  authApproveEmployeeSignupRequest,
+  authDeclineEmployeeSignupRequest,
   authRegisterRequest,
   authVerifyEmailRequest,
   authVerifyEmailConfirmRequest,
@@ -62,11 +65,15 @@ const normalizeUser = (user, organization = null) => {
   return {
     _id: user._id,
     email: user.email,
+    username: user.username || null,
     role: user.role,
     uiTheme: String(user.uiTheme || '').trim() || null,
     organization: normalizedOrganizationId,
     organizationName: normalizedOrganizationName,
-    name: user.name || (user.email ? user.email.split('@')[0] : 'Operator')
+    name:
+      user.name ||
+      user.username ||
+      (user.email ? user.email.split('@')[0] : 'Operator')
   };
 };
 
@@ -168,19 +175,23 @@ export const useAuth = () => {
 
   const performLogin = useCallback(
     async ({
+      username = '',
       email,
       password,
       loginRequest,
-      companyName = '',
-      inviteCode = ''
+      companyName = ''
     }) => {
+      const normalizedUsername = String(username || '').trim();
       const normalizedEmail = String(email || '').trim();
       const normalizedPassword = String(password || '').trim();
       const normalizedCompanyName = String(companyName || '').trim();
-      const normalizedInviteCode = String(inviteCode || '').trim();
 
-      if (!normalizedEmail || !normalizedPassword || !loginRequest) {
-        setError('Email and password are required.');
+      if (
+        (!normalizedUsername && !normalizedEmail) ||
+        !normalizedPassword ||
+        !loginRequest
+      ) {
+        setError('Username and password are required.');
         return { success: false };
       }
 
@@ -198,11 +209,12 @@ export const useAuth = () => {
           loginRequest === authEmployeeLoginRequest
             ? await loginRequest({
                 companyName: normalizedCompanyName,
+                username: normalizedUsername,
                 email: normalizedEmail,
-                password: normalizedPassword,
-                inviteCode: normalizedInviteCode
+                password: normalizedPassword
               })
             : await loginRequest({
+                username: normalizedUsername,
                 email: normalizedEmail,
                 password: normalizedPassword
               });
@@ -224,6 +236,7 @@ export const useAuth = () => {
               loginResponse?.data?.expiresInSeconds || 600
             ),
             email: normalizedEmail,
+            username: normalizedUsername,
             companyName: normalizedCompanyName || ''
           });
           setNotice('Two-factor authentication required. Enter your code.');
@@ -256,8 +269,9 @@ export const useAuth = () => {
   );
 
   const adminLogin = useCallback(
-    async ({ email, password }) =>
+    async ({ username, email, password }) =>
       performLogin({
+        username,
         email,
         password,
         loginRequest: authAdminLoginRequest
@@ -266,12 +280,12 @@ export const useAuth = () => {
   );
 
   const employeeLogin = useCallback(
-    async ({ companyName, email, password, inviteCode }) =>
+    async ({ companyName, username, email, password }) =>
       performLogin({
         companyName,
+        username,
         email,
         password,
-        inviteCode,
         loginRequest: authEmployeeLoginRequest
       }),
     [performLogin]
@@ -279,8 +293,9 @@ export const useAuth = () => {
 
   // Backward-compatible generic login entry.
   const login = useCallback(
-    async ({ email, password }) =>
+    async ({ username, email, password }) =>
       performLogin({
+        username,
         email,
         password,
         loginRequest: authLoginRequest
@@ -355,20 +370,28 @@ export const useAuth = () => {
   );
 
   const signup = useCallback(
-    async ({ email, password, confirmPassword, organizationName }) => {
+    async ({
+      username,
+      email,
+      password,
+      confirmPassword,
+      organizationName
+    }) => {
+      const normalizedUsername = String(username || '').trim();
       const normalizedEmail = String(email || '').trim();
       const normalizedPassword = String(password || '').trim();
       const normalizedConfirmPassword = String(confirmPassword || '').trim();
       const normalizedOrganizationName = String(organizationName || '').trim();
 
       if (
+        !normalizedUsername ||
         !normalizedEmail ||
         !normalizedPassword ||
         !normalizedConfirmPassword ||
         !normalizedOrganizationName
       ) {
         setError(
-          'Email, password, confirm password, and organization are required.'
+          'Username, email, password, confirm password, and organization are required.'
         );
         setNotice('');
         return { success: false };
@@ -386,6 +409,7 @@ export const useAuth = () => {
 
       try {
         await authRegisterRequest({
+          username: normalizedUsername,
           email: normalizedEmail,
           password: normalizedPassword,
           confirmPassword: normalizedConfirmPassword,
@@ -402,6 +426,100 @@ export const useAuth = () => {
       }
     },
     []
+  );
+
+  const employeeSignup = useCallback(
+    async ({ companyName, username, email, password, confirmPassword }) => {
+      const normalizedCompanyName = String(companyName || '').trim();
+      const normalizedUsername = String(username || '').trim();
+      const normalizedEmail = String(email || '').trim();
+      const normalizedPassword = String(password || '').trim();
+      const normalizedConfirmPassword = String(confirmPassword || '').trim();
+
+      if (
+        !normalizedCompanyName ||
+        !normalizedUsername ||
+        !normalizedEmail ||
+        !normalizedPassword ||
+        !normalizedConfirmPassword
+      ) {
+        setError(
+          'Company, username, email, password, and confirm password are required.'
+        );
+        setNotice('');
+        return { success: false };
+      }
+
+      if (normalizedPassword !== normalizedConfirmPassword) {
+        setError('Password and confirm password do not match.');
+        setNotice('');
+        return { success: false };
+      }
+
+      setError('');
+      setNotice('');
+      setIsLoading(true);
+
+      try {
+        const response = await authEmployeeSignupRequest({
+          companyName: normalizedCompanyName,
+          username: normalizedUsername,
+          email: normalizedEmail,
+          password: normalizedPassword,
+          confirmPassword: normalizedConfirmPassword
+        });
+
+        setNotice(
+          String(
+            response?.message ||
+              'Signup request submitted. Wait for admin approval.'
+          )
+        );
+        return {
+          success: true,
+          data: response?.data || null
+        };
+      } catch (signupError) {
+        setError(getMessage(signupError));
+        return { success: false };
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
+  );
+
+  const reviewEmployeeSignupRequest = useCallback(
+    async ({ requestId, decision = 'approve', reason = '' }) => {
+      if (!accessToken) {
+        return { success: false, message: 'Not authenticated' };
+      }
+
+      const normalizedRequestId = String(requestId || '').trim();
+      if (!normalizedRequestId) {
+        return { success: false, message: 'requestId is required' };
+      }
+
+      const normalizedDecision = String(decision || '')
+        .trim()
+        .toLowerCase();
+      const decisionRequest =
+        normalizedDecision === 'decline'
+          ? authDeclineEmployeeSignupRequest
+          : authApproveEmployeeSignupRequest;
+
+      try {
+        const data = await decisionRequest({
+          accessToken,
+          requestId: normalizedRequestId,
+          reason
+        });
+        return { success: true, data };
+      } catch (reviewError) {
+        return { success: false, message: getMessage(reviewError) };
+      }
+    },
+    [accessToken]
   );
 
   const requestEmailVerification = useCallback(async ({ email }) => {
@@ -872,6 +990,8 @@ export const useAuth = () => {
     employeeLogin,
     verifyTwoFactorLogin,
     signup,
+    employeeSignup,
+    reviewEmployeeSignupRequest,
     requestEmailVerification,
     verifyEmail,
     requestPasswordReset,

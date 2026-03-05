@@ -11,14 +11,22 @@ const NotificationBell = ({
   count = 0,
   items = [],
   isLoading = false,
+  actionBusyNotificationId = '',
+  currentUserRole = '',
   onRefresh = () => {},
   onMarkAllRead = () => {},
-  onMarkRead = () => {}
+  onMarkRead = () => {},
+  onEmployeeSignupDecision = () => {}
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const shellRef = useRef(null);
   const unreadBadge = count > 99 ? '99+' : String(count);
   const hasItems = Array.isArray(items) && items.length > 0;
+  const canReviewEmployeeSignups = ['owner', 'admin'].includes(
+    String(currentUserRole || '')
+      .trim()
+      .toLowerCase()
+  );
 
   const title = useMemo(
     () =>
@@ -116,18 +124,82 @@ const NotificationBell = ({
                     </p>
                   </div>
                   <div className="notification-item-actions">
-                    {!item?.read ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="btn-inline"
-                        onClick={() => onMarkRead(item?._id || item?.id)}
-                      >
-                        Mark read
-                      </Button>
-                    ) : (
-                      <span className="section-note">Read</span>
-                    )}
+                    {(() => {
+                      const notificationId = String(
+                        item?._id || item?.id || ''
+                      ).trim();
+                      const metadata =
+                        item?.metadata && typeof item.metadata === 'object'
+                          ? item.metadata
+                          : {};
+                      const signupRequestId = String(
+                        metadata?.signupRequestId || ''
+                      ).trim();
+                      const signupStatus = String(
+                        metadata?.status || ''
+                      ).trim();
+                      const isSignupApprovalPrompt =
+                        canReviewEmployeeSignups &&
+                        item?.type === 'employee_signup_request' &&
+                        signupRequestId &&
+                        (!signupStatus || signupStatus === 'PENDING');
+                      const isActionBusy =
+                        notificationId &&
+                        notificationId ===
+                          String(actionBusyNotificationId || '').trim();
+
+                      if (isSignupApprovalPrompt && !item?.read) {
+                        return (
+                          <div className="notification-decision-actions">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="btn-inline"
+                              disabled={isActionBusy}
+                              onClick={() =>
+                                onEmployeeSignupDecision({
+                                  notificationId,
+                                  requestId: signupRequestId,
+                                  decision: 'approve'
+                                })
+                              }
+                            >
+                              {isActionBusy ? 'Processing...' : 'Approve'}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="btn-inline"
+                              disabled={isActionBusy}
+                              onClick={() =>
+                                onEmployeeSignupDecision({
+                                  notificationId,
+                                  requestId: signupRequestId,
+                                  decision: 'decline'
+                                })
+                              }
+                            >
+                              Decline
+                            </Button>
+                          </div>
+                        );
+                      }
+
+                      if (!item?.read) {
+                        return (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="btn-inline"
+                            onClick={() => onMarkRead(notificationId)}
+                          >
+                            Mark read
+                          </Button>
+                        );
+                      }
+
+                      return <span className="section-note">Read</span>;
+                    })()}
                   </div>
                 </li>
               ))}

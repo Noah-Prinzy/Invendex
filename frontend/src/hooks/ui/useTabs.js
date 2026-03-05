@@ -6,6 +6,7 @@ export const APP_TABS = Object.freeze([
   { key: 'purchaseOrders', labelKey: 'tabs.purchaseOrders' },
   { key: 'products', labelKey: 'tabs.products' },
   { key: 'stocktakes', labelKey: 'tabs.stocktakes' },
+  { key: 'warehouses', labelKey: 'tabs.warehouses' },
   { key: 'suppliers', labelKey: 'tabs.suppliers' },
   { key: 'reports', labelKey: 'tabs.reports' },
   { key: 'users', labelKey: 'tabs.users' },

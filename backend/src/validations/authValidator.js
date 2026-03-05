@@ -1,6 +1,7 @@
 import { body, param } from 'express-validator';
 
 const withNormalizedString = (value) => String(value || '').trim();
+const USERNAME_REGEX = /^[a-zA-Z0-9._-]{3,32}$/;
 
 const requireEmail = body('email')
   .exists({ checkFalsy: true })
@@ -51,7 +52,17 @@ export const registerValidator = [
     }
 
     return true;
-  })
+  }),
+  body('username')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('username must be a string')
+    .bail()
+    .trim()
+    .matches(USERNAME_REGEX)
+    .withMessage(
+      'username must be 3-32 characters and use letters, numbers, dot, underscore, or hyphen'
+    )
 ];
 
 export const loginValidator = [
@@ -61,8 +72,33 @@ export const loginValidator = [
     .withMessage('Password is required')
 ];
 
+export const adminLoginValidator = [
+  body('password')
+    .exists({ checkFalsy: true })
+    .withMessage('Password is required'),
+  body().custom((value, { req }) => {
+    const username = withNormalizedString(req.body?.username);
+    const email = withNormalizedString(req.body?.email);
+
+    if (!username && !email) {
+      throw new Error('username is required');
+    }
+
+    if (username && !USERNAME_REGEX.test(username)) {
+      throw new Error(
+        'username must be 3-32 characters and use letters, numbers, dot, underscore, or hyphen'
+      );
+    }
+
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new Error('email must be a valid email address');
+    }
+
+    return true;
+  })
+];
+
 export const employeeLoginValidator = [
-  requireEmail,
   body('password')
     .exists({ checkFalsy: true })
     .withMessage('Password is required'),
@@ -80,13 +116,80 @@ export const employeeLoginValidator = [
 
     return true;
   }),
-  body('inviteCode')
+  body().custom((value, { req }) => {
+    const username = withNormalizedString(req.body?.username);
+    const email = withNormalizedString(req.body?.email);
+
+    if (!username && !email) {
+      throw new Error('username is required');
+    }
+
+    if (username && !USERNAME_REGEX.test(username)) {
+      throw new Error(
+        'username must be 3-32 characters and use letters, numbers, dot, underscore, or hyphen'
+      );
+    }
+
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new Error('email must be a valid email address');
+    }
+
+    return true;
+  })
+];
+
+export const employeeSignupRequestValidator = [
+  requireEmail,
+  requirePassword,
+  body('confirmPassword')
+    .exists({ checkFalsy: true })
+    .withMessage('confirmPassword is required')
+    .bail()
+    .custom((value, { req }) => value === req.body.password)
+    .withMessage('Password and confirmPassword do not match'),
+  body('companyName').custom((value, { req }) => {
+    const companyName = withNormalizedString(
+      req.body?.companyName || req.body?.organizationName
+    );
+
+    if (!companyName) {
+      throw new Error('companyName is required');
+    }
+
+    if (companyName.length > 120) {
+      throw new Error('companyName must be at most 120 characters');
+    }
+
+    return true;
+  }),
+  body('username')
+    .exists({ checkFalsy: true })
+    .withMessage('username is required')
+    .bail()
+    .isString()
+    .withMessage('username must be a string')
+    .bail()
+    .trim()
+    .matches(USERNAME_REGEX)
+    .withMessage(
+      'username must be 3-32 characters and use letters, numbers, dot, underscore, or hyphen'
+    )
+];
+
+export const employeeSignupRequestDecisionValidator = [
+  param('id')
+    .exists({ checkFalsy: true })
+    .withMessage('id is required')
+    .bail()
+    .isMongoId()
+    .withMessage('id must be a valid ObjectId'),
+  body('reason')
     .optional({ nullable: true })
     .isString()
-    .withMessage('inviteCode must be a string')
+    .withMessage('reason must be a string')
     .bail()
-    .isLength({ max: 128 })
-    .withMessage('inviteCode must be at most 128 characters')
+    .isLength({ max: 500 })
+    .withMessage('reason must be at most 500 characters')
 ];
 
 export const requestEmailVerificationValidator = [requireEmail];
@@ -254,7 +357,10 @@ export const sessionIdParamValidator = [
 export default {
   registerValidator,
   loginValidator,
+  adminLoginValidator,
   employeeLoginValidator,
+  employeeSignupRequestValidator,
+  employeeSignupRequestDecisionValidator,
   requestEmailVerificationValidator,
   verifyEmailValidator,
   forgotPasswordValidator,

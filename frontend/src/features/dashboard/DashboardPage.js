@@ -15,6 +15,7 @@ import {
   getWmsBinInventoryRequest,
   getWmsBinMovementsRequest
 } from '../../api/client.js';
+import useOrganizationCurrency from '../../hooks/finance/useOrganizationCurrency.js';
 import { readCachedData, writeCachedData } from '../../offline/dataCache.js';
 
 const REPORTS_QUERY_STALE_TIME_MS = 45 * 1000;
@@ -57,6 +58,7 @@ const getTwinBandClass = (band, utilizationPct) => {
 const Dashboard = ({
   accessToken = null,
   warehouseId = null,
+  activeWarehouseLabel = 'All warehouses',
   inventoryEvents = [],
   financeEvents = [],
   authEvents = []
@@ -65,6 +67,9 @@ const Dashboard = ({
   const [focusedZonesByWarehouse, setFocusedZonesByWarehouse] = useState({});
   const [selectedTwinBin, setSelectedTwinBin] = useState(null);
   const [twinDrawerTab, setTwinDrawerTab] = useState('inventory');
+  const { formatFromBaseAmount } = useOrganizationCurrency({
+    accessToken
+  });
 
   const intelligenceQuery = useQuery({
     queryKey: [
@@ -264,7 +269,10 @@ const Dashboard = ({
     { label: 'Inventory events', value: String(inventoryEvents.length) },
     { label: 'Finance events', value: String(financeEvents.length) },
     { label: 'Auth events', value: String(authEvents.length) },
-    { label: 'Warehouse scope', value: warehouseId || 'All warehouses' },
+    {
+      label: 'Selected warehouse',
+      value: activeWarehouseLabel || 'All warehouses'
+    },
     {
       label: 'Top selling SKUs',
       value: String(intelligence.topSelling.length)
@@ -469,7 +477,7 @@ const Dashboard = ({
             </label>
             <button
               type="button"
-              className="btn-ghost"
+              className="btn-ghost aligned-action-btn"
               onClick={() => intelligenceQuery.refetch()}
               disabled={
                 intelligenceQuery.isLoading || intelligenceQuery.isFetching
@@ -725,8 +733,8 @@ const Dashboard = ({
                           <td>{row.recommendedAction || '-'}</td>
                           <td>{Number(row.suggestedDiscountPct || 0)}%</td>
                           <td>
-                            {Number(row.estimatedRecoverableValue || 0).toFixed(
-                              2
+                            {formatFromBaseAmount(
+                              row.estimatedRecoverableValue
                             )}
                           </td>
                         </tr>
@@ -1260,10 +1268,10 @@ const Dashboard = ({
                     ).toFixed(2)}
                   </span>
                   <span className="digital-twin-chip">
-                    Value $
-                    {Number(
+                    Value{' '}
+                    {formatFromBaseAmount(
                       binInventoryData?.totals?.inventoryValue || 0
-                    ).toFixed(2)}
+                    )}
                   </span>
                 </div>
 
@@ -1299,11 +1307,10 @@ const Dashboard = ({
                               {Number(row.quantityAvailable || 0).toFixed(2)}
                             </td>
                             <td>
-                              $
-                              {(
+                              {formatFromBaseAmount(
                                 Number(row.quantityOnHand || 0) *
-                                Number(row.unitPrice || 0)
-                              ).toFixed(2)}
+                                  Number(row.unitPrice || 0)
+                              )}
                             </td>
                           </tr>
                         ))}

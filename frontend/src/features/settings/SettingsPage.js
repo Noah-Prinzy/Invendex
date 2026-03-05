@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getFinanceExchangeRatesRequest,
   getFinanceNotificationSettingsRequest,
-  putFinanceExchangeRatesRequest,
   getFinanceTaxConfigRequest,
   patchFinanceNotificationSettingsRequest,
   patchFinanceTaxConfigRequest,
@@ -14,6 +13,7 @@ import {
   getObservabilityPingRequest,
   seedOnboardingSampleDataRequest,
   getSettingsRequest,
+  getWarehousesRequest,
   patchSettingsRequest
 } from '../../api/client.js';
 import {
@@ -47,6 +47,20 @@ import {
 const SETTINGS_HUB_PAGE_ID = 'hub';
 const TAB_QUERY_KEY = 'tab';
 const SETTINGS_PAGE_QUERY_KEY = 'settingsPage';
+const DEFAULT_DISPLAY_CURRENCY_CODES = [
+  'UGX',
+  'USD',
+  'EUR',
+  'GBP',
+  'KES',
+  'TZS',
+  'RWF',
+  'ZAR',
+  'NGN',
+  'CAD',
+  'AUD',
+  'INR'
+];
 
 const SETTINGS_PAGES = [
   {
@@ -227,12 +241,6 @@ const Settings = ({
   const [onboardingInviteError, setOnboardingInviteError] = useState('');
   const [onboardingInviteResult, setOnboardingInviteResult] = useState(null);
   const [onboardingInviting, setOnboardingInviting] = useState(false);
-  const [exchangeRateForm, setExchangeRateForm] = useState({
-    quoteCurrencyCode: '',
-    rate: ''
-  });
-  const [exchangeRateError, setExchangeRateError] = useState('');
-  const [exchangeRateNotice, setExchangeRateNotice] = useState('');
 
   const normalizedRole = String(userRole || '')
     .trim()
@@ -278,6 +286,11 @@ const Settings = ({
   )
     .trim()
     .toUpperCase();
+  const selectedDisplayCurrencyCode = String(
+    form.finance?.displayCurrencyCode || persistedBaseCurrencyCode || 'UGX'
+  )
+    .trim()
+    .toUpperCase();
 
   const observabilityQuery = useQuery({
     queryKey: ['observability:ping:settings', String(accessToken || '')],
@@ -320,6 +333,54 @@ const Settings = ({
     staleTime: OBS_STALE_MS,
     queryFn: async () => getOnboardingStatusRequest(accessToken)
   });
+
+  const warehouseOptionsQuery = useQuery({
+    queryKey: ['settings:warehouses', String(accessToken || '')],
+    enabled: Boolean(accessToken),
+    staleTime: SETTINGS_QUERY_STALE_MS,
+    queryFn: async () =>
+      getWarehousesRequest(accessToken, {
+        includeInactive: false,
+        includeArchived: false
+      })
+  });
+
+  const warehouseOptions = useMemo(() => {
+    const rows = Array.isArray(warehouseOptionsQuery.data)
+      ? warehouseOptionsQuery.data
+      : [];
+    return rows.map((warehouse) => ({
+      value: String(warehouse?._id || ''),
+      label: `${String(warehouse?.name || 'Warehouse')} (${String(warehouse?.code || '-')})`
+    }));
+  }, [warehouseOptionsQuery.data]);
+
+  const availableDisplayCurrencyCodes = useMemo(() => {
+    const codes = new Set(DEFAULT_DISPLAY_CURRENCY_CODES);
+    codes.add(persistedBaseCurrencyCode);
+    const rows = Array.isArray(exchangeRatesQuery.data?.rates)
+      ? exchangeRatesQuery.data.rates
+      : [];
+
+    for (const row of rows) {
+      const code = String(row?.quoteCurrencyCode || '')
+        .trim()
+        .toUpperCase();
+      if (code.length === 3) {
+        codes.add(code);
+      }
+    }
+
+    if (selectedDisplayCurrencyCode.length === 3) {
+      codes.add(selectedDisplayCurrencyCode);
+    }
+
+    return Array.from(codes).sort((a, b) => a.localeCompare(b));
+  }, [
+    exchangeRatesQuery.data?.rates,
+    persistedBaseCurrencyCode,
+    selectedDisplayCurrencyCode
+  ]);
 
   useEffect(() => {
     const mapped = mapApiSettingsToForm(settingsQuery.data);
@@ -459,35 +520,6 @@ const Settings = ({
       })
   });
 
-  const updateExchangeRatesMutation = useMutation({
-    mutationFn: async ({ quoteCurrencyCode, rate }) =>
-      putFinanceExchangeRatesRequest({
-        accessToken,
-        baseCurrencyCode: persistedBaseCurrencyCode,
-        rates: [
-          {
-            quoteCurrencyCode,
-            rate
-          }
-        ]
-      }),
-    onSuccess: () => {
-      setExchangeRateNotice('Exchange rate saved.');
-      setExchangeRateError('');
-      setExchangeRateForm({
-        quoteCurrencyCode: '',
-        rate: ''
-      });
-      exchangeRatesQuery.refetch();
-    },
-    onError: (error) => {
-      setExchangeRateNotice('');
-      setExchangeRateError(
-        String(error?.message || 'Failed to update exchange rate')
-      );
-    }
-  });
-
   const isSavingSettings =
     saveSettingsMutation.isPending ||
     saveFinanceTaxConfigMutation.isPending ||
@@ -593,7 +625,8 @@ const Settings = ({
       await Promise.all([
         settingsQuery.refetch(),
         financeTaxConfigQuery.refetch(),
-        financeNotificationSettingsQuery.refetch()
+        financeNotificationSettingsQuery.refetch(),
+        exchangeRatesQuery.refetch()
       ]);
       setFormNotice('Settings saved.');
       setFormError('');
@@ -629,54 +662,11 @@ const Settings = ({
     settingsQuery.refetch();
     financeTaxConfigQuery.refetch();
     financeNotificationSettingsQuery.refetch();
+    warehouseOptionsQuery.refetch();
     realtimeStatsQuery.refetch();
     observabilityQuery.refetch();
     exchangeRatesQuery.refetch();
   };
-
-  const handleExchangeRateFieldChange = useCallback((field, value) => {
-    setExchangeRateForm((current) => ({
-      ...current,
-      [field]: value
-    }));
-    setExchangeRateError('');
-    setExchangeRateNotice('');
-  }, []);
-
-  const handleAddExchangeRate = useCallback(async () => {
-    if (!accessToken) return;
-
-    const quoteCurrencyCode = String(exchangeRateForm.quoteCurrencyCode || '')
-      .trim()
-      .toUpperCase();
-    const rate = Number(exchangeRateForm.rate);
-
-    if (!quoteCurrencyCode || quoteCurrencyCode.length !== 3) {
-      setExchangeRateError('Quote currency code must be 3 letters.');
-      return;
-    }
-    if (!Number.isFinite(rate) || rate <= 0) {
-      setExchangeRateError('Rate must be a positive number.');
-      return;
-    }
-    if (quoteCurrencyCode === persistedBaseCurrencyCode) {
-      setExchangeRateError('Quote currency must differ from base currency.');
-      return;
-    }
-
-    setExchangeRateError('');
-    setExchangeRateNotice('');
-    await updateExchangeRatesMutation.mutateAsync({
-      quoteCurrencyCode,
-      rate
-    });
-  }, [
-    accessToken,
-    exchangeRateForm.quoteCurrencyCode,
-    exchangeRateForm.rate,
-    persistedBaseCurrencyCode,
-    updateExchangeRatesMutation
-  ]);
 
   const handleCopyTraceIds = useCallback(async () => {
     const requestId = observabilityQuery.data?.trace?.requestId || '';
@@ -910,6 +900,13 @@ const Settings = ({
           canManageSettings={canManageSettings}
           isSaving={isSavingSettings}
           setNestedField={setNestedField}
+          warehouseOptions={warehouseOptions}
+          warehouseOptionsLoading={
+            warehouseOptionsQuery.isLoading || warehouseOptionsQuery.isFetching
+          }
+          warehouseOptionsError={String(
+            warehouseOptionsQuery.error?.message || ''
+          ).trim()}
         />
       );
     }
@@ -922,16 +919,12 @@ const Settings = ({
           isSaving={isSavingSettings}
           setNestedField={setNestedField}
           baseCurrencyCode={persistedBaseCurrencyCode}
+          availableDisplayCurrencyCodes={availableDisplayCurrencyCodes}
           exchangeRates={exchangeRatesQuery.data?.rates || []}
           exchangeRatesLoading={
             exchangeRatesQuery.isLoading || exchangeRatesQuery.isFetching
           }
-          exchangeRateForm={exchangeRateForm}
-          onExchangeRateFieldChange={handleExchangeRateFieldChange}
-          onAddExchangeRate={handleAddExchangeRate}
-          updatingExchangeRates={updateExchangeRatesMutation.isPending}
-          exchangeRateError={exchangeRateError}
-          exchangeRateNotice={exchangeRateNotice}
+          exchangeRatesError={String(exchangeRatesQuery.error?.message || '')}
         />
       );
     }
@@ -1050,12 +1043,13 @@ const Settings = ({
       ) : null}
       <button
         type="button"
-        className="btn-ghost"
+        className="btn-ghost aligned-action-btn"
         onClick={handleRefreshAll}
         disabled={
           settingsQuery.isFetching ||
           financeTaxConfigQuery.isFetching ||
           financeNotificationSettingsQuery.isFetching ||
+          warehouseOptionsQuery.isFetching ||
           realtimeStatsQuery.isFetching ||
           observabilityQuery.isFetching
         }

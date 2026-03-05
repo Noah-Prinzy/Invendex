@@ -181,7 +181,7 @@ const Suppliers = ({ accessToken, userRole = null }) => {
         </div>
         <button
           type="button"
-          className="btn-ghost"
+          className="btn-ghost aligned-action-btn"
           onClick={() => refetch()}
           disabled={isLoading || isFetching}
         >

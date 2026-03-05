@@ -5,6 +5,11 @@ import { successResponse } from '../utils/response.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { setDefaultValuationMethod } from '../services/finance/valuationService.js';
 import { updateTaxConfiguration } from '../services/finance/taxService.js';
+import {
+  fetchLiveExchangeRate,
+  upsertExchangeRates
+} from '../services/finance/currencyService.js';
+import { logger } from '../observability/logger.js';
 
 const mergeNestedObject = (target = {}, patch = {}) => {
   const next = { ...target };
@@ -131,6 +136,40 @@ export const patchSettings = async (req, res, next) => {
     applySettingsPatch(settings, req.body || {});
     settings.updatedBy = req.user?._id || null;
 
+    const isDisplayCurrencyFieldPresent = Object.prototype.hasOwnProperty.call(
+      req.body?.finance || {},
+      'displayCurrencyCode'
+    );
+    const isBaseCurrencyFieldPresent = Object.prototype.hasOwnProperty.call(
+      req.body?.companyProfile || {},
+      'currencyCode'
+    );
+
+    const nextBaseCurrencyCode = String(
+      settings.companyProfile?.currencyCode || 'UGX'
+    )
+      .trim()
+      .toUpperCase();
+    const nextDisplayCurrencyCode = String(
+      settings.finance?.displayCurrencyCode || nextBaseCurrencyCode
+    )
+      .trim()
+      .toUpperCase();
+
+    const shouldSyncDisplayCurrencyRate =
+      (isDisplayCurrencyFieldPresent || isBaseCurrencyFieldPresent) &&
+      nextDisplayCurrencyCode.length === 3 &&
+      nextBaseCurrencyCode.length === 3 &&
+      nextDisplayCurrencyCode !== nextBaseCurrencyCode;
+
+    let liveDisplayCurrencyRate = null;
+    if (shouldSyncDisplayCurrencyRate) {
+      liveDisplayCurrencyRate = await fetchLiveExchangeRate({
+        baseCurrencyCode: nextBaseCurrencyCode,
+        quoteCurrencyCode: nextDisplayCurrencyCode
+      });
+    }
+
     if (req.body?.organizationName !== undefined) {
       organization.name = String(req.body.organizationName || '').trim();
     }
@@ -157,6 +196,30 @@ export const patchSettings = async (req, res, next) => {
 
     await settings.save();
     await organization.save();
+
+    if (liveDisplayCurrencyRate) {
+      try {
+        await upsertExchangeRates({
+          organizationId: req.organizationId,
+          baseCurrencyCode: liveDisplayCurrencyRate.baseCurrencyCode,
+          rates: [
+            {
+              quoteCurrencyCode: liveDisplayCurrencyRate.quoteCurrencyCode,
+              rate: liveDisplayCurrencyRate.rate,
+              source: 'SYSTEM'
+            }
+          ],
+          updatedBy: req.user?._id || null
+        });
+      } catch (error) {
+        logger.warn('settings_fx_auto_sync_failed', {
+          organizationId: req.organizationId,
+          baseCurrencyCode: liveDisplayCurrencyRate.baseCurrencyCode,
+          quoteCurrencyCode: liveDisplayCurrencyRate.quoteCurrencyCode,
+          error: String(error?.message || error)
+        });
+      }
+    }
 
     if (req.body?.finance?.valuationMethod) {
       await setDefaultValuationMethod({

@@ -25,6 +25,7 @@ import supplierProductRoutes from './supplierProductRoutes.js';
 import supplierRoutes from './supplierRoutes.js';
 import subscriptionRoutes from './subscriptionRoutes.js';
 import userRoutes from './userRoutes.js';
+import warehouseRoutes from './warehouseRoutes.js';
 import wmsRoutes from './wmsRoutes.js';
 
 export const API_ROUTE_REGISTRY = Object.freeze([
@@ -56,6 +57,7 @@ export const API_ROUTE_REGISTRY = Object.freeze([
     router: supplierProductRoutes,
     tag: 'Supplier Products'
   },
+  { path: '/warehouses', router: warehouseRoutes, tag: 'Warehouses' },
   {
     path: '/purchase-orders',
     router: purchaseOrderRoutes,

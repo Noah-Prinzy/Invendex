@@ -7,6 +7,7 @@ import Organization from '../models/Organization.js';
 import OrganizationSettings from '../models/OrganizationSettings.js';
 import User from '../models/User.js';
 import EmployeeInvite from '../models/EmployeeInvite.js';
+import EmployeeSignupRequest from '../models/EmployeeSignupRequest.js';
 import bcrypt from 'bcryptjs';
 import {
   generateAccessToken,
@@ -63,6 +64,7 @@ const TWO_FACTOR_ISSUER = String(process.env.AUTH_2FA_ISSUER || 'Ledgerly')
   .slice(0, 80);
 const TWO_FACTOR_RECOVERY_CODES_COUNT = 10;
 const APP_WEB_URL = String(process.env.APP_WEB_URL || '').trim();
+const USERNAME_REGEX = /^[a-zA-Z0-9._-]{3,32}$/;
 
 const buildEmailActionHint = (fallbackMessage = '') => {
   if (!APP_WEB_URL) {
@@ -191,6 +193,13 @@ const isEmailVerificationRequired = () =>
     .trim() === 'true';
 
 const normalizeEmailInput = (value) =>
+  String(value || '')
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .trim()
+    .toLowerCase();
+
+const normalizeUsernameInput = (value) =>
   String(value || '')
     .normalize('NFKC')
     .replace(/[\u200B-\u200D\uFEFF]/g, '')
@@ -416,6 +425,7 @@ const resolveOrganizationPayloadById = async (organizationId) => {
 const buildAuthUser = (user, organization = null) => ({
   _id: user._id,
   email: user.email,
+  username: user.username || null,
   role: user.role,
   twoFactorEnabled: Boolean(user?.twoFactor?.enabled),
   uiTheme: ALLOWED_UI_THEMES.has(String(user.uiTheme || '').trim())
@@ -426,6 +436,62 @@ const buildAuthUser = (user, organization = null) => ({
   isVerified: Boolean(user.isVerified),
   isActive: user.isActive !== false
 });
+
+const buildUsernameSeedFromEmail = (email) => {
+  const base = String(email || '')
+    .split('@')[0]
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, '')
+    .replace(/^[._-]+|[._-]+$/g, '');
+  return base || 'user';
+};
+
+const ensureValidUsername = (username) => {
+  const normalized = normalizeUsernameInput(username);
+  if (!normalized) {
+    return null;
+  }
+
+  if (!USERNAME_REGEX.test(normalized)) {
+    throw new AppError(
+      'username must be 3-32 characters and use letters, numbers, dot, underscore, or hyphen',
+      400
+    );
+  }
+
+  return normalized;
+};
+
+const resolveUniqueUsername = async (preferredUsername, fallbackEmail) => {
+  const requested = ensureValidUsername(preferredUsername);
+  if (requested) {
+    const existing = await User.findOne({ username: requested })
+      .select('_id')
+      .lean();
+    if (existing) {
+      throw new AppError('Username already exists', 409);
+    }
+    return requested;
+  }
+
+  const seed = buildUsernameSeedFromEmail(fallbackEmail);
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const candidate =
+      attempt === 0
+        ? seed
+        : `${seed}${Math.floor(Math.random() * 9000 + 1000).toString()}`;
+    if (!USERNAME_REGEX.test(candidate)) continue;
+
+    const existing = await User.findOne({ username: candidate })
+      .select('_id')
+      .lean();
+    if (!existing) {
+      return candidate;
+    }
+  }
+
+  throw new AppError('Unable to generate unique username. Try again.', 500);
+};
 
 const buildTokenDebugData = (rawToken) => {
   if (process.env.NODE_ENV === 'production') {
@@ -480,14 +546,14 @@ const resolveOrganizationByName = async (companyName) => {
 
 const verifyLoginCredentials = async ({
   user,
-  normalizedEmail,
+  loginIdentifier,
   normalizedPassword
 }) => {
   if (!user) {
     if (process.env.NODE_ENV !== 'production') {
       logger.warn('auth_login_user_not_found', {
-        email: normalizedEmail,
-        emailLength: normalizedEmail.length
+        identifier: loginIdentifier,
+        identifierLength: String(loginIdentifier || '').length
       });
     }
     throw new AppError('Invalid credentials', 401);
@@ -511,12 +577,35 @@ const verifyLoginCredentials = async ({
   if (!isMatch) {
     if (process.env.NODE_ENV !== 'production') {
       logger.warn('auth_login_password_mismatch', {
-        email: normalizedEmail,
+        identifier: loginIdentifier,
         userId: user._id
       });
     }
     throw new AppError('Invalid credentials', 401);
   }
+};
+
+const findUserByUsernameOrEmail = async ({
+  username,
+  email,
+  includePassword = true
+}) => {
+  const normalizedUsername = normalizeUsernameInput(username);
+  const normalizedEmail = normalizeEmailInput(email);
+  const selector = includePassword ? '+password' : '';
+
+  if (normalizedUsername) {
+    const byUsername = await User.findOne({
+      username: normalizedUsername
+    }).select(selector);
+    if (byUsername) return byUsername;
+  }
+
+  if (normalizedEmail) {
+    return User.findOne({ email: normalizedEmail }).select(selector);
+  }
+
+  return null;
 };
 
 const buildTwoFactorChallengePayload = ({
@@ -582,19 +671,22 @@ const finalizeLogin = async ({
 
 export const login = async (req, res, next) => {
   try {
+    const normalizedUsername = normalizeUsernameInput(req.body?.username);
     const normalizedEmail = normalizeEmailInput(req.body?.email);
     const normalizedPassword = String(req.body?.password || '').trim();
 
-    if (!normalizedEmail || !normalizedPassword) {
-      throw new AppError('Email and password are required', 400);
+    if ((!normalizedUsername && !normalizedEmail) || !normalizedPassword) {
+      throw new AppError('username (or email) and password are required', 400);
     }
 
-    const user = await User.findOne({ email: normalizedEmail }).select(
-      '+password'
-    );
+    const user = await findUserByUsernameOrEmail({
+      username: normalizedUsername,
+      email: normalizedEmail,
+      includePassword: true
+    });
     await verifyLoginCredentials({
       user,
-      normalizedEmail,
+      loginIdentifier: normalizedUsername || normalizedEmail,
       normalizedPassword
     });
 
@@ -628,19 +720,22 @@ export const login = async (req, res, next) => {
 
 export const adminLogin = async (req, res, next) => {
   try {
+    const normalizedUsername = normalizeUsernameInput(req.body?.username);
     const normalizedEmail = normalizeEmailInput(req.body?.email);
     const normalizedPassword = String(req.body?.password || '').trim();
 
-    if (!normalizedEmail || !normalizedPassword) {
-      throw new AppError('Email and password are required', 400);
+    if ((!normalizedUsername && !normalizedEmail) || !normalizedPassword) {
+      throw new AppError('username and password are required', 400);
     }
 
-    const user = await User.findOne({ email: normalizedEmail }).select(
-      '+password'
-    );
+    const user = await findUserByUsernameOrEmail({
+      username: normalizedUsername,
+      email: normalizedEmail,
+      includePassword: true
+    });
     await verifyLoginCredentials({
       user,
-      normalizedEmail,
+      loginIdentifier: normalizedUsername || normalizedEmail,
       normalizedPassword
     });
 
@@ -681,12 +776,20 @@ export const employeeLogin = async (req, res, next) => {
     const normalizedCompanyName = normalizeOrganizationNameInput(
       req.body?.companyName || req.body?.organizationName
     );
+    const normalizedUsername = normalizeUsernameInput(req.body?.username);
     const normalizedEmail = normalizeEmailInput(req.body?.email);
     const normalizedPassword = String(req.body?.password || '').trim();
     const inviteCode = String(req.body?.inviteCode || '').trim();
 
-    if (!normalizedCompanyName || !normalizedEmail || !normalizedPassword) {
-      throw new AppError('companyName, email, and password are required', 400);
+    if (
+      !normalizedCompanyName ||
+      (!normalizedUsername && !normalizedEmail) ||
+      !normalizedPassword
+    ) {
+      throw new AppError(
+        'companyName, username (or email), and password are required',
+        400
+      );
     }
 
     const organization = await resolveOrganizationByName(normalizedCompanyName);
@@ -694,30 +797,27 @@ export const employeeLogin = async (req, res, next) => {
       throw new AppError('Invalid credentials', 401);
     }
 
-    let user = await User.findOne({ email: normalizedEmail }).select(
-      '+password'
-    );
-    const isNewEmployee = !user;
-    const now = new Date();
-    let consumedInvite = null;
-
-    if (user && String(user.organization || '') !== String(organization._id)) {
-      throw new AppError('Invalid credentials', 401);
-    }
-
-    if (user && ADMIN_ROLES.has(String(user.role || '').toLowerCase())) {
-      throw new AppError('Use the admin portal for this account', 403);
-    }
+    let user = await findUserByUsernameOrEmail({
+      username: normalizedUsername,
+      email: normalizedEmail,
+      includePassword: true
+    });
+    let autoCreated = false;
 
     if (!user) {
       if (!inviteCode) {
         throw new AppError(
-          'Invite code required for first-time employee login',
+          'Account not found. Submit employee signup request or use a valid invite code.',
           403
         );
       }
 
-      consumedInvite = await EmployeeInvite.findOne({
+      if (!normalizedEmail) {
+        throw new AppError('email is required when using invite code', 400);
+      }
+
+      const now = new Date();
+      const consumedInvite = await EmployeeInvite.findOne({
         organization: organization._id,
         codeHash: hashToken(inviteCode),
         status: 'ACTIVE',
@@ -746,8 +846,14 @@ export const employeeLogin = async (req, res, next) => {
           ? 'manager'
           : 'staff';
 
+      const inviteUsername = await resolveUniqueUsername(
+        normalizedUsername || null,
+        normalizedEmail
+      );
+
       user = await User.create({
         email: normalizedEmail,
+        username: inviteUsername,
         password: normalizedPassword,
         role: defaultEmployeeRole,
         organization: organization._id,
@@ -755,26 +861,28 @@ export const employeeLogin = async (req, res, next) => {
         isActive: true
       });
       user = await User.findById(user._id).select('+password');
-    }
+      autoCreated = true;
 
-    if (!isNewEmployee) {
-      await verifyLoginCredentials({
-        user,
-        normalizedEmail,
-        normalizedPassword
-      });
-    } else if (user?.isActive === false) {
-      throw new AppError(
-        'Account is deactivated. Contact an administrator.',
-        403
-      );
-    }
-
-    if (consumedInvite) {
       consumedInvite.status = 'USED';
       consumedInvite.usedBy = user._id;
       consumedInvite.usedAt = now;
       await consumedInvite.save();
+    }
+
+    if (!user || String(user.organization || '') !== String(organization._id)) {
+      throw new AppError('Invalid credentials', 401);
+    }
+
+    if (ADMIN_ROLES.has(String(user.role || '').toLowerCase())) {
+      throw new AppError('Use the admin portal for this account', 403);
+    }
+
+    if (!autoCreated) {
+      await verifyLoginCredentials({
+        user,
+        loginIdentifier: normalizedUsername || normalizedEmail,
+        normalizedPassword
+      });
     }
 
     if (isTwoFactorEnabled(user)) {
@@ -785,8 +893,7 @@ export const employeeLogin = async (req, res, next) => {
           user,
           portal: 'employee',
           context: {
-            organizationName: organization.name,
-            autoCreated: isNewEmployee
+            organizationName: organization.name
           }
         }),
         'Two-factor authentication required'
@@ -800,9 +907,7 @@ export const employeeLogin = async (req, res, next) => {
       action: 'EMPLOYEE_LOGIN',
       meta: {
         portal: 'employee',
-        companyName: organization.name,
-        autoCreated: isNewEmployee,
-        inviteId: consumedInvite?._id || null
+        companyName: organization.name
       }
     });
 
@@ -829,9 +934,10 @@ export const employeeLogin = async (req, res, next) => {
       entityId: user._id,
       metadata: {
         email: user.email,
+        username: user.username || null,
         role: user.role,
         organizationName: organization.name,
-        firstLogin: isNewEmployee
+        firstLogin: autoCreated
       }
     });
 
@@ -849,6 +955,320 @@ export const employeeLogin = async (req, res, next) => {
     );
   } catch (err) {
     next(err);
+  }
+};
+
+export const requestEmployeeSignup = async (req, res, next) => {
+  try {
+    const normalizedCompanyName = normalizeOrganizationNameInput(
+      req.body?.companyName || req.body?.organizationName
+    );
+    const normalizedEmail = normalizeEmailInput(req.body?.email);
+    const normalizedPassword = String(req.body?.password || '').trim();
+    const normalizedConfirmPassword = String(
+      req.body?.confirmPassword || ''
+    ).trim();
+    const normalizedUsername = ensureValidUsername(req.body?.username);
+
+    if (
+      !normalizedCompanyName ||
+      !normalizedEmail ||
+      !normalizedPassword ||
+      !normalizedConfirmPassword ||
+      !normalizedUsername
+    ) {
+      throw new AppError(
+        'companyName, email, username, password, and confirmPassword are required',
+        400
+      );
+    }
+
+    if (normalizedPassword.length < 8) {
+      throw new AppError('Password must be at least 8 characters long', 400);
+    }
+
+    if (normalizedPassword !== normalizedConfirmPassword) {
+      throw new AppError('Password and confirmPassword do not match', 400);
+    }
+
+    const organization = await resolveOrganizationByName(normalizedCompanyName);
+    if (!organization) {
+      throw new AppError('Company was not found', 404);
+    }
+
+    const [
+      existingByEmail,
+      existingByUsername,
+      pendingByEmail,
+      pendingByUsername
+    ] = await Promise.all([
+      User.findOne({ email: normalizedEmail })
+        .select('_id organization')
+        .lean(),
+      User.findOne({ username: normalizedUsername })
+        .select('_id organization')
+        .lean(),
+      EmployeeSignupRequest.findOne({
+        organization: organization._id,
+        email: normalizedEmail,
+        status: 'PENDING'
+      })
+        .select('_id')
+        .lean(),
+      EmployeeSignupRequest.findOne({
+        organization: organization._id,
+        username: normalizedUsername,
+        status: 'PENDING'
+      })
+        .select('_id')
+        .lean()
+    ]);
+
+    if (existingByEmail) {
+      throw new AppError('Email already exists', 409);
+    }
+
+    if (existingByUsername) {
+      throw new AppError('Username already exists', 409);
+    }
+
+    if (pendingByEmail || pendingByUsername) {
+      throw new AppError(
+        'A pending signup request already exists for this account',
+        409
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(normalizedPassword, 10);
+
+    const signupRequest = await EmployeeSignupRequest.create({
+      organization: organization._id,
+      email: normalizedEmail,
+      username: normalizedUsername,
+      passwordHash,
+      requestedByIp: getRequestIpAddress(req),
+      requestedByUserAgent: sanitizeSessionField(
+        req.headers?.['user-agent'],
+        MAX_SESSION_USER_AGENT_LENGTH
+      ),
+      status: 'PENDING'
+    });
+
+    await createInAppNotification({
+      organizationId: organization._id,
+      actorUserId: null,
+      type: 'employee_signup_request',
+      title: 'Employee signup request',
+      message: `${normalizedUsername} requested access to ${organization.name}.`,
+      severity: 'warning',
+      entityType: 'EMPLOYEE_SIGNUP_REQUEST',
+      entityId: signupRequest._id,
+      metadata: {
+        signupRequestId: signupRequest._id,
+        email: normalizedEmail,
+        username: normalizedUsername,
+        companyName: organization.name,
+        status: signupRequest.status
+      }
+    });
+
+    await logAudit({
+      req,
+      action: 'EMPLOYEE_SIGNUP_REQUEST_CREATE',
+      resource: 'AUTH',
+      resourceId: signupRequest._id,
+      organizationId: organization._id,
+      meta: {
+        email: normalizedEmail,
+        username: normalizedUsername
+      }
+    });
+
+    return successResponse(
+      res,
+      {
+        requestId: signupRequest._id,
+        status: signupRequest.status
+      },
+      'Signup request submitted. An admin must approve your account.',
+      201
+    );
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const approveEmployeeSignupRequest = async (req, res, next) => {
+  try {
+    const organizationId = req.organizationId || req.user?.organization || null;
+    const requestId = String(req.params?.id || '').trim();
+
+    if (!organizationId || !requestId) {
+      throw new AppError('organization and request id are required', 400);
+    }
+
+    const signupRequest = await EmployeeSignupRequest.findOne({
+      _id: requestId,
+      organization: organizationId,
+      status: 'PENDING'
+    }).select('+passwordHash');
+
+    if (!signupRequest) {
+      throw new AppError('Signup request not found', 404);
+    }
+
+    const [existingByEmail, existingByUsername] = await Promise.all([
+      User.findOne({ email: signupRequest.email }).select('_id').lean(),
+      User.findOne({ username: signupRequest.username }).select('_id').lean()
+    ]);
+
+    if (existingByEmail || existingByUsername) {
+      throw new AppError(
+        'A user with this email or username already exists',
+        409
+      );
+    }
+
+    const organizationSettings = await OrganizationSettings.findOne({
+      organization: organizationId
+    })
+      .select('userAccess.defaultEmployeeRole')
+      .lean();
+
+    const defaultEmployeeRole =
+      organizationSettings?.userAccess?.defaultEmployeeRole === 'manager'
+        ? 'manager'
+        : 'staff';
+
+    const createdUser = await User.create({
+      email: signupRequest.email,
+      username: signupRequest.username,
+      password: signupRequest.passwordHash,
+      role: defaultEmployeeRole,
+      organization: organizationId,
+      isVerified: true,
+      isActive: true
+    });
+
+    signupRequest.status = 'APPROVED';
+    signupRequest.reviewedBy = req.user?._id || null;
+    signupRequest.reviewedAt = new Date();
+    signupRequest.declineReason = null;
+    await signupRequest.save();
+
+    await createInAppNotification({
+      organizationId,
+      actorUserId: req.user?._id || null,
+      type: 'employee_signup_approved',
+      title: 'Employee signup approved',
+      message: `${signupRequest.username} was approved and can now sign in.`,
+      severity: 'info',
+      entityType: 'EMPLOYEE_SIGNUP_REQUEST',
+      entityId: signupRequest._id,
+      metadata: {
+        signupRequestId: signupRequest._id,
+        userId: createdUser._id,
+        email: signupRequest.email,
+        username: signupRequest.username,
+        status: signupRequest.status
+      }
+    });
+
+    await logAudit({
+      req,
+      action: 'EMPLOYEE_SIGNUP_REQUEST_APPROVE',
+      resource: 'AUTH',
+      resourceId: signupRequest._id,
+      organizationId,
+      meta: {
+        username: signupRequest.username,
+        email: signupRequest.email,
+        userId: createdUser._id
+      }
+    });
+
+    return successResponse(
+      res,
+      {
+        requestId: signupRequest._id,
+        status: signupRequest.status,
+        userId: createdUser._id,
+        username: createdUser.username
+      },
+      'Employee signup approved'
+    );
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const declineEmployeeSignupRequest = async (req, res, next) => {
+  try {
+    const organizationId = req.organizationId || req.user?.organization || null;
+    const requestId = String(req.params?.id || '').trim();
+    const reason = String(req.body?.reason || '').trim();
+
+    if (!organizationId || !requestId) {
+      throw new AppError('organization and request id are required', 400);
+    }
+
+    const signupRequest = await EmployeeSignupRequest.findOne({
+      _id: requestId,
+      organization: organizationId,
+      status: 'PENDING'
+    });
+
+    if (!signupRequest) {
+      throw new AppError('Signup request not found', 404);
+    }
+
+    signupRequest.status = 'DECLINED';
+    signupRequest.reviewedBy = req.user?._id || null;
+    signupRequest.reviewedAt = new Date();
+    signupRequest.declineReason = reason || null;
+    await signupRequest.save();
+
+    await createInAppNotification({
+      organizationId,
+      actorUserId: req.user?._id || null,
+      type: 'employee_signup_declined',
+      title: 'Employee signup declined',
+      message: `${signupRequest.username} signup request was declined.`,
+      severity: 'warning',
+      entityType: 'EMPLOYEE_SIGNUP_REQUEST',
+      entityId: signupRequest._id,
+      metadata: {
+        signupRequestId: signupRequest._id,
+        email: signupRequest.email,
+        username: signupRequest.username,
+        status: signupRequest.status,
+        reason: reason || null
+      }
+    });
+
+    await logAudit({
+      req,
+      action: 'EMPLOYEE_SIGNUP_REQUEST_DECLINE',
+      resource: 'AUTH',
+      resourceId: signupRequest._id,
+      organizationId,
+      meta: {
+        username: signupRequest.username,
+        email: signupRequest.email,
+        reason: reason || null
+      }
+    });
+
+    return successResponse(
+      res,
+      {
+        requestId: signupRequest._id,
+        status: signupRequest.status
+      },
+      'Employee signup declined'
+    );
+  } catch (error) {
+    return next(error);
   }
 };
 
@@ -1594,6 +2014,7 @@ export const logout = async (req, res, next) => {
 export const register = async (req, res, next) => {
   try {
     const normalizedEmail = normalizeEmailInput(req.body?.email);
+    const requestedUsername = req.body?.username;
     const normalizedPassword = String(req.body?.password || '').trim();
     const normalizedConfirmPassword = String(
       req.body?.confirmPassword || ''
@@ -1626,6 +2047,11 @@ export const register = async (req, res, next) => {
       throw new AppError('Email already exists', 409);
     }
 
+    const normalizedUsername = await resolveUniqueUsername(
+      requestedUsername,
+      normalizedEmail
+    );
+
     let organization = null;
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -1654,6 +2080,7 @@ export const register = async (req, res, next) => {
 
     const user = await User.create({
       email: normalizedEmail,
+      username: normalizedUsername,
       password: normalizedPassword,
       role: 'admin',
       organization: organization._id,
@@ -1718,6 +2145,7 @@ export const register = async (req, res, next) => {
       meta: {
         organizationName: organization.name,
         organizationCode: organization.code,
+        username: normalizedUsername,
         verificationRequired
       }
     });

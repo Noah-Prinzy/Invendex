@@ -167,6 +167,19 @@ export const patchSettingsValidator = [
     .optional()
     .isIn(['FIFO', 'LIFO', 'WEIGHTED_AVG'])
     .withMessage('finance.valuationMethod must be FIFO, LIFO, or WEIGHTED_AVG'),
+  body('finance.displayCurrencyCode')
+    .optional()
+    .isString()
+    .withMessage('finance.displayCurrencyCode must be a string')
+    .bail()
+    .trim()
+    .isLength({ min: 3, max: 3 })
+    .withMessage('finance.displayCurrencyCode must be exactly 3 characters')
+    .customSanitizer((value) =>
+      String(value || '')
+        .trim()
+        .toUpperCase()
+    ),
   optionalBoolean('finance.taxInclusivePricing'),
 
   optionalInteger('userAccess.defaultInviteExpiryHours', 1, 720),

@@ -5,13 +5,11 @@ import {
   downloadInventoryReportExportJobRequest,
   downloadReportExportJobRequest,
   getAuditLogsRequest,
-  getFinanceExchangeRatesRequest,
   getFinanceDeadStockRequest,
   getFinanceGrossMarginRequest,
   getFinanceInventoryValuationRequest,
   getInventoryReportExportJobStatusRequest,
   getReportExportJobStatusRequest,
-  getSettingsRequest,
   getWmsMovementLedgerRequest,
   queueInventoryReportExportJobRequest,
   queueReportExportJobRequest,
@@ -19,18 +17,17 @@ import {
   getReportSpendBySupplierRequest,
   getReportSpendSummaryRequest
 } from '../../api/client.js';
+import useOrganizationCurrency from '../../hooks/finance/useOrganizationCurrency.js';
 
 jest.mock('../../api/client.js', () => ({
   downloadInventoryReportExportJobRequest: jest.fn(),
   downloadReportExportJobRequest: jest.fn(),
   getAuditLogsRequest: jest.fn(),
-  getFinanceExchangeRatesRequest: jest.fn(),
   getFinanceDeadStockRequest: jest.fn(),
   getFinanceGrossMarginRequest: jest.fn(),
   getFinanceInventoryValuationRequest: jest.fn(),
   getInventoryReportExportJobStatusRequest: jest.fn(),
   getReportExportJobStatusRequest: jest.fn(),
-  getSettingsRequest: jest.fn(),
   getWmsMovementLedgerRequest: jest.fn(),
   queueInventoryReportExportJobRequest: jest.fn(),
   queueReportExportJobRequest: jest.fn(),
@@ -39,9 +36,21 @@ jest.mock('../../api/client.js', () => ({
   getReportSpendBySupplierRequest: jest.fn()
 }));
 
+jest.mock('../../hooks/finance/useOrganizationCurrency.js', () => ({
+  __esModule: true,
+  default: jest.fn()
+}));
+
 describe('Reports page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    useOrganizationCurrency.mockReturnValue({
+      currencyCode: 'UGX',
+      baseCurrencyCode: 'UGX',
+      conversionRate: 1,
+      formatDisplayAmount: (value) => `UGX ${Number(value || 0).toFixed(2)}`,
+      isLoading: false
+    });
     queueInventoryReportExportJobRequest.mockResolvedValue(null);
     getInventoryReportExportJobStatusRequest.mockResolvedValue(null);
     downloadInventoryReportExportJobRequest.mockResolvedValue({
@@ -75,20 +84,6 @@ describe('Reports page', () => {
   });
 
   it('loads spend rows and supports search filtering', async () => {
-    getSettingsRequest.mockResolvedValueOnce({
-      companyProfile: {
-        currencyCode: 'UGX'
-      }
-    });
-    getFinanceExchangeRatesRequest.mockResolvedValueOnce({
-      baseCurrencyCode: 'UGX',
-      rates: [
-        {
-          quoteCurrencyCode: 'USD',
-          rate: 0.00027
-        }
-      ]
-    });
     getReportPurchaseOrderStatusSummaryRequest.mockResolvedValueOnce({
       draft: 2,
       sent: 1
@@ -166,5 +161,64 @@ describe('Reports page', () => {
       expect(screen.queryByText('Acme Supply')).not.toBeInTheDocument();
       expect(screen.getByText('Bravo Parts')).toBeInTheDocument();
     });
+  });
+
+  it('groups report downloads under one dropdown menu', async () => {
+    getReportPurchaseOrderStatusSummaryRequest.mockResolvedValueOnce({
+      draft: 1
+    });
+    getReportSpendSummaryRequest.mockResolvedValueOnce({
+      totalSpend: 250
+    });
+    getReportSpendBySupplierRequest.mockResolvedValueOnce([
+      { _id: 's1', supplierName: 'Acme Supply', totalSpend: 250 }
+    ]);
+    getFinanceInventoryValuationRequest.mockResolvedValueOnce({
+      method: 'WEIGHTED_AVG',
+      totalInventoryValue: 0,
+      itemCount: 0,
+      byProduct: []
+    });
+    getFinanceDeadStockRequest.mockResolvedValueOnce({
+      thresholdDays: 90,
+      count: 0,
+      totalValue: 0,
+      items: []
+    });
+    getFinanceGrossMarginRequest.mockResolvedValueOnce({
+      groupBy: 'day',
+      totals: {
+        revenue: 0,
+        cogs: 0,
+        grossMargin: 0,
+        grossMarginPct: 0
+      },
+      items: []
+    });
+    getWmsMovementLedgerRequest.mockResolvedValueOnce([]);
+    getAuditLogsRequest.mockResolvedValueOnce({
+      data: [],
+      pagination: {
+        total: 0,
+        page: 1,
+        limit: 50,
+        pages: 0
+      }
+    });
+
+    renderWithProviders(<Reports accessToken="token" userRole="admin" />);
+
+    const trigger = await screen.findByRole('button', {
+      name: 'Download reports'
+    });
+    fireEvent.click(trigger);
+
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: 'PO status Excel' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: 'Download queued inventory export' })
+    ).toBeDisabled();
   });
 });

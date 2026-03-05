@@ -1,16 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   downloadInventoryReportExportJobRequest,
   downloadReportExportJobRequest,
   getAuditLogsRequest,
-  getFinanceExchangeRatesRequest,
   getFinanceDeadStockRequest,
   getFinanceGrossMarginRequest,
   getFinanceInventoryValuationRequest,
   getInventoryReportExportJobStatusRequest,
   getReportExportJobStatusRequest,
-  getSettingsRequest,
   getWmsMovementLedgerRequest,
   queueInventoryReportExportJobRequest,
   queueReportExportJobRequest,
@@ -18,25 +16,12 @@ import {
   getReportSpendBySupplierRequest,
   getReportSpendSummaryRequest
 } from '../../api/client.js';
+import useOrganizationCurrency from '../../hooks/finance/useOrganizationCurrency.js';
 
 const SPEND_PAGE_SIZE = 8;
 const REPORTS_QUERY_STALE_TIME_MS = 45 * 1000;
 const roundMoney = (value) =>
   Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
-
-const formatCurrency = (value, currencyCode = 'USD') => {
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: String(currencyCode || 'USD').toUpperCase(),
-      maximumFractionDigits: 2
-    }).format(Number(value || 0));
-  } catch {
-    return `${String(currencyCode || 'USD').toUpperCase()} ${Number(
-      value || 0
-    ).toFixed(2)}`;
-  }
-};
 
 const formatDateTime = (value) => {
   if (!value) return 'n/a';
@@ -89,7 +74,6 @@ const Reports = ({ accessToken, userRole = null }) => {
   const [spendSortDirection, setSpendSortDirection] = useState('desc');
   const [spendPage, setSpendPage] = useState(1);
   const [statusSortDirection, setStatusSortDirection] = useState('desc');
-  const [selectedCurrencyCode, setSelectedCurrencyCode] = useState('');
   const [movementTypeFilter, setMovementTypeFilter] = useState('');
   const [auditActionFilter, setAuditActionFilter] = useState('');
   const [auditSuccessFilter, setAuditSuccessFilter] = useState('all');
@@ -99,13 +83,28 @@ const Reports = ({ accessToken, userRole = null }) => {
   const [reportExportError, setReportExportError] = useState('');
   const [reportExportBusy, setReportExportBusy] = useState(false);
   const [reportExportJob, setReportExportJob] = useState(null);
+  const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
+  const downloadMenuRef = useRef(null);
   const isAdmin = String(userRole || '') === 'admin';
+
+  const {
+    currencyCode: activeCurrencyCode,
+    baseCurrencyCode,
+    conversionRate,
+    formatDisplayAmount,
+    isLoading: currencyLoading
+  } = useOrganizationCurrency({
+    accessToken
+  });
+
   const reportsQueryKey = useMemo(
     () => [
       'reports:index',
       String(accessToken || ''),
       String(isAdmin),
-      String(selectedCurrencyCode || ''),
+      String(activeCurrencyCode || ''),
+      String(baseCurrencyCode || ''),
+      String(conversionRate || 1),
       String(movementTypeFilter || ''),
       String(auditActionFilter || ''),
       String(auditSuccessFilter || 'all')
@@ -113,7 +112,9 @@ const Reports = ({ accessToken, userRole = null }) => {
     [
       accessToken,
       isAdmin,
-      selectedCurrencyCode,
+      activeCurrencyCode,
+      baseCurrencyCode,
+      conversionRate,
       movementTypeFilter,
       auditActionFilter,
       auditSuccessFilter
@@ -124,6 +125,28 @@ const Reports = ({ accessToken, userRole = null }) => {
     if (isAdmin) return;
     setSpendPage(1);
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (!downloadMenuOpen) return undefined;
+
+    const handleDocumentMouseDown = (event) => {
+      if (!downloadMenuRef.current) return;
+      if (downloadMenuRef.current.contains(event.target)) return;
+      setDownloadMenuOpen(false);
+    };
+    const handleDocumentKeyDown = (event) => {
+      if (String(event?.key || '') === 'Escape') {
+        setDownloadMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleDocumentMouseDown);
+    document.addEventListener('keydown', handleDocumentKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentMouseDown);
+      document.removeEventListener('keydown', handleDocumentKeyDown);
+    };
+  }, [downloadMenuOpen]);
 
   useEffect(() => {
     if (!accessToken) return undefined;
@@ -161,23 +184,15 @@ const Reports = ({ accessToken, userRole = null }) => {
 
   const { data, error, isLoading, isFetching, refetch } = useQuery({
     queryKey: reportsQueryKey,
-    enabled: Boolean(accessToken) && isAdmin,
+    enabled:
+      Boolean(accessToken) &&
+      isAdmin &&
+      !currencyLoading &&
+      Boolean(activeCurrencyCode) &&
+      Boolean(baseCurrencyCode),
     staleTime: REPORTS_QUERY_STALE_TIME_MS,
     queryFn: async () => {
-      const settingsData = await getSettingsRequest(accessToken);
-      const baseCurrencyCode = String(
-        settingsData?.companyProfile?.currencyCode || 'UGX'
-      )
-        .trim()
-        .toUpperCase();
-      const targetCurrencyCode = String(
-        selectedCurrencyCode || baseCurrencyCode
-      )
-        .trim()
-        .toUpperCase();
-
       const [
-        exchangeRatesData,
         statusData,
         spendData,
         supplierSpendData,
@@ -187,25 +202,21 @@ const Reports = ({ accessToken, userRole = null }) => {
         movementData,
         auditLogsData
       ] = await Promise.all([
-        getFinanceExchangeRatesRequest({
-          accessToken,
-          baseCurrencyCode
-        }),
         getReportPurchaseOrderStatusSummaryRequest(accessToken),
         getReportSpendSummaryRequest(accessToken),
         getReportSpendBySupplierRequest(accessToken),
         getFinanceInventoryValuationRequest({
           accessToken,
-          currencyCode: targetCurrencyCode
+          currencyCode: activeCurrencyCode
         }),
         getFinanceDeadStockRequest({
           accessToken,
-          currencyCode: targetCurrencyCode
+          currencyCode: activeCurrencyCode
         }),
         getFinanceGrossMarginRequest({
           accessToken,
           groupBy: 'day',
-          currencyCode: targetCurrencyCode
+          currencyCode: activeCurrencyCode
         }),
         getWmsMovementLedgerRequest({
           accessToken,
@@ -224,35 +235,30 @@ const Reports = ({ accessToken, userRole = null }) => {
         })
       ]);
 
-      const conversionRate = Number(valuationData?.exchangeRate || 1);
+      const resolvedConversionRate = Number(conversionRate || 1);
       const shouldConvertSpend =
-        targetCurrencyCode !== baseCurrencyCode &&
-        Number.isFinite(conversionRate) &&
-        conversionRate > 0;
+        activeCurrencyCode !== baseCurrencyCode &&
+        Number.isFinite(resolvedConversionRate) &&
+        resolvedConversionRate > 0;
       const normalizedSpendSummary = {
         ...(spendData || { totalSpend: 0 })
       };
       if (shouldConvertSpend) {
         normalizedSpendSummary.totalSpend = roundMoney(
-          Number(normalizedSpendSummary.totalSpend || 0) * conversionRate
+          Number(normalizedSpendSummary.totalSpend || 0) *
+            resolvedConversionRate
         );
       }
       const normalizedSupplierSpendData = Array.isArray(supplierSpendData)
         ? supplierSpendData.map((row) => ({
             ...row,
             totalSpend: shouldConvertSpend
-              ? roundMoney(Number(row.totalSpend || 0) * conversionRate)
+              ? roundMoney(Number(row.totalSpend || 0) * resolvedConversionRate)
               : Number(row.totalSpend || 0)
           }))
         : [];
 
       return {
-        baseCurrencyCode,
-        currencyCode: targetCurrencyCode,
-        exchangeRate: shouldConvertSpend ? conversionRate : 1,
-        exchangeRates: Array.isArray(exchangeRatesData?.rates)
-          ? exchangeRatesData.rates
-          : [],
         statusSummary: statusData || {},
         spendSummary: normalizedSpendSummary,
         spendBySupplier: normalizedSupplierSpendData,
@@ -284,28 +290,13 @@ const Reports = ({ accessToken, userRole = null }) => {
     [data]
   );
   const auditPagination = data?.auditPagination || null;
-  const baseCurrencyCode = String(data?.baseCurrencyCode || 'UGX')
-    .trim()
-    .toUpperCase();
-  const activeCurrencyCode = String(
-    data?.currencyCode || baseCurrencyCode || 'UGX'
-  )
-    .trim()
-    .toUpperCase();
-  const availableCurrencyCodes = useMemo(() => {
-    const codes = new Set([baseCurrencyCode]);
-    const rows = Array.isArray(data?.exchangeRates) ? data.exchangeRates : [];
-    for (const row of rows) {
-      const code = String(row?.quoteCurrencyCode || '')
-        .trim()
-        .toUpperCase();
-      if (code.length === 3) {
-        codes.add(code);
-      }
-    }
-    return Array.from(codes).sort((a, b) => a.localeCompare(b));
-  }, [baseCurrencyCode, data?.exchangeRates]);
   const errorMessage = String(error?.message || '').trim();
+
+  const formatCurrency = (value) =>
+    formatDisplayAmount(Number(value || 0), {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
 
   const totalOpenPurchaseOrders = useMemo(() => {
     if (!statusSummary) return 0;
@@ -660,6 +651,102 @@ const Reports = ({ accessToken, userRole = null }) => {
     }
   };
 
+  const downloadMenuItems = useMemo(
+    () => [
+      {
+        id: 'po-status-excel',
+        label: 'PO status Excel',
+        disabled: !sortedStatusRows.length || reportExportBusy,
+        action: handleDownloadPoStatusSummaryExcel
+      },
+      {
+        id: 'po-status-pdf',
+        label: 'PO status PDF',
+        disabled: !sortedStatusRows.length || reportExportBusy,
+        action: handleDownloadPoStatusSummaryPdf
+      },
+      {
+        id: 'supplier-spend-csv',
+        label: 'Supplier spend CSV',
+        disabled: !filteredSpendRows.length,
+        action: handleDownloadSpendBySupplier
+      },
+      {
+        id: 'valuation-csv',
+        label: 'Valuation CSV',
+        disabled:
+          !Array.isArray(valuation?.byProduct) || !valuation.byProduct.length,
+        action: handleDownloadValuationCsv
+      },
+      {
+        id: 'dead-stock-csv',
+        label: 'Dead stock CSV',
+        disabled: !deadStockRows.length,
+        action: handleDownloadDeadStockCsv
+      },
+      {
+        id: 'movements-csv',
+        label: 'Movements CSV',
+        disabled: !movementRows.length,
+        action: handleDownloadMovementCsv
+      },
+      {
+        id: 'audit-csv',
+        label: 'Audit CSV',
+        disabled: !auditRows.length,
+        action: handleDownloadAuditCsv
+      },
+      {
+        id: 'full-summary-excel',
+        label: 'Full summary Excel',
+        disabled:
+          (!statusSummary && !spendBySupplier.length) || reportExportBusy,
+        action: handleDownloadFullSummaryExcel
+      },
+      {
+        id: 'full-summary-pdf',
+        label: 'Full summary PDF',
+        disabled:
+          (!statusSummary && !spendBySupplier.length) || reportExportBusy,
+        action: handleDownloadFullSummaryPdf
+      },
+      {
+        id: 'queue-inventory-csv',
+        label: 'Queue inventory CSV',
+        disabled: inventoryExportBusy,
+        action: () => handleQueueInventoryExport('csv')
+      },
+      {
+        id: 'queue-inventory-xlsx',
+        label: 'Queue inventory Excel',
+        disabled: inventoryExportBusy,
+        action: () => handleQueueInventoryExport('xlsx')
+      },
+      {
+        id: 'download-queued-inventory',
+        label: 'Download queued inventory export',
+        disabled:
+          inventoryExportBusy ||
+          String(inventoryExportJob?.status || '').toUpperCase() !==
+            'COMPLETED',
+        action: handleDownloadQueuedInventoryExport
+      }
+    ],
+    [
+      auditRows.length,
+      deadStockRows.length,
+      filteredSpendRows.length,
+      inventoryExportBusy,
+      inventoryExportJob?.status,
+      movementRows.length,
+      reportExportBusy,
+      sortedStatusRows.length,
+      spendBySupplier.length,
+      statusSummary,
+      valuation?.byProduct
+    ]
+  );
+
   if (!isAdmin) {
     return (
       <section className="panel">
@@ -686,132 +773,50 @@ const Reports = ({ accessToken, userRole = null }) => {
       <header className="panel-head panel-head-row">
         <div>
           <h2>Reports</h2>
-          <p>Purchase order and spend summaries from reporting APIs.</p>
+          <p>
+            Purchase order and spend summaries from reporting APIs. Display
+            currency: {activeCurrencyCode}
+          </p>
         </div>
         <div className="obs-actions">
-          <label className="control-field compact-select">
-            <span>Currency</span>
-            <select
-              value={selectedCurrencyCode || baseCurrencyCode}
-              onChange={(event) => setSelectedCurrencyCode(event.target.value)}
+          <div className="report-download-menu" ref={downloadMenuRef}>
+            <button
+              type="button"
+              className="btn-ghost report-download-trigger aligned-action-btn"
+              aria-haspopup="menu"
+              aria-expanded={downloadMenuOpen ? 'true' : 'false'}
+              aria-controls="report-download-menu"
+              onClick={() => setDownloadMenuOpen((current) => !current)}
             >
-              {availableCurrencyCodes.map((code) => (
-                <option key={code} value={code}>
-                  {code}
-                </option>
-              ))}
-            </select>
-          </label>
+              Download reports
+            </button>
+            {downloadMenuOpen ? (
+              <div
+                id="report-download-menu"
+                className="report-download-dropdown"
+                role="menu"
+              >
+                {downloadMenuItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="menuitem"
+                    className="btn-ghost report-download-option"
+                    disabled={item.disabled}
+                    onClick={async () => {
+                      setDownloadMenuOpen(false);
+                      await item.action();
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
           <button
             type="button"
-            className="btn-ghost"
-            onClick={handleDownloadPoStatusSummaryExcel}
-            disabled={!sortedStatusRows.length || reportExportBusy}
-          >
-            PO status Excel
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={handleDownloadPoStatusSummaryPdf}
-            disabled={!sortedStatusRows.length || reportExportBusy}
-          >
-            PO status PDF
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={handleDownloadSpendBySupplier}
-            disabled={!filteredSpendRows.length}
-          >
-            Download supplier spend CSV
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={handleDownloadValuationCsv}
-            disabled={
-              !Array.isArray(valuation?.byProduct) ||
-              !valuation.byProduct.length
-            }
-          >
-            Valuation CSV
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={handleDownloadDeadStockCsv}
-            disabled={!deadStockRows.length}
-          >
-            Dead stock CSV
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={handleDownloadMovementCsv}
-            disabled={!movementRows.length}
-          >
-            Movements CSV
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={handleDownloadAuditCsv}
-            disabled={!auditRows.length}
-          >
-            Audit CSV
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={handleDownloadFullSummaryExcel}
-            disabled={
-              (!statusSummary && !spendBySupplier.length) || reportExportBusy
-            }
-          >
-            Full summary Excel
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={handleDownloadFullSummaryPdf}
-            disabled={
-              (!statusSummary && !spendBySupplier.length) || reportExportBusy
-            }
-          >
-            Full summary PDF
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() => handleQueueInventoryExport('csv')}
-            disabled={inventoryExportBusy}
-          >
-            Queue inventory CSV
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() => handleQueueInventoryExport('xlsx')}
-            disabled={inventoryExportBusy}
-          >
-            Queue inventory Excel
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={handleDownloadQueuedInventoryExport}
-            disabled={
-              inventoryExportBusy ||
-              String(inventoryExportJob?.status || '').toUpperCase() !==
-                'COMPLETED'
-            }
-          >
-            Download queued inventory export
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
+            className="btn-ghost aligned-action-btn"
             onClick={() => refetch()}
             disabled={isLoading || isFetching}
           >
@@ -824,7 +829,7 @@ const Reports = ({ accessToken, userRole = null }) => {
         <article className="metric-card">
           <p className="metric-label">Total spend</p>
           <p className="metric-value">
-            {formatCurrency(spendSummary?.totalSpend, activeCurrencyCode)}
+            {formatCurrency(spendSummary?.totalSpend)}
           </p>
         </article>
         <article className="metric-card">
@@ -838,7 +843,7 @@ const Reports = ({ accessToken, userRole = null }) => {
         <article className="metric-card">
           <p className="metric-label">Inventory valuation</p>
           <p className="metric-value">
-            {formatCurrency(valuation?.totalInventoryValue, activeCurrencyCode)}
+            {formatCurrency(valuation?.totalInventoryValue)}
           </p>
         </article>
         <article className="metric-card">
@@ -850,7 +855,7 @@ const Reports = ({ accessToken, userRole = null }) => {
         <article className="metric-card">
           <p className="metric-label">Dead stock value</p>
           <p className="metric-value">
-            {formatCurrency(deadStock?.totalValue, activeCurrencyCode)}
+            {formatCurrency(deadStock?.totalValue)}
           </p>
         </article>
       </div>
@@ -970,9 +975,7 @@ const Reports = ({ accessToken, userRole = null }) => {
                     {paginatedSpendRows.map((row) => (
                       <tr key={row._id || row.supplierName}>
                         <td>{row.supplierName || 'Unknown supplier'}</td>
-                        <td>
-                          {formatCurrency(row.totalSpend, activeCurrencyCode)}
-                        </td>
+                        <td>{formatCurrency(row.totalSpend)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1033,21 +1036,11 @@ const Reports = ({ accessToken, userRole = null }) => {
               </li>
               <li className="rank-item">
                 <p>Total inventory value</p>
-                <span>
-                  {formatCurrency(
-                    valuation?.totalInventoryValue,
-                    activeCurrencyCode
-                  )}
-                </span>
+                <span>{formatCurrency(valuation?.totalInventoryValue)}</span>
               </li>
               <li className="rank-item">
                 <p>Gross margin</p>
-                <span>
-                  {formatCurrency(
-                    grossMargin?.totals?.grossMargin,
-                    activeCurrencyCode
-                  )}
-                </span>
+                <span>{formatCurrency(grossMargin?.totals?.grossMargin)}</span>
               </li>
               <li className="rank-item">
                 <p>Gross margin %</p>
@@ -1091,12 +1084,7 @@ const Reports = ({ accessToken, userRole = null }) => {
                         <td>{row.warehouseCode || '-'}</td>
                         <td>{Number(row.quantityOnHand || 0)}</td>
                         <td>{Number(row.ageDays || 0)}</td>
-                        <td>
-                          {formatCurrency(
-                            row.inventoryValue,
-                            activeCurrencyCode
-                          )}
-                        </td>
+                        <td>{formatCurrency(row.inventoryValue)}</td>
                       </tr>
                     ))}
                   </tbody>

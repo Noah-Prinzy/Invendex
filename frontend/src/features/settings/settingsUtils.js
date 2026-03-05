@@ -62,6 +62,7 @@ export const getDefaultSettings = () => ({
   },
   finance: {
     valuationMethod: 'WEIGHTED_AVG',
+    displayCurrencyCode: 'UGX',
     taxInclusivePricing: false,
     importTaxEnabled: false,
     importTaxRate: 0
@@ -100,13 +101,34 @@ export const mapApiSettingsToForm = (payload) => {
     return defaults;
   }
 
+  const incomingCompanyProfile =
+    payload.companyProfile && typeof payload.companyProfile === 'object'
+      ? payload.companyProfile
+      : {};
+  const incomingFinance =
+    payload.finance && typeof payload.finance === 'object'
+      ? payload.finance
+      : {};
+  const normalizedCurrencyCode =
+    String(
+      incomingCompanyProfile.currencyCode ||
+        defaults.companyProfile.currencyCode
+    )
+      .trim()
+      .toUpperCase() || defaults.companyProfile.currencyCode;
+  const normalizedDisplayCurrencyCode =
+    String(incomingFinance.displayCurrencyCode || normalizedCurrencyCode)
+      .trim()
+      .toUpperCase() || normalizedCurrencyCode;
+
   return {
     ...defaults,
     organizationName: String(payload.organizationName || '').trim(),
     organizationCode: String(payload.organizationCode || '').trim(),
     companyProfile: {
       ...defaults.companyProfile,
-      ...(payload.companyProfile || {})
+      ...incomingCompanyProfile,
+      currencyCode: normalizedCurrencyCode
     },
     notifications: {
       ...defaults.notifications,
@@ -136,7 +158,8 @@ export const mapApiSettingsToForm = (payload) => {
     },
     finance: {
       ...defaults.finance,
-      ...(payload.finance || {})
+      ...incomingFinance,
+      displayCurrencyCode: normalizedDisplayCurrencyCode
     },
     userAccess: {
       ...defaults.userAccess,
@@ -200,6 +223,14 @@ export const mapFormToApiPayload = (form) => ({
   },
   finance: {
     valuationMethod: String(form.finance?.valuationMethod || 'WEIGHTED_AVG'),
+    displayCurrencyCode:
+      String(
+        form.finance?.displayCurrencyCode ||
+          form.companyProfile?.currencyCode ||
+          'UGX'
+      )
+        .trim()
+        .toUpperCase() || 'UGX',
     taxInclusivePricing: Boolean(form.finance?.taxInclusivePricing)
   },
   userAccess: {

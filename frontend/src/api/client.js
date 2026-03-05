@@ -270,26 +270,74 @@ export const authLoginRequest = ({ email, password }) =>
     body: { email, password }
   });
 
-export const authAdminLoginRequest = ({ email, password }) =>
+export const authAdminLoginRequest = ({
+  username = '',
+  email = '',
+  password
+}) =>
   request({
     method: 'POST',
     path: API_ENDPOINTS.AUTH_ADMIN_LOGIN,
-    body: { email, password }
+    body: { username, email, password }
   });
 
 export const authEmployeeLoginRequest = ({
   companyName,
-  email,
-  password,
-  inviteCode = ''
+  username = '',
+  email = '',
+  password
 }) =>
   request({
     method: 'POST',
     path: API_ENDPOINTS.AUTH_EMPLOYEE_LOGIN,
-    body: { companyName, email, password, inviteCode }
+    body: { companyName, username, email, password }
   });
 
+export const authEmployeeSignupRequest = ({
+  companyName,
+  username,
+  email,
+  password,
+  confirmPassword
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.AUTH_EMPLOYEE_SIGNUP,
+    body: {
+      companyName,
+      username,
+      email,
+      password,
+      confirmPassword
+    }
+  });
+
+export const authApproveEmployeeSignupRequest = ({
+  accessToken,
+  requestId,
+  reason = ''
+}) =>
+  request({
+    method: 'POST',
+    path: `${API_ENDPOINTS.AUTH_EMPLOYEE_SIGNUP_APPROVE_BASE}/${requestId}/approve`,
+    accessToken,
+    body: reason ? { reason } : {}
+  }).then(readData);
+
+export const authDeclineEmployeeSignupRequest = ({
+  accessToken,
+  requestId,
+  reason = ''
+}) =>
+  request({
+    method: 'POST',
+    path: `${API_ENDPOINTS.AUTH_EMPLOYEE_SIGNUP_APPROVE_BASE}/${requestId}/decline`,
+    accessToken,
+    body: reason ? { reason } : {}
+  }).then(readData);
+
 export const authRegisterRequest = ({
+  username,
   email,
   password,
   confirmPassword,
@@ -298,7 +346,7 @@ export const authRegisterRequest = ({
   request({
     method: 'POST',
     path: API_ENDPOINTS.AUTH_REGISTER,
-    body: { email, password, confirmPassword, organizationName }
+    body: { username, email, password, confirmPassword, organizationName }
   });
 
 export const authVerifyEmailRequest = ({ email }) =>
@@ -1355,6 +1403,80 @@ export const receivePurchaseOrderRequest = ({
     idempotencyKey
   }).then(readData);
 
+export const getWarehousesRequest = (
+  accessToken,
+  { includeInactive = false, includeArchived = false } = {}
+) => {
+  const query = new URLSearchParams();
+  if (includeInactive) query.set('includeInactive', 'true');
+  if (includeArchived) query.set('includeArchived', 'true');
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.WAREHOUSES}${suffix}`,
+    accessToken
+  })
+    .then(readData)
+    .then((payload) => {
+      if (Array.isArray(payload)) return payload;
+      if (Array.isArray(payload?.items)) return payload.items;
+      return [];
+    });
+};
+
+export const createWarehouseRequest = ({
+  accessToken,
+  name,
+  code = '',
+  region = '',
+  address = null,
+  managerUserId = null
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.WAREHOUSES,
+    accessToken,
+    body: {
+      name,
+      ...(String(code || '').trim() ? { code } : {}),
+      ...(String(region || '').trim() ? { region } : {}),
+      ...(address && typeof address === 'object' ? { address } : {}),
+      ...(managerUserId === null || managerUserId === ''
+        ? { managerUserId: null }
+        : { managerUserId })
+    }
+  }).then(readData);
+
+export const updateWarehouseRequest = ({ accessToken, warehouseId, payload }) =>
+  request({
+    method: 'PATCH',
+    path: `${API_ENDPOINTS.WAREHOUSES}/${warehouseId}`,
+    accessToken,
+    body: payload
+  }).then(readData);
+
+export const archiveWarehouseRequest = ({ accessToken, warehouseId }) =>
+  request({
+    method: 'PATCH',
+    path: `${API_ENDPOINTS.WAREHOUSES}/${warehouseId}/archive`,
+    accessToken
+  }).then(readData);
+
+export const restoreWarehouseRequest = ({
+  accessToken,
+  warehouseId,
+  activateOnRestore = true
+}) =>
+  request({
+    method: 'PATCH',
+    path: `${API_ENDPOINTS.WAREHOUSES}/${warehouseId}/restore`,
+    accessToken,
+    body: {
+      activateOnRestore: Boolean(activateOnRestore)
+    }
+  }).then(readData);
+
 export const getSuppliersRequest = (accessToken) =>
   request({
     method: 'GET',
@@ -1834,6 +1956,11 @@ export default {
   approveInventoryStocktakeSessionRequest,
   scanInventoryStocktakeImageRequest,
   receivePurchaseOrderRequest,
+  getWarehousesRequest,
+  createWarehouseRequest,
+  updateWarehouseRequest,
+  archiveWarehouseRequest,
+  restoreWarehouseRequest,
   getSuppliersRequest,
   getSupplierRankingsRequest,
   getWmsBinInventoryRequest,

@@ -112,6 +112,12 @@ const organizationSettingsSchema = new mongoose.Schema(
         enum: ['FIFO', 'LIFO', 'WEIGHTED_AVG'],
         default: 'WEIGHTED_AVG'
       },
+      displayCurrencyCode: {
+        type: String,
+        default: '',
+        trim: true,
+        uppercase: true
+      },
       taxInclusivePricing: {
         type: Boolean,
         default: false

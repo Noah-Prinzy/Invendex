@@ -620,6 +620,26 @@ const validateApiCacheConfig = (issues) => {
   }
 };
 
+const validateFxProviderConfig = (issues) => {
+  const template = asString(process.env.FX_PROVIDER_URL_TEMPLATE);
+  if (template) {
+    if (!template.startsWith('http://') && !template.startsWith('https://')) {
+      issues.push(
+        'FX_PROVIDER_URL_TEMPLATE must start with http:// or https://'
+      );
+    }
+
+    if (!template.includes('{base}')) {
+      issues.push('FX_PROVIDER_URL_TEMPLATE must include {base} placeholder');
+    }
+  }
+
+  const timeoutMs = asInteger(process.env.FX_HTTP_TIMEOUT_MS);
+  if (timeoutMs != null && (timeoutMs < 500 || timeoutMs > 20_000)) {
+    issues.push('FX_HTTP_TIMEOUT_MS must be between 500 and 20000');
+  }
+};
+
 const warnUnsafeFlags = () => {
   const nodeEnv = asString(process.env.NODE_ENV || 'development');
   const authBypass = asBoolean(process.env.AUTH_TEST_BYPASS);
@@ -664,6 +684,7 @@ export const validateRuntimeEnv = () => {
   validateBackgroundQueueConfig(issues, warnings, nodeEnv);
   validateSubscriptionRateLimitConfig(issues);
   validateApiCacheConfig(issues);
+  validateFxProviderConfig(issues);
   warnUnsafeFlags();
 
   if (warnings.length) {

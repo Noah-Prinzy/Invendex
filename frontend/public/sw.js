@@ -1,11 +1,17 @@
-const CACHE_NAME = 'ledgerly-shell-v2';
+const CACHE_NAME = 'ledgerly-shell-v4';
 const OFFLINE_URLS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
   '/favicon.ico',
+  '/favicon-16.png',
+  '/favicon-32.png',
+  '/favicon-48.png',
+  '/apple-touch-icon.png',
   '/logo192.png',
-  '/logo512.png'
+  '/logo512.png',
+  '/logo600.png',
+  '/logo1024.png'
 ];
 
 self.addEventListener('install', (event) => {

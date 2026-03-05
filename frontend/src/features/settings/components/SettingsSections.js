@@ -297,92 +297,130 @@ export const InventoryControlsSection = ({
   form,
   canManageSettings,
   isSaving,
-  setNestedField
-}) => (
-  <article className="data-card settings-card">
-    <h3>3. Inventory Controls</h3>
-    <div className="settings-grid">
-      <label className="settings-field">
-        <span>Default warehouse ID</span>
-        <input
-          type="text"
-          value={form.inventory.defaultWarehouse}
-          onChange={(event) =>
-            setNestedField('inventory', 'defaultWarehouse', event.target.value)
-          }
-          disabled={isDisabled(canManageSettings, isSaving)}
-          placeholder="Optional ObjectId"
-        />
-      </label>
-      <label className="settings-field">
-        <span>Dead stock threshold (days)</span>
-        <input
-          type="number"
-          min="1"
-          max="3650"
-          value={form.inventory.deadStockThresholdDays}
-          onChange={(event) =>
-            setNestedField(
-              'inventory',
-              'deadStockThresholdDays',
-              Number(event.target.value || 90)
-            )
-          }
-          disabled={isDisabled(canManageSettings, isSaving)}
-        />
-      </label>
-      <label className="settings-toggle">
-        <input
-          type="checkbox"
-          checked={Boolean(form.inventory.enforceWarehouseForAdjustments)}
-          onChange={(event) =>
-            setNestedField(
-              'inventory',
-              'enforceWarehouseForAdjustments',
-              event.target.checked
-            )
-          }
-          disabled={isDisabled(canManageSettings, isSaving)}
-        />
-        <span>Require warehouse on manual adjustments</span>
-      </label>
-      <label className="settings-field">
-        <span>Sensitive adjustment minimum role</span>
-        <select
-          value={form.inventory.sensitiveAdjustmentMinRole || 'manager'}
-          onChange={(event) =>
-            setNestedField(
-              'inventory',
-              'sensitiveAdjustmentMinRole',
-              event.target.value
-            )
-          }
-          disabled={isDisabled(canManageSettings, isSaving)}
-        >
-          <option value="staff">staff</option>
-          <option value="manager">manager</option>
-          <option value="admin">admin</option>
-          <option value="owner">owner</option>
-        </select>
-      </label>
-      <label className="settings-toggle">
-        <input
-          type="checkbox"
-          checked={Boolean(form.inventory.allowNegativeStock)}
-          onChange={(event) =>
-            setNestedField(
-              'inventory',
-              'allowNegativeStock',
-              event.target.checked
-            )
-          }
-          disabled={isDisabled(canManageSettings, isSaving)}
-        />
-        <span>Allow negative stock</span>
-      </label>
-    </div>
-  </article>
-);
+  setNestedField,
+  warehouseOptions = [],
+  warehouseOptionsLoading = false,
+  warehouseOptionsError = ''
+}) => {
+  const currentDefaultWarehouse = String(
+    form?.inventory?.defaultWarehouse || ''
+  ).trim();
+  const hasCurrentInOptions = warehouseOptions.some(
+    (option) => String(option?.value || '') === currentDefaultWarehouse
+  );
+
+  return (
+    <article className="data-card settings-card">
+      <h3>3. Inventory Controls</h3>
+      <div className="settings-grid">
+        <label className="settings-field">
+          <span>Default warehouse</span>
+          <select
+            value={form.inventory.defaultWarehouse}
+            onChange={(event) =>
+              setNestedField(
+                'inventory',
+                'defaultWarehouse',
+                event.target.value
+              )
+            }
+            disabled={
+              isDisabled(canManageSettings, isSaving) || warehouseOptionsLoading
+            }
+            title="Choose the default warehouse for new inventory workflows."
+          >
+            <option value="">
+              {warehouseOptionsLoading
+                ? 'Loading warehouses...'
+                : 'Select default warehouse'}
+            </option>
+            {!hasCurrentInOptions && currentDefaultWarehouse ? (
+              <option value={currentDefaultWarehouse}>
+                Current (unavailable): {currentDefaultWarehouse}
+              </option>
+            ) : null}
+            {warehouseOptions.map((warehouse) => (
+              <option key={warehouse.value} value={warehouse.value}>
+                {warehouse.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {warehouseOptionsError ? (
+          <p className="form-error settings-field-full">
+            {warehouseOptionsError}
+          </p>
+        ) : null}
+        <label className="settings-field">
+          <span>Dead stock threshold (days)</span>
+          <input
+            type="number"
+            min="1"
+            max="3650"
+            value={form.inventory.deadStockThresholdDays}
+            onChange={(event) =>
+              setNestedField(
+                'inventory',
+                'deadStockThresholdDays',
+                Number(event.target.value || 90)
+              )
+            }
+            disabled={isDisabled(canManageSettings, isSaving)}
+          />
+        </label>
+        <label className="settings-toggle">
+          <input
+            type="checkbox"
+            checked={Boolean(form.inventory.enforceWarehouseForAdjustments)}
+            onChange={(event) =>
+              setNestedField(
+                'inventory',
+                'enforceWarehouseForAdjustments',
+                event.target.checked
+              )
+            }
+            disabled={isDisabled(canManageSettings, isSaving)}
+          />
+          <span>Require warehouse on manual adjustments</span>
+        </label>
+        <label className="settings-field">
+          <span>Sensitive adjustment minimum role</span>
+          <select
+            value={form.inventory.sensitiveAdjustmentMinRole || 'manager'}
+            onChange={(event) =>
+              setNestedField(
+                'inventory',
+                'sensitiveAdjustmentMinRole',
+                event.target.value
+              )
+            }
+            disabled={isDisabled(canManageSettings, isSaving)}
+          >
+            <option value="staff">staff</option>
+            <option value="manager">manager</option>
+            <option value="admin">admin</option>
+            <option value="owner">owner</option>
+          </select>
+        </label>
+        <label className="settings-toggle">
+          <input
+            type="checkbox"
+            checked={Boolean(form.inventory.allowNegativeStock)}
+            onChange={(event) =>
+              setNestedField(
+                'inventory',
+                'allowNegativeStock',
+                event.target.checked
+              )
+            }
+            disabled={isDisabled(canManageSettings, isSaving)}
+          />
+          <span>Allow negative stock</span>
+        </label>
+      </div>
+    </article>
+  );
+};
 
 export const FinanceDefaultsSection = ({
   form,
@@ -390,14 +428,10 @@ export const FinanceDefaultsSection = ({
   isSaving,
   setNestedField,
   baseCurrencyCode = 'UGX',
+  availableDisplayCurrencyCodes = [],
   exchangeRates = [],
   exchangeRatesLoading = false,
-  exchangeRateForm = { quoteCurrencyCode: '', rate: '' },
-  onExchangeRateFieldChange = () => {},
-  onAddExchangeRate = () => {},
-  updatingExchangeRates = false,
-  exchangeRateError = '',
-  exchangeRateNotice = ''
+  exchangeRatesError = ''
 }) => (
   <article className="data-card settings-card">
     <h3>4. Finance Defaults</h3>
@@ -414,6 +448,39 @@ export const FinanceDefaultsSection = ({
           <option value="FIFO">FIFO</option>
           <option value="LIFO">LIFO</option>
           <option value="WEIGHTED_AVG">WEIGHTED_AVG</option>
+        </select>
+      </label>
+      <label className="settings-field">
+        <span>App display currency</span>
+        <select
+          value={
+            String(
+              form.finance.displayCurrencyCode ||
+                form.companyProfile.currencyCode ||
+                baseCurrencyCode
+            )
+              .trim()
+              .toUpperCase() || baseCurrencyCode
+          }
+          onChange={(event) =>
+            setNestedField(
+              'finance',
+              'displayCurrencyCode',
+              String(event.target.value || '')
+                .trim()
+                .toUpperCase()
+            )
+          }
+          disabled={isDisabled(canManageSettings, isSaving)}
+        >
+          {availableDisplayCurrencyCodes.map((currencyCode) => (
+            <option
+              key={`display-currency-${currencyCode}`}
+              value={currencyCode}
+            >
+              {currencyCode}
+            </option>
+          ))}
         </select>
       </label>
       <label className="settings-toggle">
@@ -464,59 +531,18 @@ export const FinanceDefaultsSection = ({
         <p className="event-sub">
           Base currency: <strong>{baseCurrencyCode}</strong>
         </p>
-      </div>
-      <label className="settings-field">
-        <span>Quote currency</span>
-        <input
-          type="text"
-          value={exchangeRateForm.quoteCurrencyCode}
-          onChange={(event) =>
-            onExchangeRateFieldChange(
-              'quoteCurrencyCode',
-              String(event.target.value || '').toUpperCase()
-            )
-          }
-          maxLength={3}
-          placeholder="USD"
-          disabled={
-            isDisabled(canManageSettings, isSaving) || updatingExchangeRates
-          }
-        />
-      </label>
-      <label className="settings-field">
-        <span>FX rate ({baseCurrencyCode} → quote)</span>
-        <input
-          type="number"
-          min="0.000001"
-          step="0.000001"
-          value={exchangeRateForm.rate}
-          onChange={(event) =>
-            onExchangeRateFieldChange('rate', event.target.value)
-          }
-          placeholder="0.00027"
-          disabled={
-            isDisabled(canManageSettings, isSaving) || updatingExchangeRates
-          }
-        />
-      </label>
-      <div className="settings-field settings-field-full">
-        <button
-          type="button"
-          className="btn-ghost"
-          onClick={onAddExchangeRate}
-          disabled={
-            isDisabled(canManageSettings, isSaving) || updatingExchangeRates
-          }
-        >
-          {updatingExchangeRates ? 'Saving rate...' : 'Save exchange rate'}
-        </button>
+        <p className="event-sub">
+          Display currency drives money formatting across products, dashboard,
+          and reports.
+        </p>
+        <p className="event-sub">
+          Live FX rate auto-sync runs when you save and display currency differs
+          from base.
+        </p>
       </div>
     </div>
-    {exchangeRateNotice ? (
-      <p className="section-note">{exchangeRateNotice}</p>
-    ) : null}
-    {exchangeRateError ? (
-      <p className="form-error">{exchangeRateError}</p>
+    {exchangeRatesError ? (
+      <p className="form-error">{exchangeRatesError}</p>
     ) : null}
     <div className="table-wrap">
       <table className="data-table">
@@ -927,7 +953,7 @@ export const ObservabilityPipelineSection = ({
         </button>
         <button
           type="button"
-          className="btn-ghost"
+          className="btn-ghost aligned-action-btn"
           onClick={() => observabilityQuery.refetch()}
           disabled={observabilityQuery.isFetching || !accessToken}
         >
@@ -1024,7 +1050,7 @@ export const OnboardingLaunchWizardSection = ({
       </p>
       <button
         type="button"
-        className="btn-ghost"
+        className="btn-ghost aligned-action-btn"
         onClick={onRefreshStatus}
         disabled={onboardingStatusLoading}
       >

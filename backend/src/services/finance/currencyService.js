@@ -3,12 +3,134 @@ import OrganizationSettings from '../../models/OrganizationSettings.js';
 import { AppError } from '../../errors/AppError.js';
 
 const CURRENCY_CODE_REGEX = /^[A-Z]{3}$/;
+const DEFAULT_FX_PROVIDER_URL_TEMPLATE =
+  'https://open.er-api.com/v6/latest/{base}';
+const DEFAULT_FX_HTTP_TIMEOUT_MS = 8000;
 
 const roundMoney = (value) =>
   Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
 const roundRate = (value) =>
   Math.round((Number(value || 0) + Number.EPSILON) * 1_000_000) / 1_000_000;
+
+const asPositiveInteger = (value, fallback) => {
+  const parsed = Number.parseInt(String(value || '').trim(), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+};
+
+const getFxProviderUrlTemplate = () => {
+  const template = String(process.env.FX_PROVIDER_URL_TEMPLATE || '').trim();
+  return template || DEFAULT_FX_PROVIDER_URL_TEMPLATE;
+};
+
+const getFxHttpTimeoutMs = () => {
+  const timeoutMs = asPositiveInteger(
+    process.env.FX_HTTP_TIMEOUT_MS,
+    DEFAULT_FX_HTTP_TIMEOUT_MS
+  );
+  if (timeoutMs < 500) return 500;
+  if (timeoutMs > 20_000) return 20_000;
+  return timeoutMs;
+};
+
+const buildFxProviderUrl = ({
+  template,
+  baseCurrencyCode,
+  quoteCurrencyCode
+}) =>
+  template
+    .replace(/\{base\}/gi, encodeURIComponent(baseCurrencyCode))
+    .replace(/\{quote\}/gi, encodeURIComponent(quoteCurrencyCode));
+
+const extractLiveRateFromPayload = ({
+  payload,
+  baseCurrencyCode,
+  quoteCurrencyCode
+}) => {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  const ratesCandidate =
+    payload.rates && typeof payload.rates === 'object'
+      ? payload.rates
+      : payload.conversion_rates && typeof payload.conversion_rates === 'object'
+        ? payload.conversion_rates
+        : null;
+
+  const normalizedProviderBaseCurrencyCode = normalizeCurrencyCode(
+    payload.base_code || payload.base || payload.baseCurrencyCode || '',
+    baseCurrencyCode
+  );
+
+  if (ratesCandidate) {
+    const directRate = Number(ratesCandidate?.[quoteCurrencyCode]);
+    if (
+      normalizedProviderBaseCurrencyCode === baseCurrencyCode &&
+      Number.isFinite(directRate) &&
+      directRate > 0
+    ) {
+      return directRate;
+    }
+
+    const providerBaseToTarget = Number(ratesCandidate?.[quoteCurrencyCode]);
+    const providerBaseToSource = Number(ratesCandidate?.[baseCurrencyCode]);
+    if (
+      Number.isFinite(providerBaseToTarget) &&
+      providerBaseToTarget > 0 &&
+      Number.isFinite(providerBaseToSource) &&
+      providerBaseToSource > 0
+    ) {
+      return providerBaseToTarget / providerBaseToSource;
+    }
+  }
+
+  const quoteMap =
+    payload.quotes && typeof payload.quotes === 'object'
+      ? payload.quotes
+      : null;
+  if (quoteMap) {
+    const key = `${normalizedProviderBaseCurrencyCode}${quoteCurrencyCode}`;
+    const providerBaseToTarget = Number(quoteMap[key]);
+    if (
+      normalizedProviderBaseCurrencyCode === baseCurrencyCode &&
+      Number.isFinite(providerBaseToTarget) &&
+      providerBaseToTarget > 0
+    ) {
+      return providerBaseToTarget;
+    }
+
+    const sourceKey = `${normalizedProviderBaseCurrencyCode}${baseCurrencyCode}`;
+    const providerBaseToSource = Number(quoteMap[sourceKey]);
+    if (
+      Number.isFinite(providerBaseToTarget) &&
+      providerBaseToTarget > 0 &&
+      Number.isFinite(providerBaseToSource) &&
+      providerBaseToSource > 0
+    ) {
+      return providerBaseToTarget / providerBaseToSource;
+    }
+  }
+
+  const directKeys = [
+    'rate',
+    'exchangeRate',
+    'conversion_rate',
+    'value',
+    quoteCurrencyCode
+  ];
+  for (const key of directKeys) {
+    const parsed = Number(payload?.[key]);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  return null;
+};
 
 export const normalizeCurrencyCode = (value, fallback = 'UGX') => {
   const normalized = String(value || '')
@@ -206,6 +328,112 @@ export const upsertExchangeRates = async ({
     baseCurrencyCode: resolvedBaseCurrencyCode,
     session
   });
+};
+
+export const fetchLiveExchangeRate = async ({
+  baseCurrencyCode,
+  quoteCurrencyCode,
+  timeoutMs = null
+}) => {
+  if (typeof fetch !== 'function') {
+    throw new AppError('Live FX fetch is not supported in this runtime', 500);
+  }
+
+  const normalizedBaseCurrencyCode = normalizeCurrencyCode(
+    baseCurrencyCode,
+    ''
+  );
+  const normalizedQuoteCurrencyCode = normalizeCurrencyCode(
+    quoteCurrencyCode,
+    ''
+  );
+
+  if (
+    !CURRENCY_CODE_REGEX.test(normalizedBaseCurrencyCode) ||
+    !CURRENCY_CODE_REGEX.test(normalizedQuoteCurrencyCode)
+  ) {
+    throw new AppError(
+      'baseCurrencyCode and quoteCurrencyCode must be 3-letter currency codes',
+      400
+    );
+  }
+
+  if (normalizedBaseCurrencyCode === normalizedQuoteCurrencyCode) {
+    return {
+      baseCurrencyCode: normalizedBaseCurrencyCode,
+      quoteCurrencyCode: normalizedQuoteCurrencyCode,
+      rate: 1,
+      source: 'SYSTEM',
+      provider: 'identity'
+    };
+  }
+
+  const providerTemplate = getFxProviderUrlTemplate();
+  const requestUrl = buildFxProviderUrl({
+    template: providerTemplate,
+    baseCurrencyCode: normalizedBaseCurrencyCode,
+    quoteCurrencyCode: normalizedQuoteCurrencyCode
+  });
+  const requestTimeoutMs = asPositiveInteger(timeoutMs, getFxHttpTimeoutMs());
+
+  const abortController = new AbortController();
+  const timeoutHandle = setTimeout(
+    () => abortController.abort(),
+    requestTimeoutMs
+  );
+
+  let response;
+  try {
+    response = await fetch(requestUrl, {
+      method: 'GET',
+      headers: {
+        accept: 'application/json'
+      },
+      signal: abortController.signal
+    });
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new AppError('Live FX provider timeout', 504);
+    }
+    throw new AppError('Unable to reach live FX provider', 503);
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+
+  if (!response.ok) {
+    throw new AppError(
+      `Live FX provider returned HTTP ${response.status}`,
+      502
+    );
+  }
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new AppError('Live FX provider returned invalid JSON', 502);
+  }
+
+  const extractedRate = extractLiveRateFromPayload({
+    payload,
+    baseCurrencyCode: normalizedBaseCurrencyCode,
+    quoteCurrencyCode: normalizedQuoteCurrencyCode
+  });
+
+  if (!Number.isFinite(extractedRate) || extractedRate <= 0) {
+    throw new AppError(
+      `Live FX provider did not return a valid rate for ${normalizedBaseCurrencyCode}->${normalizedQuoteCurrencyCode}`,
+      502
+    );
+  }
+
+  return {
+    baseCurrencyCode: normalizedBaseCurrencyCode,
+    quoteCurrencyCode: normalizedQuoteCurrencyCode,
+    rate: roundRate(extractedRate),
+    source: 'SYSTEM',
+    provider: requestUrl
+  };
 };
 
 const findRateRow = async ({
@@ -426,6 +654,7 @@ export default {
   getOrganizationBaseCurrencyCode,
   getExchangeRates,
   upsertExchangeRates,
+  fetchLiveExchangeRate,
   resolveExchangeRate,
   convertCurrencyAmount,
   buildCurrencyConversionContext,

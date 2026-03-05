@@ -16,6 +16,7 @@ import {
   softDeleteProductRequest
 } from '../../api/client.js';
 import { createIdempotencyKey } from '../../api/idempotency.js';
+import useOrganizationCurrency from '../../hooks/finance/useOrganizationCurrency.js';
 import { readCachedData, writeCachedData } from '../../offline/dataCache.js';
 import Modal from '../../ui/Modal.js';
 
@@ -106,13 +107,6 @@ const BULK_IMPORT_DUPLICATE_POLICIES = [
 const BULK_IMPORT_JOB_TERMINAL_STATUSES = new Set(['COMPLETED', 'FAILED']);
 const BULK_IMPORT_JOB_POLL_INTERVAL_MS = 2000;
 const PRODUCT_SAVED_VIEWS_STORAGE_KEY = 'ledgerly.products.savedViews.v1';
-
-const formatCurrency = (value) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 2
-  }).format(Number(value || 0));
 
 const resolveProductId = (product) =>
   String(product?.id || product?._id || '').trim();
@@ -309,7 +303,12 @@ const writeSavedProductViews = (views = []) => {
   }
 };
 
-const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
+const Products = ({
+  accessToken,
+  userRole = null,
+  warehouseId = null,
+  activeWarehouseLabel = 'All warehouses'
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [skuFilter, setSkuFilter] = useState('');
   const [stockFilter, setStockFilter] = useState('all');
@@ -362,6 +361,13 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
   const barcodeScanFrameRef = useRef(null);
 
   const queryClient = useQueryClient();
+  const {
+    currencyCode: displayCurrencyCode,
+    convertToBaseAmount,
+    formatFromBaseAmount
+  } = useOrganizationCurrency({
+    accessToken
+  });
   const normalizedRole = String(userRole || '')
     .trim()
     .toLowerCase();
@@ -928,6 +934,9 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
   const errorMessage = String(error?.message || '').trim();
   const canAdjustStock = Boolean(accessToken);
   const normalizedWarehouseId = String(warehouseId || '').trim();
+  const selectedWarehouseLabel = normalizedWarehouseId
+    ? String(activeWarehouseLabel || '').trim() || 'Selected warehouse'
+    : 'None selected';
   const bulkImportJobStatus = String(bulkImportJob?.status || '')
     .trim()
     .toUpperCase();
@@ -954,7 +963,7 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
     }
     if (!normalizedWarehouseId) {
       setAdjustNotice(
-        'Select a warehouse in the header before adjusting stock.'
+        'Select a warehouse from the header before adjusting stock.'
       );
       return;
     }
@@ -1269,7 +1278,7 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
     const uomPurchaseToBaseFactor = Number(
       createForm.uomPurchaseToBaseFactor || 1
     );
-    const price = Number(createForm.price);
+    const displayPrice = Number(createForm.price);
     const lowStockThreshold = Number(createForm.lowStockThreshold);
 
     if (!name) {
@@ -1277,8 +1286,16 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
       return;
     }
 
+    if (!Number.isFinite(displayPrice) || displayPrice < 0) {
+      setManagementNotice(
+        `Price must be a non-negative number (${displayCurrencyCode}).`
+      );
+      return;
+    }
+
+    const price = Number(convertToBaseAmount(displayPrice));
     if (!Number.isFinite(price) || price < 0) {
-      setManagementNotice('Price must be a positive number.');
+      setManagementNotice('Price conversion failed. Check currency settings.');
       return;
     }
 
@@ -1515,7 +1532,7 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
         </div>
         <button
           type="button"
-          className="btn-ghost"
+          className="btn-ghost aligned-action-btn"
           onClick={() => refetch()}
           disabled={isLoading || isFetching}
         >
@@ -1534,7 +1551,7 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
         </article>
         <article className="metric-card">
           <p className="metric-label">Average price</p>
-          <p className="metric-value">{formatCurrency(stats.avgPrice)}</p>
+          <p className="metric-value">{formatFromBaseAmount(stats.avgPrice)}</p>
         </article>
         <article className="metric-card">
           <p className="metric-label">Inventory health score</p>
@@ -1607,11 +1624,12 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
             />
           </label>
           <label className="control-field">
-            <span>Warehouse scope</span>
+            <span>Selected warehouse</span>
             <input
               type="text"
-              value={normalizedWarehouseId || 'Not selected'}
+              value={selectedWarehouseLabel}
               readOnly
+              title="Warehouse selected from the header selector."
             />
           </label>
           <button
@@ -1660,7 +1678,7 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
               />
             </label>
             <label className="control-field">
-              <span>Price</span>
+              <span>Price ({displayCurrencyCode})</span>
               <input
                 type="number"
                 min="0"
@@ -2201,7 +2219,7 @@ const Products = ({ accessToken, userRole = null, warehouseId = null }) => {
                       </td>
                       <td>{Number(product.stock || 0)}</td>
                       <td>{Number(product.lowStockThreshold || 0)}</td>
-                      <td>{formatCurrency(product.price)}</td>
+                      <td>{formatFromBaseAmount(product.price)}</td>
                       {canManageProducts ? (
                         <td>
                           <div className="action-row">

@@ -29,6 +29,7 @@ import {
   getFinanceRealtimeStatsRequest,
   getObservabilityPingRequest,
   getPurchaseOrdersRequest,
+  getWarehousesRequest,
   getSettingsRequest
 } from '../api/client.js';
 
@@ -70,6 +71,7 @@ jest.mock('../api/client.js', () => ({
   patchFinanceTaxConfigRequest: jest.fn(),
   seedOnboardingSampleDataRequest: jest.fn(),
   getPurchaseOrdersRequest: jest.fn(),
+  getWarehousesRequest: jest.fn(),
   getSettingsRequest: jest.fn(),
   getObservabilityPingRequest: jest.fn(),
   getFinanceRealtimeStatsRequest: jest.fn()
@@ -86,7 +88,9 @@ const buildAuthState = (overrides) => ({
   pendingTwoFactorLogin: null,
   adminLogin: jest.fn(),
   employeeLogin: jest.fn(),
+  employeeSignup: jest.fn(),
   login: jest.fn(),
+  reviewEmployeeSignupRequest: jest.fn(),
   verifyTwoFactorLogin: jest.fn(),
   signup: jest.fn(),
   requestEmailVerification: jest.fn(),
@@ -121,6 +125,7 @@ describe('App integration', () => {
     useLedgerlyRealtime.mockImplementation(() => ({}));
     useOfflineSync.mockImplementation(() => {});
     getPurchaseOrdersRequest.mockResolvedValue([]);
+    getWarehousesRequest.mockResolvedValue([]);
     getNotificationsRequest.mockResolvedValue({
       items: [],
       unreadCount: 0
@@ -245,10 +250,11 @@ describe('App integration', () => {
 
     renderWithProviders(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Admin' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Get started' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Employer Portal' }));
 
-    fireEvent.change(screen.getByLabelText('Email'), {
-      target: { value: 'ops@ledgerly.com' }
+    fireEvent.change(screen.getByLabelText('Username'), {
+      target: { value: 'ops.admin' }
     });
     fireEvent.change(screen.getByLabelText('Password'), {
       target: { value: 'secret123' }
@@ -257,7 +263,7 @@ describe('App integration', () => {
 
     expect(adminLogin).toHaveBeenCalledWith(
       expect.objectContaining({
-        email: 'ops@ledgerly.com',
+        username: 'ops.admin',
         password: 'secret123'
       })
     );
@@ -273,13 +279,14 @@ describe('App integration', () => {
 
     renderWithProviders(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Employee' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Get started' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Employee Portal' }));
 
     fireEvent.change(screen.getByLabelText('Company Name'), {
       target: { value: 'Warehouse Heroes' }
     });
-    fireEvent.change(screen.getByLabelText('Email'), {
-      target: { value: 'employee1@example.com' }
+    fireEvent.change(screen.getByLabelText('Username'), {
+      target: { value: 'employee_1' }
     });
     fireEvent.change(screen.getByLabelText('Password'), {
       target: { value: 'EmployeePass123!' }
@@ -291,9 +298,8 @@ describe('App integration', () => {
     expect(employeeLogin).toHaveBeenCalledWith(
       expect.objectContaining({
         companyName: 'Warehouse Heroes',
-        email: 'employee1@example.com',
-        password: 'EmployeePass123!',
-        inviteCode: ''
+        username: 'employee_1',
+        password: 'EmployeePass123!'
       })
     );
   });
@@ -308,13 +314,17 @@ describe('App integration', () => {
 
     renderWithProviders(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Admin' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Get started' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Employer Portal' }));
     fireEvent.click(screen.getByRole('button', { name: 'Admin sign up' }));
 
+    fireEvent.change(screen.getByLabelText('Username'), {
+      target: { value: 'owner.ops' }
+    });
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: 'owner@ledgerly.com' }
     });
-    fireEvent.change(screen.getByLabelText('Organization'), {
+    fireEvent.change(screen.getByLabelText('Company Name'), {
       target: { value: 'Ledgerly Ops' }
     });
     fireEvent.change(screen.getByLabelText('Password'), {
@@ -330,6 +340,7 @@ describe('App integration', () => {
     await waitFor(() => {
       expect(signup).toHaveBeenCalledWith(
         expect.objectContaining({
+          username: 'owner.ops',
           email: 'owner@ledgerly.com',
           password: 'StrongPass123',
           confirmPassword: 'StrongPass123',
