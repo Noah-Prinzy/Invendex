@@ -1,9 +1,9 @@
-export const DEFAULT_THEME_ID = 'ledgerly-classic';
+export const DEFAULT_THEME_ID = 'inventra-classic';
 
 export const APP_THEMES = Object.freeze([
   {
-    id: 'ledgerly-classic',
-    label: 'Ledgerly Classic',
+    id: 'inventra-classic',
+    label: 'Inventra Classic',
     description: 'Navy, cyan, and crisp control surfaces.',
     swatches: ['#061224', '#1f8fda', '#aee3ff', '#edf4fd']
   },

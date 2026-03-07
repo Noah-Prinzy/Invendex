@@ -57,6 +57,17 @@ const STOCK_ADJUST_REASON_LABELS = Object.freeze({
   correction: 'correction',
   supplier_return: 'supplier return'
 });
+const STOCK_ADJUST_REASON_POLICIES = Object.freeze({
+  sale: 'decrease',
+  restock: 'increase',
+  adjustment: 'any',
+  return: 'increase',
+  damaged: 'decrease',
+  expired: 'decrease',
+  stolen: 'decrease',
+  correction: 'any',
+  supplier_return: 'decrease'
+});
 const SENSITIVE_STOCK_ADJUST_REASONS = new Set([
   'damaged',
   'expired',
@@ -110,6 +121,17 @@ const PRODUCT_SAVED_VIEWS_STORAGE_KEY = 'ledgerly.products.savedViews.v1';
 
 const resolveProductId = (product) =>
   String(product?.id || product?._id || '').trim();
+
+const getAdjustmentDirectionHint = (reason) => {
+  const direction = STOCK_ADJUST_REASON_POLICIES[reason];
+  if (direction === 'increase') {
+    return 'Use a positive amount for this reason.';
+  }
+  if (direction === 'decrease') {
+    return 'Use a negative amount for this reason.';
+  }
+  return 'Positive or negative amounts are allowed for this reason.';
+};
 
 const toUserDateTime = (value) => {
   if (!value) return '-';
@@ -424,6 +446,7 @@ const Products = ({
       String(accessToken || ''),
       String(canReadLowStockSummary),
       String(canReviewDeletedProducts),
+      String(warehouseId || ''),
       String(searchTerm || ''),
       String(skuFilter || '')
     ],
@@ -431,6 +454,7 @@ const Products = ({
       accessToken,
       canReadLowStockSummary,
       canReviewDeletedProducts,
+      warehouseId,
       searchTerm,
       skuFilter
     ]
@@ -447,7 +471,7 @@ const Products = ({
         .trim()
         .toLowerCase()}:${String(canReadLowStockSummary)}:${String(
         canReviewDeletedProducts
-      )}`;
+      )}:${String(warehouseId || 'all')}`;
       try {
         const [
           productsData,
@@ -457,16 +481,23 @@ const Products = ({
         ] = await Promise.all([
           getProductsRequest(accessToken, {
             q: String(searchTerm || '').trim(),
-            sku: String(skuFilter || '').trim()
+            sku: String(skuFilter || '').trim(),
+            warehouseId: warehouseId || null
           }),
           canReadLowStockSummary
-            ? getProductsLowStockSummaryRequest(accessToken)
+            ? getProductsLowStockSummaryRequest({
+                accessToken,
+                warehouseId: warehouseId || null
+              })
             : Promise.resolve([]),
           canReviewDeletedProducts
             ? getDeletedProductsRequest(accessToken)
             : Promise.resolve([]),
           canReadLowStockSummary
-            ? getProductsHealthScoreRequest(accessToken)
+            ? getProductsHealthScoreRequest({
+                accessToken,
+                warehouseId: warehouseId || null
+              })
             : Promise.resolve(null)
         ]);
 
@@ -937,6 +968,15 @@ const Products = ({
   const selectedWarehouseLabel = normalizedWarehouseId
     ? String(activeWarehouseLabel || '').trim() || 'Selected warehouse'
     : 'None selected';
+  const selectedAdjustReasonPolicy =
+    STOCK_ADJUST_REASON_POLICIES[adjustReason] || 'any';
+  const adjustAmountPlaceholder =
+    selectedAdjustReasonPolicy === 'decrease'
+      ? 'e.g. -3'
+      : selectedAdjustReasonPolicy === 'increase'
+        ? 'e.g. 10'
+        : 'e.g. -3 or 10';
+  const adjustDirectionHint = getAdjustmentDirectionHint(adjustReason);
   const bulkImportJobStatus = String(bulkImportJob?.status || '')
     .trim()
     .toUpperCase();
@@ -961,6 +1001,18 @@ const Products = ({
       setAdjustNotice('Amount must be a non-zero integer.');
       return;
     }
+    if (selectedAdjustReasonPolicy === 'increase' && amount < 0) {
+      setAdjustNotice(
+        `Reason "${STOCK_ADJUST_REASON_LABELS[adjustReason] || adjustReason}" only accepts positive amounts.`
+      );
+      return;
+    }
+    if (selectedAdjustReasonPolicy === 'decrease' && amount > 0) {
+      setAdjustNotice(
+        `Reason "${STOCK_ADJUST_REASON_LABELS[adjustReason] || adjustReason}" only accepts negative amounts.`
+      );
+      return;
+    }
     if (!normalizedWarehouseId) {
       setAdjustNotice(
         'Select a warehouse from the header before adjusting stock.'
@@ -968,13 +1020,17 @@ const Products = ({
       return;
     }
 
-    await stockAdjustMutation.mutateAsync({
-      productId: adjustProductId,
-      amount,
-      reason: adjustReason,
-      selectedWarehouseId: normalizedWarehouseId,
-      idempotencyKey: createIdempotencyKey('manual-stock-adjustment')
-    });
+    try {
+      await stockAdjustMutation.mutateAsync({
+        productId: adjustProductId,
+        amount,
+        reason: adjustReason,
+        selectedWarehouseId: normalizedWarehouseId,
+        idempotencyKey: createIdempotencyKey('manual-stock-adjustment')
+      });
+    } catch {
+      // Error state is already surfaced via the mutation onError handler.
+    }
   };
 
   const handleCreateInputChange = (field) => (event) => {
@@ -1167,7 +1223,7 @@ const Products = ({
     });
 
     downloadTextFile({
-      filename: 'ledgerly-bulk-import-errors.csv',
+      filename: 'inventra-bulk-import-errors.csv',
       content: `${lines.join('\n')}\n`,
       mimeType: 'text/csv;charset=utf-8'
     });
@@ -1188,7 +1244,7 @@ const Products = ({
     ].join(',');
 
     downloadTextFile({
-      filename: 'ledgerly-products-template.csv',
+      filename: 'inventra-products-template.csv',
       content: `${headerRow}\n${exampleRow}\n`,
       mimeType: 'text/csv;charset=utf-8'
     });
@@ -1619,7 +1675,7 @@ const Products = ({
               step="1"
               value={adjustAmount}
               onChange={(event) => setAdjustAmount(event.target.value)}
-              placeholder="e.g. -3 or 10"
+              placeholder={adjustAmountPlaceholder}
               disabled={!canAdjustStock || stockAdjustMutation.isPending}
             />
           </label>
@@ -1640,6 +1696,7 @@ const Products = ({
             {stockAdjustMutation.isPending ? 'Saving...' : 'Adjust stock'}
           </button>
         </form>
+        <p className="section-note">{adjustDirectionHint}</p>
         {adjustNotice ? <p className="section-note">{adjustNotice}</p> : null}
       </article>
 

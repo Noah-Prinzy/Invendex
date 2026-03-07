@@ -27,6 +27,7 @@ import Forecast from '../src/models/Forecast.js';
 import ForecastResult from '../src/models/ForecastResult.js';
 import InventoryMetrics from '../src/models/InventoryMetrics.js';
 import InventoryReport from '../src/models/InventoryReport.js';
+import NotificationEvent from '../src/models/NotificationEvent.js';
 import Order from '../src/models/Order.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -100,6 +101,7 @@ const migrationTargets = [
   { model: ForecastResult, name: 'ForecastResult' },
   { model: InventoryMetrics, name: 'InventoryMetrics' },
   { model: InventoryReport, name: 'InventoryReport' },
+  { model: NotificationEvent, name: 'NotificationEvent' },
   { model: Order, name: 'Order' }
 ];
 
@@ -182,9 +184,13 @@ async function reconcileReorderAlertIndexes() {
     const hasLegacyKey =
       Number(key.product) === 1 &&
       Number(key.triggeredAt) === 1 &&
-      !Object.prototype.hasOwnProperty.call(key, 'organization');
+      !Object.prototype.hasOwnProperty.call(key, 'warehouse');
 
-    return indexDef.name === 'product_1_triggeredAt_1' || hasLegacyKey;
+    return (
+      indexDef.name === 'product_1_triggeredAt_1' ||
+      indexDef.name === 'organization_1_product_1_triggeredAt_1_resolved_1' ||
+      hasLegacyKey
+    );
   });
 
   if (!staleIndexes.length) {
@@ -227,7 +233,9 @@ async function syncStrictTenantIndexes() {
     { model: InventoryBatch, name: 'InventoryBatch' },
     { model: InventorySerial, name: 'InventorySerial' },
     { model: PickTicket, name: 'PickTicket' },
-    { model: StockMovement, name: 'StockMovement' }
+    { model: StockMovement, name: 'StockMovement' },
+    { model: AuditLog, name: 'AuditLog' },
+    { model: NotificationEvent, name: 'NotificationEvent' }
   ];
 
   if (DRY_RUN) {

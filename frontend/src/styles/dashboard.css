@@ -230,6 +230,79 @@
   gap: 0.56rem;
 }
 
+.settings-contact-grid {
+  margin-top: 0.7rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.56rem;
+}
+
+.settings-contact-card {
+  border: 1px solid var(--border-soft);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(11, 22, 43, 0.12) 100%),
+    linear-gradient(180deg, var(--surface-1) 0%, var(--surface-2) 100%);
+  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px));
+  padding: 0.72rem 0.76rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.settings-contact-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.settings-contact-label {
+  margin: 0 0 0.18rem;
+  color: var(--ink-muted);
+  font-size: 0.65rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+
+.settings-contact-value {
+  margin: 0;
+  color: var(--ink-strong);
+  font-size: 0.92rem;
+  font-weight: 800;
+  word-break: break-word;
+}
+
+.settings-contact-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0.24rem 0.5rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  color: var(--ink-main);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.settings-contact-badge.connected {
+  border-color: rgba(93, 203, 166, 0.46);
+  color: var(--success);
+}
+
+.settings-contact-badge.missing {
+  border-color: rgba(237, 111, 110, 0.42);
+  color: var(--danger);
+}
+
+.settings-contact-edit-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.56rem;
+  align-items: end;
+}
+
 .settings-field {
   display: grid;
   gap: 0.22rem;
@@ -1019,6 +1092,59 @@
   word-break: break-word;
 }
 
+.event-summary {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-xs);
+  background: linear-gradient(180deg, var(--surface-1) 0%, var(--surface-2) 100%);
+  padding: 0.6rem 0.68rem;
+  display: grid;
+  gap: 0.24rem;
+}
+
+.event-summary-auth {
+  border-color: rgba(132, 176, 235, 0.55);
+  background:
+    linear-gradient(180deg, rgba(236, 244, 255, 0.95) 0%, rgba(228, 239, 255, 0.92) 100%);
+}
+
+.event-summary-inventory {
+  border-color: rgba(126, 203, 178, 0.56);
+  background:
+    linear-gradient(180deg, rgba(235, 250, 244, 0.95) 0%, rgba(223, 246, 237, 0.92) 100%);
+}
+
+.event-summary-finance {
+  border-color: rgba(181, 158, 233, 0.56);
+  background:
+    linear-gradient(180deg, rgba(245, 239, 255, 0.95) 0%, rgba(236, 228, 255, 0.92) 100%);
+}
+
+.event-summary-label {
+  color: var(--ink-muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+}
+
+.event-summary-title {
+  color: var(--ink-strong);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.event-summary-sub {
+  color: var(--ink-main);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.event-summary-time {
+  color: var(--ink-muted);
+  font-size: 0.7rem;
+}
+
 .obs-grid {
   margin-top: 0.66rem;
   display: grid;
@@ -1164,10 +1290,15 @@
 
   .obs-grid,
   .settings-grid,
+  .settings-contact-grid,
   .settings-inline-grid,
   .settings-hub-grid,
   .theme-picker-grid,
   .account-kv-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-contact-edit-row {
     grid-template-columns: 1fr;
   }
 }

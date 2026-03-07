@@ -37,6 +37,14 @@ const mapBySupplier = (rows) => {
   return mapped;
 };
 
+const toObjectId = (value) => {
+  try {
+    return new mongoose.Types.ObjectId(value);
+  } catch {
+    return null;
+  }
+};
+
 export const getSeasonalityInsight = async ({
   organizationId,
   productId,
@@ -233,11 +241,13 @@ export const getLeadTimeVariabilityInsight = async ({
 
 export const getSupplierReliabilityScores = async ({
   organizationId,
-  lookbackDays = 180
+  lookbackDays = 180,
+  warehouseId = null
 }) => {
   const since = new Date();
   since.setDate(since.getDate() - Math.max(30, Number(lookbackDays) || 180));
   const organizationObjectId = new mongoose.Types.ObjectId(organizationId);
+  const warehouseObjectId = warehouseId ? toObjectId(warehouseId) : null;
 
   const [suppliers, purchaseOrderStats, alertStats] = await Promise.all([
     Supplier.find({ organization: organizationId, isActive: true })
@@ -247,6 +257,7 @@ export const getSupplierReliabilityScores = async ({
       {
         $match: {
           organization: organizationObjectId,
+          ...(warehouseObjectId ? { warehouse: warehouseObjectId } : {}),
           sentAt: { $gte: since },
           receivedAt: { $ne: null },
           status: { $in: ['RECEIVED', 'CLOSED'] }
@@ -285,6 +296,7 @@ export const getSupplierReliabilityScores = async ({
       {
         $match: {
           organization: organizationObjectId,
+          ...(warehouseObjectId ? { warehouse: warehouseObjectId } : {}),
           triggeredAt: { $gte: since },
           supplier: { $ne: null }
         }

@@ -1,7 +1,7 @@
 {
-  "name": "Ledgerly",
-  "short_name": "Ledgerly",
-  "description": "Ledgerly inventory, purchasing, and finance platform.",
+  "name": "Inventra",
+  "short_name": "Inventra",
+  "description": "Inventra inventory, purchasing, and finance platform.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -29,3 +29,4 @@
     }
   ]
 }
+

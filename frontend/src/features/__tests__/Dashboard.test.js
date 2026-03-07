@@ -241,7 +241,13 @@ describe('Dashboard page', () => {
     expect(getDashboardTopSellingItemsRequest).toHaveBeenCalledWith({
       accessToken: 'token',
       days: 30,
-      limit: 8
+      limit: 8,
+      warehouseId: 'WH-1'
+    });
+    expect(getAiSupplierReliabilityRequest).toHaveBeenCalledWith({
+      accessToken: 'token',
+      days: 180,
+      warehouseId: 'WH-1'
     });
   });
 });

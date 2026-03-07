@@ -23,6 +23,7 @@ const INITIAL_FORM_VALUES = Object.freeze({
   companyName: '',
   username: '',
   email: '',
+  mobileNumber: '',
   password: '',
   confirmPassword: '',
   organizationName: '',
@@ -124,6 +125,7 @@ const AuthForm = ({
           companyName: formValues.companyName,
           username: formValues.username,
           email: formValues.email,
+          mobileNumber: formValues.mobileNumber,
           password: formValues.password,
           confirmPassword: formValues.confirmPassword
         });
@@ -193,7 +195,7 @@ const AuthForm = ({
   const heroTitle = isTwoFactorChallengeActive
     ? 'Complete verification to access your workspace.'
     : isAdminPortal
-      ? 'Operate Ledgerly with full employer-level control.'
+      ? 'Operate Inventra with full employer-level control.'
       : isEmployeeSignUp
         ? 'Request employee access to your company workspace.'
         : 'Continue with fast employee operations sign-in.';
@@ -415,6 +417,18 @@ const AuthForm = ({
                 autoComplete="email"
                 required
               />
+
+              <label htmlFor="mobileNumber">Mobile Number</label>
+              <input
+                id="mobileNumber"
+                name="mobileNumber"
+                type="tel"
+                placeholder="+256700000000"
+                value={formValues.mobileNumber}
+                onChange={handleChange}
+                autoComplete="tel"
+                required
+              />
             </>
           ) : null}
 
@@ -463,6 +477,18 @@ const AuthForm = ({
                 value={formValues.organizationName}
                 onChange={handleChange}
                 autoComplete="organization"
+                required
+              />
+
+              <label htmlFor="mobileNumber">Mobile Number</label>
+              <input
+                id="mobileNumber"
+                name="mobileNumber"
+                type="tel"
+                placeholder="+256700000000"
+                value={formValues.mobileNumber}
+                onChange={handleChange}
+                autoComplete="tel"
                 required
               />
 

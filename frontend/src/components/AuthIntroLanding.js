@@ -4,7 +4,7 @@ import Button from '../ui/Button.js';
 const STORY_SECTIONS = Object.freeze([
   {
     eyebrow: 'Welcome',
-    title: 'Welcome to Ledgerly',
+    title: 'Welcome to Inventra',
     description:
       'A modern inventory operations platform for teams that need realtime control, secure collaboration, and confident purchasing decisions.'
   },
@@ -28,11 +28,21 @@ const STORY_SECTIONS = Object.freeze([
   }
 ]);
 
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+const buildDefaultStoryMetrics = (count) =>
+  Array.from({ length: count }, () => ({
+    visibility: 0,
+    phase: 1
+  }));
+
 const AuthIntroLanding = ({ description = '', onGetStarted = () => {} }) => {
   const [activeIndex, setActiveIndex] = useState(0);
-  const [scrollDirection, setScrollDirection] = useState('down');
+  const [storyMetrics, setStoryMetrics] = useState(() =>
+    buildDefaultStoryMetrics(STORY_SECTIONS.length)
+  );
   const sectionRefs = useRef([]);
-  const previousScrollYRef = useRef(0);
+  const animationFrameRef = useRef(null);
 
   const introSections = useMemo(() => {
     const sectionDescription = String(description || '').trim();
@@ -49,50 +59,112 @@ const AuthIntroLanding = ({ description = '', onGetStarted = () => {} }) => {
   }, [description]);
 
   useEffect(() => {
-    const resolveActiveIndex = () => {
+    const measureStoryProgress = () => {
       if (!sectionRefs.current.length) return;
 
-      const viewportCenter = window.innerHeight / 2;
-      let nextIndex = 0;
+      const viewportHeight = Math.max(window.innerHeight || 0, 1);
+      const viewportCenter = viewportHeight / 2;
+      // Start fade-in before the card enters viewport and keep a small
+      // center "stick" zone where clarity is locked at max.
+      const entryRange = viewportHeight * 0.82;
+      const stickWindow = viewportHeight * 0.11;
+
+      let nextActiveIndex = 0;
       let closestDistance = Number.POSITIVE_INFINITY;
 
-      sectionRefs.current.forEach((element, index) => {
-        if (!element) return;
-        const bounds = element.getBoundingClientRect();
-        const sectionCenter = bounds.top + bounds.height / 2;
-        const distance = Math.abs(sectionCenter - viewportCenter);
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          nextIndex = index;
+      const nextMetrics = introSections.map((_, index) => {
+        const element = sectionRefs.current[index];
+        if (!element) {
+          return {
+            visibility: 0,
+            phase: 1
+          };
         }
+        const bounds = element.getBoundingClientRect();
+        const centerOffset = bounds.top + bounds.height / 2 - viewportCenter;
+        const absOffset = Math.abs(centerOffset);
+        const isInStickZone = absOffset <= stickWindow;
+        const phase = isInStickZone
+          ? 0
+          : clamp(centerOffset / entryRange, -1.2, 1.2);
+        const distanceRatio = isInStickZone
+          ? 0
+          : clamp((absOffset - stickWindow) / (entryRange - stickWindow), 0, 1);
+        const visibility = isInStickZone ? 1 : clamp(1 - distanceRatio, 0, 1);
+
+        if (absOffset < closestDistance) {
+          closestDistance = absOffset;
+          nextActiveIndex = index;
+        }
+
+        return {
+          visibility: Number(visibility.toFixed(4)),
+          phase: Number(phase.toFixed(4))
+        };
+      });
+
+      setStoryMetrics((current) => {
+        let changed = current.length !== nextMetrics.length;
+        if (!changed) {
+          for (let index = 0; index < nextMetrics.length; index += 1) {
+            const nextMetric = nextMetrics[index] || {
+              visibility: 0,
+              phase: 1
+            };
+            const currentMetric = current[index] || {
+              visibility: 0,
+              phase: 1
+            };
+            if (
+              Math.abs(nextMetric.visibility - currentMetric.visibility) >
+                0.01 ||
+              Math.abs(nextMetric.phase - currentMetric.phase) > 0.01
+            ) {
+              changed = true;
+              break;
+            }
+          }
+        }
+        return changed ? nextMetrics : current;
       });
 
       setActiveIndex((current) =>
-        current === nextIndex ? current : nextIndex
+        current === nextActiveIndex ? current : nextActiveIndex
       );
     };
 
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY || window.pageYOffset || 0;
-      if (currentScrollY !== previousScrollYRef.current) {
-        setScrollDirection(
-          currentScrollY > previousScrollYRef.current ? 'down' : 'up'
-        );
-      }
-      previousScrollYRef.current = currentScrollY;
-      resolveActiveIndex();
+    const requestMeasure = () => {
+      if (animationFrameRef.current != null) return;
+      animationFrameRef.current = window.requestAnimationFrame(() => {
+        animationFrameRef.current = null;
+        measureStoryProgress();
+      });
     };
 
-    previousScrollYRef.current = window.scrollY || window.pageYOffset || 0;
-    handleScroll();
+    const handleScroll = () => {
+      requestMeasure();
+    };
+
+    requestMeasure();
     window.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('resize', resolveActiveIndex);
+    window.addEventListener('resize', requestMeasure);
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('resize', resolveActiveIndex);
+      window.removeEventListener('resize', requestMeasure);
+      if (animationFrameRef.current != null) {
+        window.cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
     };
   }, [introSections]);
+
+  useEffect(() => {
+    setStoryMetrics((current) => {
+      if (current.length === introSections.length) return current;
+      return buildDefaultStoryMetrics(introSections.length);
+    });
+  }, [introSections.length]);
 
   return (
     <main className="auth-landing-experience">
@@ -102,11 +174,11 @@ const AuthIntroLanding = ({ description = '', onGetStarted = () => {} }) => {
         <div className="auth-landing-stage-grid" />
         <img
           src="/logo600.png"
-          alt="Ledgerly logo"
+          alt="Inventra logo"
           className="auth-landing-stage-logo"
           loading="eager"
         />
-        <h1 className="auth-landing-stage-title">Ledgerly</h1>
+        <h1 className="auth-landing-stage-title">Inventra</h1>
         <div className="auth-landing-stage-pills" aria-hidden="true">
           <span>Inventory Intelligence</span>
           <span>Warehouse Control</span>
@@ -119,25 +191,34 @@ const AuthIntroLanding = ({ description = '', onGetStarted = () => {} }) => {
         {introSections.map((section, index) => {
           const alignmentClass =
             index % 2 === 0 ? 'story-align-right' : 'story-align-left';
+          const isFirstStoryStep = index === 0;
+          const isDecisionSignalsStep = index === 2;
           const isActive = index === activeIndex;
+          const metric = storyMetrics[index] || {
+            visibility: 0,
+            phase: 1
+          };
           const progressClass =
             index < activeIndex
               ? 'story-past'
               : index > activeIndex
                 ? 'story-future'
                 : '';
-          const directionClass =
-            scrollDirection === 'up'
-              ? 'story-direction-up'
-              : 'story-direction-down';
 
           return (
-            <div key={section.title} className="auth-story-step-wrap">
+            <div
+              key={section.title}
+              className={`auth-story-step-wrap ${isFirstStoryStep ? 'story-gap-after-stage' : ''} ${isDecisionSignalsStep ? 'story-gap-before-decision' : ''}`}
+              ref={(element) => {
+                sectionRefs.current[index] = element;
+              }}
+            >
               <article
-                className={`auth-story-step ${alignmentClass} ${progressClass} ${isActive ? `story-active ${directionClass}` : ''}`}
+                className={`auth-story-step ${alignmentClass} ${progressClass} ${isActive ? 'story-active' : ''}`}
                 data-index={index}
-                ref={(element) => {
-                  sectionRefs.current[index] = element;
+                style={{
+                  '--story-visibility': String(metric.visibility),
+                  '--story-phase': String(metric.phase)
                 }}
               >
                 <div className="auth-story-card">

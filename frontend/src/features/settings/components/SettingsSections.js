@@ -150,19 +150,88 @@ export const CompanyProfileSection = ({
 
 export const NotificationRulesSection = ({
   form,
-  emailRecipientsText,
-  smsRecipientsText,
-  whatsappRecipientsText,
+  currentUserEmail,
+  notificationMobileNumber,
+  contactNotice,
+  contactError,
+  contactSaving,
   canManageSettings,
+  canEditNotificationContacts,
   isSaving,
   setNestedField,
   setDoubleNestedField,
-  handleEmailRecipientsChange,
-  handleSmsRecipientsChange,
-  handleWhatsappRecipientsChange
+  onNotificationMobileNumberChange,
+  onSaveNotificationContact
 }) => (
   <article className="data-card settings-card">
     <h3>2. Notification Rules</h3>
+    <div className="settings-contact-grid">
+      <section className="settings-contact-card">
+        <div className="settings-contact-head">
+          <div>
+            <p className="settings-contact-label">Email delivery</p>
+            <p className="settings-contact-value">
+              {String(currentUserEmail || '').trim() || 'No email connected'}
+            </p>
+          </div>
+          <span
+            className={`settings-contact-badge ${String(currentUserEmail || '').trim() ? 'connected' : 'missing'}`}
+          >
+            {String(currentUserEmail || '').trim() ? 'Connected' : 'Missing'}
+          </span>
+        </div>
+        <p className="event-sub">
+          Your sign-up email is used automatically for email alerts.
+        </p>
+      </section>
+
+      <section className="settings-contact-card">
+        <div className="settings-contact-head">
+          <div>
+            <p className="settings-contact-label">Mobile delivery</p>
+            <p className="settings-contact-value">
+              {String(notificationMobileNumber || '').trim() ||
+                'No mobile number connected'}
+            </p>
+          </div>
+          <span
+            className={`settings-contact-badge ${String(notificationMobileNumber || '').trim() ? 'connected' : 'missing'}`}
+          >
+            {String(notificationMobileNumber || '').trim()
+              ? 'Connected'
+              : 'Missing'}
+          </span>
+        </div>
+        <p className="event-sub">
+          SMS and WhatsApp alerts use your saved mobile number.
+        </p>
+        <div className="settings-contact-edit-row">
+          <label className="settings-field settings-field-full">
+            <span>Update mobile number</span>
+            <input
+              type="tel"
+              value={notificationMobileNumber}
+              onChange={(event) =>
+                onNotificationMobileNumberChange(event.target.value)
+              }
+              disabled={!canEditNotificationContacts || contactSaving}
+              placeholder="+256700000000"
+            />
+          </label>
+          <button
+            type="button"
+            className="btn-ghost aligned-action-btn"
+            onClick={onSaveNotificationContact}
+            disabled={!canEditNotificationContacts || contactSaving}
+          >
+            {contactSaving ? 'Saving...' : 'Save mobile number'}
+          </button>
+        </div>
+        {contactNotice ? <p className="section-note">{contactNotice}</p> : null}
+        {contactError ? <p className="form-error">{contactError}</p> : null}
+      </section>
+    </div>
+
     <div className="settings-grid">
       <label className="settings-toggle">
         <input
@@ -194,26 +263,6 @@ export const NotificationRulesSection = ({
         />
         <span>Low-stock SMS alerts</span>
       </label>
-      <label className="settings-field settings-field-full">
-        <span>Low-stock email recipients (one per line)</span>
-        <textarea
-          rows={4}
-          value={emailRecipientsText}
-          onChange={(event) => handleEmailRecipientsChange(event.target.value)}
-          disabled={isDisabled(canManageSettings, isSaving)}
-          placeholder="email@company.com"
-        />
-      </label>
-      <label className="settings-field settings-field-full">
-        <span>Low-stock SMS recipients (one per line)</span>
-        <textarea
-          rows={4}
-          value={smsRecipientsText}
-          onChange={(event) => handleSmsRecipientsChange(event.target.value)}
-          disabled={isDisabled(canManageSettings, isSaving)}
-          placeholder="+256700000000"
-        />
-      </label>
       <label className="settings-toggle">
         <input
           type="checkbox"
@@ -228,18 +277,6 @@ export const NotificationRulesSection = ({
           disabled={isDisabled(canManageSettings, isSaving)}
         />
         <span>Low-stock WhatsApp alerts</span>
-      </label>
-      <label className="settings-field settings-field-full">
-        <span>Low-stock WhatsApp recipients (one per line)</span>
-        <textarea
-          rows={4}
-          value={whatsappRecipientsText}
-          onChange={(event) =>
-            handleWhatsappRecipientsChange(event.target.value)
-          }
-          disabled={isDisabled(canManageSettings, isSaving)}
-          placeholder="+256700000000"
-        />
       </label>
       <label className="settings-toggle">
         <input

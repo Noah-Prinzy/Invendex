@@ -14,7 +14,11 @@ export const queueReportExportJobValidator = [
     .trim()
     .toLowerCase()
     .isIn(['csv', 'xlsx', 'pdf'])
-    .withMessage('format must be csv, xlsx, or pdf')
+    .withMessage('format must be csv, xlsx, or pdf'),
+  body('warehouseId')
+    .optional({ values: 'falsy' })
+    .isMongoId()
+    .withMessage('warehouseId must be a valid ID')
 ];
 
 export const reportExportJobIdValidator = [

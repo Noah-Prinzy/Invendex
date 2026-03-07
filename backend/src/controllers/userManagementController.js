@@ -25,6 +25,7 @@ const MIN_INVITE_TTL_HOURS = 1;
 const MAX_INVITE_TTL_HOURS = 24 * 30;
 const MUTABLE_ROLES = new Set([ROLES.STAFF, ROLES.MANAGER, ROLES.ADMIN]);
 const TOP_MANAGEMENT_ROLES = new Set([ROLES.OWNER, ROLES.ADMIN]);
+const APP_WEB_URL = String(process.env.APP_WEB_URL || '').trim();
 
 const normalizeEmailInput = (value) =>
   String(value || '')
@@ -44,6 +45,210 @@ const hashToken = (token) =>
     .createHash('sha256')
     .update(String(token || ''))
     .digest('hex');
+
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const resolveAppAssetUrl = (assetPath = '') => {
+  const normalizedBaseUrl = APP_WEB_URL.replace(/\/+$/, '');
+  const normalizedAssetPath = `/${String(assetPath || '')
+    .trim()
+    .replace(/^\/+/, '')}`;
+
+  if (!normalizedBaseUrl || normalizedAssetPath === '/') {
+    return '';
+  }
+
+  return `${normalizedBaseUrl}${normalizedAssetPath}`;
+};
+
+const buildEmployeeInviteEmailHtml = ({
+  organizationName,
+  inviteCode,
+  expiresAt
+}) => {
+  const logoUrl = resolveAppAssetUrl('/apple-touch-icon.png');
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(`${organizationName} employee invite`)}</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 28px 16px;
+        background:
+          radial-gradient(circle at top, rgba(88, 179, 255, 0.24), transparent 34%),
+          linear-gradient(180deg, #07111f 0%, #0d1727 54%, #111c2f 100%);
+        color: #eff7ff;
+        font-family: "Segoe UI", Arial, sans-serif;
+      }
+      .shell {
+        max-width: 620px;
+        margin: 0 auto;
+      }
+      .card {
+        border-radius: 28px;
+        padding: 32px;
+        border: 1px solid rgba(174, 227, 255, 0.18);
+        background: rgba(7, 17, 31, 0.88);
+        box-shadow: 0 28px 80px rgba(0, 0, 0, 0.3);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .brand-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(174, 227, 255, 0.14);
+        color: #aee3ff;
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      .logo {
+        width: 52px;
+        height: 52px;
+        border-radius: 16px;
+        object-fit: cover;
+      }
+      h1 {
+        margin: 22px 0 10px;
+        font-size: 30px;
+        line-height: 1.14;
+      }
+      p {
+        margin: 0;
+        color: rgba(239, 247, 255, 0.84);
+        line-height: 1.65;
+        font-size: 15px;
+      }
+      .token-block {
+        margin-top: 20px;
+        padding: 18px;
+        border-radius: 20px;
+        background: rgba(99, 182, 255, 0.12);
+        border: 1px solid rgba(99, 182, 255, 0.18);
+      }
+      .token-label {
+        display: block;
+        margin-bottom: 8px;
+        color: rgba(239, 247, 255, 0.62);
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .token-value {
+        display: inline-flex;
+        font-family: Consolas, "SFMono-Regular", monospace;
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+      }
+      .details {
+        margin-top: 20px;
+        padding: 18px;
+        border-radius: 20px;
+        background: rgba(174, 227, 255, 0.07);
+        border: 1px solid rgba(174, 227, 255, 0.12);
+      }
+      .detail-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 9px 0;
+        border-bottom: 1px solid rgba(174, 227, 255, 0.08);
+      }
+      .detail-row:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+      .detail-label {
+        color: rgba(239, 247, 255, 0.58);
+      }
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 22px;
+        min-width: 184px;
+        min-height: 48px;
+        padding: 0 18px;
+        border-radius: 16px;
+        color: #04111f !important;
+        font-weight: 700;
+        text-decoration: none;
+        background: linear-gradient(135deg, #aee3ff 0%, #63b6ff 100%);
+      }
+      .support {
+        margin-top: 18px;
+        color: rgba(239, 247, 255, 0.62);
+        font-size: 13px;
+      }
+      @media (max-width: 640px) {
+        .card {
+          padding: 24px;
+        }
+        .detail-row {
+          flex-direction: column;
+          gap: 6px;
+        }
+        .button {
+          width: 100%;
+          min-width: 0;
+        }
+        .token-value {
+          font-size: 18px;
+          word-break: break-all;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="card">
+        <div class="brand">
+          ${logoUrl ? `<img class="logo" src="${escapeHtml(logoUrl)}" alt="Inventra logo" />` : ''}
+          <span class="brand-badge">Inventra invite</span>
+        </div>
+        <h1>You were invited to join ${escapeHtml(organizationName)}</h1>
+        <p>Use the employee portal and enter this invite code during your first sign-in.</p>
+        <div class="token-block">
+          <span class="token-label">Invite code</span>
+          <span class="token-value">${escapeHtml(inviteCode)}</span>
+        </div>
+        <div class="details">
+          <div class="detail-row">
+            <span class="detail-label">Workspace</span>
+            <strong>${escapeHtml(organizationName)}</strong>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Expires at</span>
+            <strong>${escapeHtml(expiresAt)}</strong>
+          </div>
+        </div>
+        ${
+          APP_WEB_URL
+            ? `<a class="button" href="${escapeHtml(APP_WEB_URL)}">Open Inventra</a>`
+            : ''
+        }
+        <div class="support">If you were not expecting this invite, ignore this message and contact the workspace administrator.</div>
+      </div>
+    </div>
+  </body>
+</html>`;
+};
 
 const markExpiredInvites = async (organizationId) => {
   await EmployeeInvite.updateMany(
@@ -362,7 +567,7 @@ export const createOrganizationInvite = async (req, res, next) => {
       const organizationName = organization?.name || 'your organization';
       const appUrl = String(process.env.APP_WEB_URL || '').trim();
       const inviteMessage = [
-        `You have been invited to join ${organizationName} on Ledgerly.`,
+        `You have been invited to join ${organizationName} on Inventra.`,
         `Invite code: ${inviteCode}`,
         `Expires at: ${new Date(invite.expiresAt).toISOString()}`,
         appUrl
@@ -377,6 +582,11 @@ export const createOrganizationInvite = async (req, res, next) => {
           to: invite.email,
           subject: `${organizationName} employee invite`,
           text: inviteMessage,
+          html: buildEmployeeInviteEmailHtml({
+            organizationName,
+            inviteCode,
+            expiresAt: new Date(invite.expiresAt).toISOString()
+          }),
           notificationType: 'EMPLOYEE_INVITE',
           metadata: {
             organizationName,

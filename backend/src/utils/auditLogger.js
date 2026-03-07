@@ -1,5 +1,46 @@
 import AuditLog from '../models/AuditLog.js';
 
+const toObjectIdOrNull = (value) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return null;
+  try {
+    return normalized.match(/^[a-fA-F0-9]{24}$/) ? normalized : null;
+  } catch {
+    return null;
+  }
+};
+
+const resolveWarehouseId = ({
+  req = null,
+  warehouseId = null,
+  meta = {},
+  before = null,
+  after = null
+}) => {
+  const candidates = [
+    warehouseId,
+    req?.body?.warehouseId,
+    req?.body?.warehouse,
+    req?.query?.warehouseId,
+    req?.params?.warehouseId,
+    meta?.warehouseId,
+    meta?.warehouse,
+    meta?.warehouse?._id,
+    meta?.warehouse?.id,
+    after?.warehouseId,
+    after?.warehouse,
+    before?.warehouseId,
+    before?.warehouse
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = toObjectIdOrNull(candidate);
+    if (normalized) return normalized;
+  }
+
+  return null;
+};
+
 /**
  * 🔐 Central audit logger (A25)
  */
@@ -15,6 +56,7 @@ export const logAudit = async ({
   success = true,
   source = 'api',
   organizationId = null,
+  warehouseId = null,
   meta = {},
   session = null,
   silent = true
@@ -24,6 +66,13 @@ export const logAudit = async ({
       organizationId || req?.organizationId || req?.user?.organization || null;
     const resolvedEntity = entity || resource || 'UNKNOWN';
     const resolvedEntityId = entityId || resourceId || null;
+    const resolvedWarehouseId = resolveWarehouseId({
+      req,
+      warehouseId,
+      meta,
+      before,
+      after
+    });
 
     const payload = {
       organization: resolvedOrganizationId,
@@ -31,6 +80,7 @@ export const logAudit = async ({
       action,
       entity: resolvedEntity,
       entityId: resolvedEntityId,
+      warehouse: resolvedWarehouseId,
 
       before,
       after,

@@ -163,6 +163,7 @@ describe('manual inventory adjustment service', () => {
       action: 'ADJUST_PRODUCT_STOCK'
     }).lean();
     expect(auditRows.length).toBeGreaterThanOrEqual(1);
+    expect(String(auditRows[0]?.warehouse || '')).toBe(String(warehouse._id));
   });
 
   it('rejects amount direction that conflicts with reason policy', async () => {

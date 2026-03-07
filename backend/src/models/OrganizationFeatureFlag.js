@@ -51,7 +51,10 @@ const organizationFeatureFlagSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-organizationFeatureFlagSchema.index({ organization: 1 }, { unique: true });
+organizationFeatureFlagSchema.index(
+  { organization: 1 },
+  { unique: true, name: 'organization_unique_feature_flags' }
+);
 
 organizationFeatureFlagSchema.pre(
   'validate',

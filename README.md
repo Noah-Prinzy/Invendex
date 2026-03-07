@@ -1,6 +1,6 @@
-# Ledgerly
+# Inventra
 
-Ledgerly is a multi-tenant inventory and purchasing platform with:
+Inventra is a multi-tenant inventory and purchasing platform with:
 
 - warehouse-aware inventory,
 - serial/batch tracking,

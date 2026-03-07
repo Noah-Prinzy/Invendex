@@ -1,4 +1,4 @@
-## Ledgerly Realtime Client
+## Inventra Realtime Client
 
 This folder contains a lightweight Socket.IO client integration for dashboard and purchase-order live updates.
 
@@ -13,9 +13,9 @@ npm install socket.io-client
 ### Quick usage
 
 ```js
-import { useLedgerlyRealtime } from '../hooks/realtime/useLedgerlyRealtime';
+import { useInventraRealtime } from '../hooks/realtime/useInventraRealtime';
 
-useLedgerlyRealtime({
+useInventraRealtime({
   baseUrl: import.meta.env.VITE_API_URL,
   accessToken,
   warehouseId,

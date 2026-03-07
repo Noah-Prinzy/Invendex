@@ -1,7 +1,7 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import App from '../App.js';
 import useAuth from '../hooks/auth/useAuth.js';
-import { useLedgerlyRealtime } from '../hooks/realtime/useLedgerlyRealtime.js';
+import { useInventraRealtime } from '../hooks/realtime/useInventraRealtime.js';
 import { useOfflineSync } from '../hooks/offline/useOfflineSync.js';
 import { renderWithProviders } from '../test/renderWithProviders.js';
 import {
@@ -38,9 +38,9 @@ jest.mock('../hooks/auth/useAuth.js', () => ({
   default: jest.fn()
 }));
 
-jest.mock('../hooks/realtime/useLedgerlyRealtime.js', () => ({
+jest.mock('../hooks/realtime/useInventraRealtime.js', () => ({
   __esModule: true,
-  useLedgerlyRealtime: jest.fn()
+  useInventraRealtime: jest.fn()
 }));
 
 jest.mock('../hooks/offline/useOfflineSync.js', () => ({
@@ -114,15 +114,18 @@ const buildAuthState = (overrides) => ({
 });
 
 const getLatestRealtimeConfig = () => {
-  const callCount = useLedgerlyRealtime.mock.calls.length;
+  const callCount = useInventraRealtime.mock.calls.length;
   if (!callCount) return null;
-  return useLedgerlyRealtime.mock.calls[callCount - 1][0];
+  return useInventraRealtime.mock.calls[callCount - 1][0];
 };
+
+const AUTH_INTRO_COMPLETED_STORAGE_KEY = 'Inventra:auth_intro_completed:v1';
 
 describe('App integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useLedgerlyRealtime.mockImplementation(() => ({}));
+    window.localStorage.clear();
+    useInventraRealtime.mockImplementation(() => ({}));
     useOfflineSync.mockImplementation(() => {});
     getPurchaseOrdersRequest.mockResolvedValue([]);
     getWarehousesRequest.mockResolvedValue([]);
@@ -269,6 +272,21 @@ describe('App integration', () => {
     );
   });
 
+  it('skips intro when auth intro was already completed on this browser', () => {
+    useAuth.mockReturnValue(buildAuthState({}));
+    window.localStorage.setItem(AUTH_INTRO_COMPLETED_STORAGE_KEY, '1');
+
+    renderWithProviders(<App />);
+
+    expect(screen.queryByRole('button', { name: 'Get started' })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Employer Portal' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Employee Portal' })
+    ).toBeInTheDocument();
+  });
+
   it('submits employee sign in without invite code for returning staff', () => {
     const employeeLogin = jest.fn();
     useAuth.mockReturnValue(
@@ -322,10 +340,13 @@ describe('App integration', () => {
       target: { value: 'owner.ops' }
     });
     fireEvent.change(screen.getByLabelText('Email'), {
-      target: { value: 'owner@ledgerly.com' }
+      target: { value: 'owner@Inventra.com' }
+    });
+    fireEvent.change(screen.getByLabelText('Mobile Number'), {
+      target: { value: '+256700000001' }
     });
     fireEvent.change(screen.getByLabelText('Company Name'), {
-      target: { value: 'Ledgerly Ops' }
+      target: { value: 'Inventra Ops' }
     });
     fireEvent.change(screen.getByLabelText('Password'), {
       target: { value: 'StrongPass123' }
@@ -341,10 +362,61 @@ describe('App integration', () => {
       expect(signup).toHaveBeenCalledWith(
         expect.objectContaining({
           username: 'owner.ops',
-          email: 'owner@ledgerly.com',
+          email: 'owner@Inventra.com',
+          mobileNumber: '+256700000001',
           password: 'StrongPass123',
           confirmPassword: 'StrongPass123',
-          organizationName: 'Ledgerly Ops'
+          organizationName: 'Inventra Ops'
+        })
+      );
+    });
+  });
+
+  it('submits employee signup with mobile number', async () => {
+    const employeeSignup = jest.fn().mockResolvedValue({ success: true });
+    useAuth.mockReturnValue(
+      buildAuthState({
+        employeeSignup
+      })
+    );
+
+    renderWithProviders(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Get started' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Employee Portal' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Employee sign up' }));
+
+    fireEvent.change(screen.getByLabelText('Company Name'), {
+      target: { value: 'Inventra Ops' }
+    });
+    fireEvent.change(screen.getByLabelText('Username'), {
+      target: { value: 'ops.staff' }
+    });
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'staff@Inventra.com' }
+    });
+    fireEvent.change(screen.getByLabelText('Mobile Number'), {
+      target: { value: '+256700000002' }
+    });
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'StaffPass123!' }
+    });
+    fireEvent.change(screen.getByLabelText('Confirm Password'), {
+      target: { value: 'StaffPass123!' }
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Request employee signup' })
+    );
+
+    await waitFor(() => {
+      expect(employeeSignup).toHaveBeenCalledWith(
+        expect.objectContaining({
+          companyName: 'Inventra Ops',
+          username: 'ops.staff',
+          email: 'staff@Inventra.com',
+          mobileNumber: '+256700000002',
+          password: 'StaffPass123!',
+          confirmPassword: 'StaffPass123!'
         })
       );
     });
@@ -355,7 +427,7 @@ describe('App integration', () => {
       buildAuthState({
         user: {
           _id: 'user-1',
-          email: 'manager@ledgerly.com',
+          email: 'manager@Inventra.com',
           role: 'admin',
           organization: 'org-1'
         },
@@ -396,7 +468,9 @@ describe('App integration', () => {
       realtimeConfig.onPurchaseOrderReceived(poPayload);
     });
 
-    expect(screen.getByText('Delta +5 | On hand 42')).toBeInTheDocument();
+    expect(screen.getAllByText('Delta +5 | On hand 42').length).toBeGreaterThan(
+      0
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Purchase Orders' }));
     expect(await screen.findByText('PO PO-1001')).toBeInTheDocument();
     expect(await screen.findByText('Status RECEIVED')).toBeInTheDocument();
@@ -416,7 +490,7 @@ describe('App integration', () => {
       buildAuthState({
         user: {
           _id: 'user-2',
-          email: 'owner@ledgerly.com',
+          email: 'owner@Inventra.com',
           role: 'admin',
           organization: 'org-1'
         },

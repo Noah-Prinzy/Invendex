@@ -56,7 +56,10 @@ const organizationSubscriptionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-organizationSubscriptionSchema.index({ organization: 1 }, { unique: true });
+organizationSubscriptionSchema.index(
+  { organization: 1 },
+  { unique: true, name: 'organization_unique_subscription' }
+);
 
 organizationSubscriptionSchema.pre(
   'validate',

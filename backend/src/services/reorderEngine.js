@@ -1,13 +1,15 @@
 import Product from '../models/Product.js';
+import Inventory from '../models/Inventory.js';
 import ReorderAlert from '../models/ReorderAlert.js';
 import SupplierProduct from '../models/SupplierProduct.js';
-import Organization from '../models/Organization.js';
 import { getAverageDailyDemandPerSku } from './inventoryMetricsService.js';
 import {
+  sendLowStockEmailNotification,
   sendLowStockSmsNotification,
   sendLowStockWhatsappNotification
 } from './notifications/notificationService.js';
 import { createInAppNotification } from './notifications/inAppNotificationService.js';
+import { getOrganizationLowStockNotificationRecipients } from './notifications/notificationRecipientService.js';
 
 const ENGINE_VERSION = 'v1.3';
 
@@ -46,11 +48,19 @@ export const runReorderEngine = async ({
     organizationId
   );
 
-  // 📦 Active products
+  // 📦 Active products + warehouse inventory
   const products = await Product.find({
     organization: organizationId,
     isActive: true
   }).lean();
+  const productMap = new Map(
+    products.map((product) => [String(product._id), product])
+  );
+  const inventoryRows = await Inventory.find({
+    organization: organizationId
+  })
+    .select('product warehouse quantityOnHand')
+    .lean();
 
   // 🏭 Supplier links
   const supplierLinks = await SupplierProduct.find({
@@ -59,13 +69,15 @@ export const runReorderEngine = async ({
   }).lean();
 
   const alertsCreated = [];
-  const organization = await Organization.findById(organizationId)
-    .select(
-      'name smsLowStockEnabled smsLowStockRecipients whatsappLowStockEnabled whatsappLowStockRecipients'
-    )
-    .lean();
+  const notificationRecipients =
+    await getOrganizationLowStockNotificationRecipients({
+      organizationId
+    });
 
-  for (const product of products) {
+  for (const inventoryRow of inventoryRows) {
+    const product = productMap.get(String(inventoryRow.product || ''));
+    if (!product) continue;
+
     const avgDailyDemand = avgDemandPerSku[product.sku] || 0;
 
     const supplierLink =
@@ -92,12 +104,14 @@ export const runReorderEngine = async ({
     );
 
     // 🚫 No reorder needed
-    if (product.stock > reorderLevel) continue;
+    const currentStock = Number(inventoryRow.quantityOnHand || 0);
+    if (currentStock > reorderLevel) continue;
 
     // ❗ Prevent duplicate active alerts (same product, same day)
     const exists = await ReorderAlert.findOne({
       organization: organizationId,
       product: product._id,
+      warehouse: inventoryRow.warehouse,
       triggeredAt: { $gte: engineDate },
       resolved: false
     }).lean();
@@ -119,8 +133,9 @@ export const runReorderEngine = async ({
     const alert = await ReorderAlert.create({
       organization: organizationId,
       product: product._id,
+      warehouse: inventoryRow.warehouse,
       sku: product.sku,
-      stock: product.stock,
+      stock: currentStock,
       reorderLevel,
       reorderQuantity,
       status: 'ACTIVE',
@@ -134,7 +149,8 @@ export const runReorderEngine = async ({
         leadTimeDays,
         lowStockThreshold: product.lowStockThreshold,
         minimumOrderQuantity,
-        engineVersion: ENGINE_VERSION
+        engineVersion: ENGINE_VERSION,
+        warehouseId: String(inventoryRow.warehouse || '')
       },
 
       supplier: supplierLink?.supplier || null,
@@ -149,40 +165,56 @@ export const runReorderEngine = async ({
       actorUserId: null,
       type: 'low_stock_alert',
       title: `Low stock: ${product.name}`,
-      message: `${product.name} (${product.sku}) dropped to ${product.stock}. Reorder target is ${reorderLevel}.`,
+      message: `${product.name} (${product.sku}) dropped to ${currentStock}. Reorder target is ${reorderLevel}.`,
       severity: 'warning',
       entityType: 'REORDER_ALERT',
       entityId: alert._id,
       metadata: {
         sku: product.sku,
-        currentStock: product.stock,
+        currentStock,
         reorderLevel,
-        reorderQuantity
+        reorderQuantity,
+        warehouseId: String(inventoryRow.warehouse || '')
       }
     });
 
-    // Non-blocking operational notification.
-    sendLowStockSmsNotification({
-      organizationName: organization?.name || 'Organization',
+    sendLowStockEmailNotification({
+      organizationName:
+        notificationRecipients?.organizationName || 'Organization',
       sku: product.sku,
       productName: product.name,
-      currentStock: product.stock,
+      currentStock,
       reorderLevel,
       recipients:
-        organization?.smsLowStockEnabled === true
-          ? organization?.smsLowStockRecipients || []
+        notificationRecipients?.emailEnabled === true
+          ? notificationRecipients?.emailRecipients || []
+          : []
+    }).catch(() => {});
+
+    // Non-blocking operational notification.
+    sendLowStockSmsNotification({
+      organizationName:
+        notificationRecipients?.organizationName || 'Organization',
+      sku: product.sku,
+      productName: product.name,
+      currentStock,
+      reorderLevel,
+      recipients:
+        notificationRecipients?.smsEnabled === true
+          ? notificationRecipients?.smsRecipients || []
           : []
     }).catch(() => {});
 
     sendLowStockWhatsappNotification({
-      organizationName: organization?.name || 'Organization',
+      organizationName:
+        notificationRecipients?.organizationName || 'Organization',
       sku: product.sku,
       productName: product.name,
-      currentStock: product.stock,
+      currentStock,
       reorderLevel,
       recipients:
-        organization?.whatsappLowStockEnabled === true
-          ? organization?.whatsappLowStockRecipients || []
+        notificationRecipients?.whatsappEnabled === true
+          ? notificationRecipients?.whatsappRecipients || []
           : []
     }).catch(() => {});
   }

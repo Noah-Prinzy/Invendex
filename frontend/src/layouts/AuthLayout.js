@@ -1,5 +1,5 @@
 const AuthLayout = ({
-  eyebrow = 'Ledgerly',
+  eyebrow = 'Inventra',
   title = '',
   description = '',
   children

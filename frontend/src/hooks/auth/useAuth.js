@@ -65,6 +65,7 @@ const normalizeUser = (user, organization = null) => {
   return {
     _id: user._id,
     email: user.email,
+    mobileNumber: user.mobileNumber || null,
     username: user.username || null,
     role: user.role,
     uiTheme: String(user.uiTheme || '').trim() || null,
@@ -373,12 +374,14 @@ export const useAuth = () => {
     async ({
       username,
       email,
+      mobileNumber,
       password,
       confirmPassword,
       organizationName
     }) => {
       const normalizedUsername = String(username || '').trim();
       const normalizedEmail = String(email || '').trim();
+      const normalizedMobileNumber = String(mobileNumber || '').trim();
       const normalizedPassword = String(password || '').trim();
       const normalizedConfirmPassword = String(confirmPassword || '').trim();
       const normalizedOrganizationName = String(organizationName || '').trim();
@@ -386,12 +389,13 @@ export const useAuth = () => {
       if (
         !normalizedUsername ||
         !normalizedEmail ||
+        !normalizedMobileNumber ||
         !normalizedPassword ||
         !normalizedConfirmPassword ||
         !normalizedOrganizationName
       ) {
         setError(
-          'Username, email, password, confirm password, and organization are required.'
+          'Username, email, mobile number, password, confirm password, and organization are required.'
         );
         setNotice('');
         return { success: false };
@@ -411,6 +415,7 @@ export const useAuth = () => {
         await authRegisterRequest({
           username: normalizedUsername,
           email: normalizedEmail,
+          mobileNumber: normalizedMobileNumber,
           password: normalizedPassword,
           confirmPassword: normalizedConfirmPassword,
           organizationName: normalizedOrganizationName
@@ -429,10 +434,18 @@ export const useAuth = () => {
   );
 
   const employeeSignup = useCallback(
-    async ({ companyName, username, email, password, confirmPassword }) => {
+    async ({
+      companyName,
+      username,
+      email,
+      mobileNumber,
+      password,
+      confirmPassword
+    }) => {
       const normalizedCompanyName = String(companyName || '').trim();
       const normalizedUsername = String(username || '').trim();
       const normalizedEmail = String(email || '').trim();
+      const normalizedMobileNumber = String(mobileNumber || '').trim();
       const normalizedPassword = String(password || '').trim();
       const normalizedConfirmPassword = String(confirmPassword || '').trim();
 
@@ -440,11 +453,12 @@ export const useAuth = () => {
         !normalizedCompanyName ||
         !normalizedUsername ||
         !normalizedEmail ||
+        !normalizedMobileNumber ||
         !normalizedPassword ||
         !normalizedConfirmPassword
       ) {
         setError(
-          'Company, username, email, password, and confirm password are required.'
+          'Company, username, email, mobile number, password, and confirm password are required.'
         );
         setNotice('');
         return { success: false };
@@ -465,6 +479,7 @@ export const useAuth = () => {
           companyName: normalizedCompanyName,
           username: normalizedUsername,
           email: normalizedEmail,
+          mobileNumber: normalizedMobileNumber,
           password: normalizedPassword,
           confirmPassword: normalizedConfirmPassword
         });
@@ -652,16 +667,23 @@ export const useAuth = () => {
   );
 
   const updatePreferences = useCallback(
-    async ({ uiTheme }) => {
+    async ({ uiTheme, mobileNumber }) => {
       const normalizedTheme = String(uiTheme || '').trim();
-      if (!normalizedTheme || !accessToken) {
+      const hasTheme = Boolean(normalizedTheme);
+      const hasMobileNumber = mobileNumber !== undefined;
+      if ((!hasTheme && !hasMobileNumber) || !accessToken) {
         return { success: false };
       }
 
       try {
         const response = await authUpdatePreferencesRequest({
           accessToken,
-          uiTheme: normalizedTheme
+          ...(hasTheme ? { uiTheme: normalizedTheme } : {}),
+          ...(hasMobileNumber
+            ? {
+                mobileNumber: String(mobileNumber || '').trim()
+              }
+            : {})
         });
         const updatedUser = normalizeUser(
           response?.data || null,

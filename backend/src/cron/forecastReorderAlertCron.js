@@ -1,4 +1,5 @@
 import cron from 'node-cron';
+import Inventory from '../models/Inventory.js';
 import Product from '../models/Product.js';
 import ForecastResult from '../models/ForecastResult.js';
 import ReorderAlert from '../models/ReorderAlert.js';
@@ -29,6 +30,11 @@ export const startForecastReorderAlertCron = () => {
           organization: organization._id,
           isActive: true
         }).lean();
+        const inventoryRows = await Inventory.find({
+          organization: organization._id
+        })
+          .select('product warehouse quantityOnHand')
+          .lean();
 
         for (const product of products) {
           try {
@@ -43,47 +49,57 @@ export const startForecastReorderAlertCron = () => {
 
             const forecastedDemand = forecast.avgDailyDemand * leadTimeDays;
 
-            if (forecastedDemand <= product.stock) continue;
-
-            // ❗ Prevent duplicate unresolved alerts
-            const exists = await ReorderAlert.findOne({
-              organization: organization._id,
-              product: product._id,
-              resolved: false
-            });
-
-            if (exists) continue;
-
-            await ReorderAlert.create({
-              organization: organization._id,
-              product: product._id,
-              sku: product.sku,
-              stock: product.stock,
-              reorderLevel: Math.ceil(forecastedDemand),
-              reorderQuantity: Math.max(
-                Math.ceil(forecastedDemand - product.stock),
-                1
-              ),
-              triggeredAt: new Date(),
-              source: 'forecast',
-
-              // 🧠 Forecast context
-              metadata: {
-                forecastId: forecast._id,
-                confidenceScore: forecast.confidenceScore,
-                avgDailyDemand: forecast.avgDailyDemand,
-                leadTimeDays
-              },
-
-              // 🧊 Supplier snapshot
-              supplier: null,
-              supplierLeadTimeDays: leadTimeDays,
-              supplierUnitCost: null
-            });
-
-            console.warn(
-              `🔮 FORECAST ALERT | ${product.sku} | Stock: ${product.stock}`
+            const productInventories = inventoryRows.filter(
+              (row) => String(row.product) === String(product._id)
             );
+
+            for (const inventoryRow of productInventories) {
+              const currentStock = Number(inventoryRow.quantityOnHand || 0);
+              if (forecastedDemand <= currentStock) continue;
+
+              // ❗ Prevent duplicate unresolved alerts
+              const exists = await ReorderAlert.findOne({
+                organization: organization._id,
+                product: product._id,
+                warehouse: inventoryRow.warehouse,
+                resolved: false
+              });
+
+              if (exists) continue;
+
+              await ReorderAlert.create({
+                organization: organization._id,
+                product: product._id,
+                warehouse: inventoryRow.warehouse,
+                sku: product.sku,
+                stock: currentStock,
+                reorderLevel: Math.ceil(forecastedDemand),
+                reorderQuantity: Math.max(
+                  Math.ceil(forecastedDemand - currentStock),
+                  1
+                ),
+                triggeredAt: new Date(),
+                source: 'forecast',
+
+                // 🧠 Forecast context
+                metadata: {
+                  forecastId: forecast._id,
+                  confidenceScore: forecast.confidenceScore,
+                  avgDailyDemand: forecast.avgDailyDemand,
+                  leadTimeDays,
+                  warehouseId: String(inventoryRow.warehouse || '')
+                },
+
+                // 🧊 Supplier snapshot
+                supplier: null,
+                supplierLeadTimeDays: leadTimeDays,
+                supplierUnitCost: null
+              });
+
+              console.warn(
+                `🔮 FORECAST ALERT | ${product.sku} | Stock: ${currentStock}`
+              );
+            }
           } catch (err) {
             if (err.code !== 11000) {
               console.error(

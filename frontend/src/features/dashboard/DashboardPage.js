@@ -99,22 +99,29 @@ const Dashboard = ({
           getDashboardTopSellingItemsRequest({
             accessToken,
             days: salesWindowDays,
-            limit: 8
+            limit: 8,
+            warehouseId: warehouseId || null
           }),
           getDashboardTurnoverSkusRequest({
             accessToken,
             days: salesWindowDays,
-            limit: 8
+            limit: 8,
+            warehouseId: warehouseId || null
           }),
           getDashboardSlowMovingSkusRequest({
             accessToken,
             days: Math.max(Number(salesWindowDays || 30), 60),
-            limit: 8
+            limit: 8,
+            warehouseId: warehouseId || null
           }),
-          getDashboardStockAgingBucketsRequest(accessToken),
+          getDashboardStockAgingBucketsRequest({
+            accessToken,
+            warehouseId: warehouseId || null
+          }),
           getDashboardSupplierRankingRequest({
             accessToken,
-            days: 180
+            days: 180,
+            warehouseId: warehouseId || null
           }),
           getDashboardDeadStockRequest({
             accessToken,
@@ -156,7 +163,8 @@ const Dashboard = ({
           }),
           getAiSupplierReliabilityRequest({
             accessToken,
-            days: 180
+            days: 180,
+            warehouseId: warehouseId || null
           })
         ]);
 
@@ -1118,7 +1126,14 @@ const Dashboard = ({
               )}
             </ul>
             {latestInventory ? (
-              <pre>{JSON.stringify(latestInventory.raw, null, 2)}</pre>
+              <div className="event-summary event-summary-inventory">
+                <p className="event-summary-label">Latest inventory activity</p>
+                <p className="event-summary-title">{latestInventory.title}</p>
+                <p className="event-summary-sub">{latestInventory.subtitle}</p>
+                <p className="event-summary-time">
+                  {formatDateTime(latestInventory.occurredAt)}
+                </p>
+              </div>
             ) : null}
           </article>
 
@@ -1142,7 +1157,14 @@ const Dashboard = ({
               )}
             </ul>
             {latestFinance ? (
-              <pre>{JSON.stringify(latestFinance.raw, null, 2)}</pre>
+              <div className="event-summary event-summary-finance">
+                <p className="event-summary-label">Latest finance activity</p>
+                <p className="event-summary-title">{latestFinance.title}</p>
+                <p className="event-summary-sub">{latestFinance.subtitle}</p>
+                <p className="event-summary-time">
+                  {formatDateTime(latestFinance.occurredAt)}
+                </p>
+              </div>
             ) : null}
           </article>
 
@@ -1166,7 +1188,14 @@ const Dashboard = ({
               )}
             </ul>
             {latestAuth ? (
-              <pre>{JSON.stringify(latestAuth.raw, null, 2)}</pre>
+              <div className="event-summary event-summary-auth">
+                <p className="event-summary-label">Latest auth activity</p>
+                <p className="event-summary-title">{latestAuth.title}</p>
+                <p className="event-summary-sub">{latestAuth.subtitle}</p>
+                <p className="event-summary-time">
+                  {formatDateTime(latestAuth.occurredAt)}
+                </p>
+              </div>
             ) : null}
           </article>
         </div>

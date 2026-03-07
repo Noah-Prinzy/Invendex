@@ -28,14 +28,23 @@ const normalizeStatus = (value) =>
 
 const resolveOrderId = (order) => order?.id || order?._id || null;
 
-const PurchaseOrders = ({ accessToken, poEvents = [] }) => {
+const PurchaseOrders = ({
+  accessToken,
+  warehouseId = null,
+  activeWarehouseLabel = 'All warehouses',
+  poEvents = []
+}) => {
   const queryClient = useQueryClient();
   const [actionNotice, setActionNotice] = useState('');
   const [actionError, setActionError] = useState('');
 
   const ordersQueryKey = useMemo(
-    () => ['purchase-orders', String(accessToken || '')],
-    [accessToken]
+    () => [
+      'purchase-orders',
+      String(accessToken || ''),
+      String(warehouseId || '')
+    ],
+    [accessToken, warehouseId]
   );
 
   const {
@@ -47,7 +56,11 @@ const PurchaseOrders = ({ accessToken, poEvents = [] }) => {
   } = useQuery({
     queryKey: ordersQueryKey,
     enabled: Boolean(accessToken),
-    queryFn: () => getPurchaseOrdersRequest(accessToken)
+    queryFn: () =>
+      getPurchaseOrdersRequest({
+        accessToken,
+        warehouseId: warehouseId || null
+      })
   });
 
   const receiveMutation = useMutation({
@@ -105,7 +118,10 @@ const PurchaseOrders = ({ accessToken, poEvents = [] }) => {
       <header className="panel-head panel-head-row">
         <div>
           <h2>Purchase Order Feed</h2>
-          <p>Live PO events are grouped and summarized for quick action.</p>
+          <p>
+            Live PO events are grouped and summarized for quick action. Scope:{' '}
+            {activeWarehouseLabel || 'All warehouses'}
+          </p>
         </div>
         <button
           type="button"
@@ -239,7 +255,6 @@ const PurchaseOrders = ({ accessToken, poEvents = [] }) => {
               <p className="event-sub">
                 Most recent: {formatWhen(latestPoEvent.occurredAt)}
               </p>
-              <pre>{JSON.stringify(latestPoEvent.raw, null, 2)}</pre>
             </>
           ) : null}
         </article>

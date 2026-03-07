@@ -49,6 +49,8 @@ describe('PurchaseOrders page', () => {
     renderWithProviders(
       <PurchaseOrders
         accessToken="test-token"
+        warehouseId="warehouse-1"
+        activeWarehouseLabel="Main Warehouse"
         poEvents={[
           {
             id: 'event-1',
@@ -63,6 +65,10 @@ describe('PurchaseOrders page', () => {
     );
 
     expect(await screen.findByText('PO-001')).toBeInTheDocument();
+    expect(getPurchaseOrdersRequest).toHaveBeenCalledWith({
+      accessToken: 'test-token',
+      warehouseId: 'warehouse-1'
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Receive' }));
 

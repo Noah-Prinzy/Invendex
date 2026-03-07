@@ -29,6 +29,11 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true
     },
+    mobileNumber: {
+      type: String,
+      default: null,
+      trim: true
+    },
     username: {
       type: String,
       unique: true,
@@ -48,7 +53,7 @@ const userSchema = new mongoose.Schema(
     },
     uiTheme: {
       type: String,
-      default: 'ledgerly-classic',
+      default: 'inventra-classic',
       trim: true
     },
     organization: {
@@ -153,7 +158,7 @@ const userSchema = new mongoose.Schema(
 );
 
 /**
- * 🔐 Hash password before save
+ * ðŸ” Hash password before save
  */
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
@@ -168,28 +173,28 @@ userSchema.pre('save', async function (next) {
 });
 
 /**
- * 🔑 Compare password
+ * ðŸ”‘ Compare password
  */
 userSchema.methods.matchPassword = async function (enteredPassword) {
   return bcrypt.compare(enteredPassword, this.password);
 };
 
 /**
- * ➕ Add refresh token
+ * âž• Add refresh token
  */
 userSchema.methods.addRefreshToken = function (token) {
   this.refreshTokens.push({ token });
 };
 
 /**
- * ➖ Remove refresh token (single session logout)
+ * âž– Remove refresh token (single session logout)
  */
 userSchema.methods.removeRefreshToken = function (token) {
   this.refreshTokens = this.refreshTokens.filter((rt) => rt.token !== token);
 };
 
 /**
- * ❌ Remove ALL refresh tokens (force logout)
+ * âŒ Remove ALL refresh tokens (force logout)
  */
 userSchema.methods.clearRefreshTokens = function () {
   this.refreshTokens = [];

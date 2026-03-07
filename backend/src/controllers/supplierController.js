@@ -105,6 +105,7 @@ export const deleteSupplier = async (req, res, next) => {
 export const getSupplierPerformance = async (req, res, next) => {
   try {
     const { supplierId } = req.params;
+    const { warehouseId } = req.query;
 
     if (!mongoose.Types.ObjectId.isValid(supplierId)) {
       throw new AppError('Invalid supplier ID', 400);
@@ -115,7 +116,8 @@ export const getSupplierPerformance = async (req, res, next) => {
      */
     const alerts = await ReorderAlert.find({
       supplier: supplierId,
-      organization: req.organizationId
+      organization: req.organizationId,
+      ...(warehouseId ? { warehouse: warehouseId } : {})
     });
 
     const totalAlerts = alerts.length;

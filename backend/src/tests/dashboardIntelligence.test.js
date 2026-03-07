@@ -9,6 +9,7 @@ import {
   getDeadStockIntelligence,
   getDeadStockRescuePlan,
   getInventoryAdvisorRecommendations,
+  getStockAgingBuckets,
   getWarehouseDigitalTwin
 } from '../services/dashboardService.js';
 import { getTestDbUri } from './testDbUri.js';
@@ -75,6 +76,72 @@ describe('dashboard intelligence', () => {
 
     expect(result.count).toBe(1);
     expect(result.items[0].sku).toBe('AGE-001');
+  });
+
+  it('scopes stock aging buckets to the selected warehouse', async () => {
+    const organization = await Organization.create({
+      name: 'Dashboard Aging Org',
+      code: `DASH-AGING-${Date.now()}`
+    });
+
+    const [warehouseA, warehouseB] = await Warehouse.create([
+      {
+        organization: organization._id,
+        name: 'Warehouse A',
+        code: 'AGING-A'
+      },
+      {
+        organization: organization._id,
+        name: 'Warehouse B',
+        code: 'AGING-B'
+      }
+    ]);
+
+    const [productA, productB] = await Product.create([
+      {
+        organization: organization._id,
+        name: 'Aging Product A',
+        sku: 'AGE-A',
+        price: 10,
+        stock: 0
+      },
+      {
+        organization: organization._id,
+        name: 'Aging Product B',
+        sku: 'AGE-B',
+        price: 10,
+        stock: 0
+      }
+    ]);
+
+    await Inventory.create([
+      {
+        organization: organization._id,
+        product: productA._id,
+        warehouse: warehouseA._id,
+        quantityOnHand: 5,
+        quantityReserved: 0,
+        lastMovementAt: new Date('2026-02-20')
+      },
+      {
+        organization: organization._id,
+        product: productB._id,
+        warehouse: warehouseB._id,
+        quantityOnHand: 9,
+        quantityReserved: 0,
+        lastMovementAt: new Date('2025-10-01')
+      }
+    ]);
+
+    const scoped = await getStockAgingBuckets({
+      organizationId: organization._id,
+      warehouseId: warehouseA._id
+    });
+
+    expect(scoped.items).toHaveLength(1);
+    expect(scoped.items[0].sku).toBe('AGE-A');
+    expect(scoped.summary.bucket0to30.quantity).toBe(5);
+    expect(scoped.summary.bucket90plus.quantity).toBe(0);
   });
 
   it('builds inventory advisor and dead stock rescue actions', async () => {

@@ -38,8 +38,6 @@ import {
   mapApiSettingsToForm,
   mapFormToApiPayload,
   normalizeRecipients,
-  parseRecipientsText,
-  recipientsToText,
   getDefaultSettings,
   copyTextToClipboard
 } from './settingsUtils.js';
@@ -66,7 +64,7 @@ const SETTINGS_PAGES = [
   {
     id: 'theme',
     title: 'Theme Studio',
-    description: 'Pick and preview your Ledgerly visual theme.',
+    description: 'Pick and preview your Inventra visual theme.',
     scope: 'Personal'
   },
   {
@@ -208,20 +206,23 @@ const applyNotificationSettingsToForm = (baseForm, notificationSettings) => ({
 const Settings = ({
   accessToken = null,
   userRole = null,
+  currentUser = null,
   themeId = null,
-  onThemeChange = () => {}
+  onThemeChange = () => {},
+  onUpdateUserPreferences = async () => ({ success: false })
 }) => {
   const queryClient = useQueryClient();
   const [activePageId, setActivePageId] = useState(() =>
     readSettingsPageFromUrl()
   );
   const [form, setForm] = useState(getDefaultSettings());
-  const [emailRecipientsText, setEmailRecipientsText] = useState('');
-  const [smsRecipientsText, setSmsRecipientsText] = useState('');
-  const [whatsappRecipientsText, setWhatsappRecipientsText] = useState('');
   const [formNotice, setFormNotice] = useState('');
   const [formError, setFormError] = useState('');
   const [isDirty, setIsDirty] = useState(false);
+  const [notificationMobileNumber, setNotificationMobileNumber] = useState('');
+  const [contactNotice, setContactNotice] = useState('');
+  const [contactError, setContactError] = useState('');
+  const [contactSaving, setContactSaving] = useState(false);
   const [lastCheckedAt, setLastCheckedAt] = useState(null);
   const [copyTraceState, setCopyTraceState] = useState('idle');
   const [onboardingSeedResult, setOnboardingSeedResult] = useState(null);
@@ -256,6 +257,10 @@ const Settings = ({
   const isHubView = activePageId === SETTINGS_HUB_PAGE_ID;
   const isEditableView = EDITABLE_SETTINGS_PAGE_IDS.has(activePageId);
   const showSaveFooter = isEditableView || (isHubView && isDirty);
+  const currentUserEmail = String(currentUser?.email || '').trim();
+  const currentUserMobileNumber = String(
+    currentUser?.mobileNumber || ''
+  ).trim();
 
   const settingsQuery = useQuery({
     queryKey: ['settings:get', String(accessToken || '')],
@@ -404,9 +409,6 @@ const Settings = ({
         importTaxRate: Number(current.finance?.importTaxRate || 0)
       }
     }));
-    setEmailRecipientsText(
-      recipientsToText(mapped.notifications.lowStockRecipients)
-    );
     setIsDirty(false);
   }, [settingsQuery.data]);
 
@@ -419,21 +421,17 @@ const Settings = ({
 
   useEffect(() => {
     if (!financeNotificationSettingsQuery.data) return;
-    const smsRecipients = normalizeRecipients(
-      financeNotificationSettingsQuery.data.smsLowStockRecipients
-    );
-    const whatsappRecipients = normalizeRecipients(
-      financeNotificationSettingsQuery.data.whatsappLowStockRecipients
-    );
     setForm((current) =>
       applyNotificationSettingsToForm(
         current,
         financeNotificationSettingsQuery.data
       )
     );
-    setSmsRecipientsText(recipientsToText(smsRecipients));
-    setWhatsappRecipientsText(recipientsToText(whatsappRecipients));
   }, [financeNotificationSettingsQuery.data]);
+
+  useEffect(() => {
+    setNotificationMobileNumber(currentUserMobileNumber);
+  }, [currentUserMobileNumber]);
 
   useEffect(() => {
     const syncFromUrl = () => {
@@ -491,9 +489,6 @@ const Settings = ({
           importTaxRate: Number(current.finance?.importTaxRate || 0)
         }
       }));
-      setEmailRecipientsText(
-        recipientsToText(mapped.notifications.lowStockRecipients)
-      );
       setIsDirty(false);
       setFormError('');
       setFormNotice('Settings saved.');
@@ -564,38 +559,48 @@ const Settings = ({
     setIsDirty(true);
   };
 
-  const handleEmailRecipientsChange = (value) => {
-    setEmailRecipientsText(value);
-    setNestedField(
-      'notifications',
-      'lowStockRecipients',
-      parseRecipientsText(value)
-    );
-  };
+  const handleSaveNotificationContact = useCallback(async () => {
+    if (!accessToken) return;
 
-  const handleSmsRecipientsChange = (value) => {
-    setSmsRecipientsText(value);
-    setNestedField(
-      'notifications',
-      'lowStockSmsRecipients',
-      parseRecipientsText(value)
-    );
-  };
+    setContactNotice('');
+    setContactError('');
+    setContactSaving(true);
 
-  const handleWhatsappRecipientsChange = (value) => {
-    setWhatsappRecipientsText(value);
-    setNestedField(
-      'notifications',
-      'lowStockWhatsappRecipients',
-      parseRecipientsText(value)
-    );
-  };
+    try {
+      const response = await onUpdateUserPreferences({
+        mobileNumber: notificationMobileNumber
+      });
+
+      if (!response?.success) {
+        throw new Error(response?.message || 'Failed to save mobile number');
+      }
+
+      setContactNotice('Mobile notification number updated.');
+    } catch (error) {
+      setContactError(String(error?.message || 'Failed to save mobile number'));
+    } finally {
+      setContactSaving(false);
+    }
+  }, [accessToken, notificationMobileNumber, onUpdateUserPreferences]);
+
+  const handleNotificationMobileNumberChange = useCallback((value) => {
+    setNotificationMobileNumber(value);
+    setContactNotice('');
+    setContactError('');
+  }, []);
 
   const handleSave = async () => {
     if (!accessToken) return;
     setFormNotice('');
     setFormError('');
-    const payload = mapFormToApiPayload(form);
+    const basePayload = mapFormToApiPayload(form);
+    const payload = {
+      ...basePayload,
+      notifications: {
+        ...basePayload.notifications,
+        lowStockRecipients: []
+      }
+    };
     const financeTaxPayload = {
       taxInclusivePricing: Boolean(form.finance?.taxInclusivePricing),
       importTaxEnabled: Boolean(form.finance?.importTaxEnabled),
@@ -603,15 +608,11 @@ const Settings = ({
     };
     const financeNotificationPayload = {
       smsLowStockEnabled: Boolean(form.notifications?.lowStockSmsEnabled),
-      smsLowStockRecipients: normalizeRecipients(
-        form.notifications?.lowStockSmsRecipients
-      ),
+      smsLowStockRecipients: [],
       whatsappLowStockEnabled: Boolean(
         form.notifications?.lowStockWhatsappEnabled
       ),
-      whatsappLowStockRecipients: normalizeRecipients(
-        form.notifications?.lowStockWhatsappRecipients
-      )
+      whatsappLowStockRecipients: []
     };
 
     try {
@@ -644,15 +645,6 @@ const Settings = ({
     const withTax = applyTaxConfigToForm(mappedSettings, mappedTax);
     const merged = applyNotificationSettingsToForm(withTax, mappedNotification);
     setForm(merged);
-    setEmailRecipientsText(
-      recipientsToText(merged.notifications.lowStockRecipients)
-    );
-    setSmsRecipientsText(
-      recipientsToText(merged.notifications.lowStockSmsRecipients)
-    );
-    setWhatsappRecipientsText(
-      recipientsToText(merged.notifications.lowStockWhatsappRecipients)
-    );
     setFormNotice('');
     setFormError('');
     setIsDirty(false);
@@ -879,16 +871,20 @@ const Settings = ({
       return (
         <NotificationRulesSection
           form={form}
-          emailRecipientsText={emailRecipientsText}
-          smsRecipientsText={smsRecipientsText}
-          whatsappRecipientsText={whatsappRecipientsText}
+          currentUserEmail={currentUserEmail}
+          notificationMobileNumber={notificationMobileNumber}
+          contactNotice={contactNotice}
+          contactError={contactError}
+          contactSaving={contactSaving}
           canManageSettings={canManageSettings}
+          canEditNotificationContacts={Boolean(accessToken)}
           isSaving={isSavingSettings}
           setNestedField={setNestedField}
           setDoubleNestedField={setDoubleNestedField}
-          handleEmailRecipientsChange={handleEmailRecipientsChange}
-          handleSmsRecipientsChange={handleSmsRecipientsChange}
-          handleWhatsappRecipientsChange={handleWhatsappRecipientsChange}
+          onNotificationMobileNumberChange={
+            handleNotificationMobileNumberChange
+          }
+          onSaveNotificationContact={handleSaveNotificationContact}
         />
       );
     }

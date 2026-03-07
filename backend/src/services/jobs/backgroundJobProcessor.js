@@ -415,12 +415,14 @@ const processReportExportJob = async ({
       generatedBy: createdBy,
       from,
       to,
+      warehouseId: payload?.warehouseId || null,
       format
     });
   } else if (Object.values(REPORT_EXPORT_TYPES).includes(reportType)) {
     report = await buildReportExportPayload({
       organizationId,
       reportType,
+      warehouseId: payload?.warehouseId || null,
       format: payload?.format || 'xlsx'
     });
   } else {

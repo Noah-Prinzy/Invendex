@@ -34,7 +34,8 @@ export const queueReportExportJob = async (req, res, next) => {
   try {
     const reportType = normalizeReportExportType(req.body?.reportType);
     const format = normalizeReportExportFormat(req.body?.format || 'xlsx');
-    const dedupeKey = [reportType, format].join(':');
+    const warehouseId = req.body?.warehouseId || null;
+    const dedupeKey = [reportType, format, String(warehouseId || '')].join(':');
 
     const job = await createBackgroundJob({
       organizationId: req.organizationId,
@@ -43,7 +44,8 @@ export const queueReportExportJob = async (req, res, next) => {
       dedupeKey,
       payload: {
         reportType,
-        format
+        format,
+        warehouseId
       }
     });
 

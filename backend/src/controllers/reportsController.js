@@ -32,6 +32,23 @@ const sendLocalizedSuccess = (res, data, message, localeContext) => {
   });
 };
 
+const buildPurchaseOrderReportMatch = ({
+  organizationId,
+  warehouseId = null,
+  extra = {}
+}) => {
+  const match = {
+    organization: organizationId,
+    ...extra
+  };
+
+  if (warehouseId) {
+    match.warehouse = new mongoose.Types.ObjectId(String(warehouseId));
+  }
+
+  return match;
+};
+
 /**
  * 📊 Purchase Order Status Summary (A20.3.1)
  */
@@ -44,9 +61,10 @@ export const getPurchaseOrderStatusSummary = async (req, res, next) => {
 
     const summary = await PurchaseOrder.aggregate([
       {
-        $match: {
-          organization: organizationId
-        }
+        $match: buildPurchaseOrderReportMatch({
+          organizationId,
+          warehouseId: req.query?.warehouseId || null
+        })
       },
       {
         $group: {
@@ -92,9 +110,10 @@ export const getSupplierPurchaseOrderSummary = async (req, res, next) => {
 
     const summary = await PurchaseOrder.aggregate([
       {
-        $match: {
-          organization: organizationId
-        }
+        $match: buildPurchaseOrderReportMatch({
+          organizationId,
+          warehouseId: req.query?.warehouseId || null
+        })
       },
       {
         $group: {
@@ -187,9 +206,10 @@ export const getPurchaseOrderTrend = async (req, res, next) => {
 
     const trend = await PurchaseOrder.aggregate([
       {
-        $match: {
-          organization: organizationId
-        }
+        $match: buildPurchaseOrderReportMatch({
+          organizationId,
+          warehouseId: req.query?.warehouseId || null
+        })
       },
       {
         $group: {
@@ -231,10 +251,13 @@ export const getPurchaseOrderValueSummary = async (req, res, next) => {
 
     const summary = await PurchaseOrder.aggregate([
       {
-        $match: {
-          organization: organizationId,
-          status: { $in: ACTIVE_PO_STATUSES }
-        }
+        $match: buildPurchaseOrderReportMatch({
+          organizationId,
+          warehouseId: req.query?.warehouseId || null,
+          extra: {
+            status: { $in: ACTIVE_PO_STATUSES }
+          }
+        })
       },
       {
         $group: {
@@ -282,11 +305,14 @@ export const getSupplierPerformanceReport = async (req, res, next) => {
 
     const report = await PurchaseOrder.aggregate([
       {
-        $match: {
-          organization: organizationId,
-          status: { $in: CLOSED_PO_STATUSES },
-          sentAt: { $exists: true }
-        }
+        $match: buildPurchaseOrderReportMatch({
+          organizationId,
+          warehouseId: req.query?.warehouseId || null,
+          extra: {
+            status: { $in: CLOSED_PO_STATUSES },
+            sentAt: { $exists: true }
+          }
+        })
       },
       {
         $lookup: {
@@ -376,10 +402,13 @@ export const getTotalSpendSummary = async (req, res, next) => {
 
     const summary = await PurchaseOrder.aggregate([
       {
-        $match: {
-          organization: organizationId,
-          status: { $in: CLOSED_PO_STATUSES }
-        }
+        $match: buildPurchaseOrderReportMatch({
+          organizationId,
+          warehouseId: req.query?.warehouseId || null,
+          extra: {
+            status: { $in: CLOSED_PO_STATUSES }
+          }
+        })
       },
       { $unwind: '$items' },
       {
@@ -417,10 +446,13 @@ export const getSpendBySupplier = async (req, res, next) => {
 
     const report = await PurchaseOrder.aggregate([
       {
-        $match: {
-          organization: organizationId,
-          status: { $in: CLOSED_PO_STATUSES }
-        }
+        $match: buildPurchaseOrderReportMatch({
+          organizationId,
+          warehouseId: req.query?.warehouseId || null,
+          extra: {
+            status: { $in: CLOSED_PO_STATUSES }
+          }
+        })
       },
       { $unwind: '$items' },
       {
@@ -466,10 +498,13 @@ export const getSpendByProduct = async (req, res, next) => {
 
     const report = await PurchaseOrder.aggregate([
       {
-        $match: {
-          organization: organizationId,
-          status: { $in: CLOSED_PO_STATUSES }
-        }
+        $match: buildPurchaseOrderReportMatch({
+          organizationId,
+          warehouseId: req.query?.warehouseId || null,
+          extra: {
+            status: { $in: CLOSED_PO_STATUSES }
+          }
+        })
       },
       { $unwind: '$items' },
       {
@@ -521,11 +556,14 @@ export const getMonthlySpendTrend = async (req, res, next) => {
 
     const trend = await PurchaseOrder.aggregate([
       {
-        $match: {
-          organization: organizationId,
-          status: { $in: CLOSED_PO_STATUSES },
-          receivedAt: { $exists: true }
-        }
+        $match: buildPurchaseOrderReportMatch({
+          organizationId,
+          warehouseId: req.query?.warehouseId || null,
+          extra: {
+            status: { $in: CLOSED_PO_STATUSES },
+            receivedAt: { $exists: true }
+          }
+        })
       },
       { $unwind: '$items' },
       {

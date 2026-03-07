@@ -2,6 +2,7 @@ import { body, param } from 'express-validator';
 
 const withNormalizedString = (value) => String(value || '').trim();
 const USERNAME_REGEX = /^[a-zA-Z0-9._-]{3,32}$/;
+const MOBILE_NUMBER_REGEX = /^\+?\d{8,15}$/;
 
 const requireEmail = body('email')
   .exists({ checkFalsy: true })
@@ -29,8 +30,27 @@ const requireToken = body('token')
   .isString()
   .withMessage('Token must be a string');
 
+const optionalMobileNumber = body('mobileNumber')
+  .optional({ nullable: true })
+  .isString()
+  .withMessage('mobileNumber must be a string')
+  .bail()
+  .custom((value) => {
+    const normalized = withNormalizedString(value);
+    if (!normalized) {
+      return true;
+    }
+
+    if (!MOBILE_NUMBER_REGEX.test(normalized.replace(/\s+/g, ''))) {
+      throw new Error('mobileNumber must be a valid phone number');
+    }
+
+    return true;
+  });
+
 export const registerValidator = [
   requireEmail,
+  optionalMobileNumber,
   requirePassword,
   body('confirmPassword')
     .exists({ checkFalsy: true })
@@ -140,6 +160,7 @@ export const employeeLoginValidator = [
 
 export const employeeSignupRequestValidator = [
   requireEmail,
+  optionalMobileNumber,
   requirePassword,
   body('confirmPassword')
     .exists({ checkFalsy: true })
@@ -320,7 +341,7 @@ export const twoFactorRegenerateRecoveryCodesValidator = [
 ];
 
 const allowedUiThemes = [
-  'ledgerly-classic',
+  'inventra-classic',
   'glacier-blue',
   'emerald-shift',
   'graphite-noir',
@@ -331,15 +352,27 @@ const allowedUiThemes = [
 ];
 
 export const updateMePreferencesValidator = [
+  body().custom((value, { req }) => {
+    const hasUiTheme =
+      req.body?.uiTheme !== undefined &&
+      withNormalizedString(req.body?.uiTheme).length > 0;
+    const hasMobileNumber = req.body?.mobileNumber !== undefined;
+
+    if (!hasUiTheme && !hasMobileNumber) {
+      throw new Error('Provide uiTheme or mobileNumber');
+    }
+
+    return true;
+  }),
   body('uiTheme')
-    .exists({ checkFalsy: true })
-    .withMessage('uiTheme is required')
+    .optional({ nullable: true })
     .bail()
     .isString()
     .withMessage('uiTheme must be a string')
     .bail()
     .isIn(allowedUiThemes)
-    .withMessage(`uiTheme must be one of: ${allowedUiThemes.join(', ')}`)
+    .withMessage(`uiTheme must be one of: ${allowedUiThemes.join(', ')}`),
+  optionalMobileNumber
 ];
 
 export const sessionIdParamValidator = [

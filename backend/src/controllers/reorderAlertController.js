@@ -10,7 +10,7 @@ import ReorderAlert from '../models/ReorderAlert.js';
  */
 export const compareReorderAlerts = async (req, res, next) => {
   try {
-    const { fromDate, toDate, productId } = req.query;
+    const { fromDate, toDate, productId, warehouseId } = req.query;
 
     const query = {
       organization: req.organizationId
@@ -18,6 +18,10 @@ export const compareReorderAlerts = async (req, res, next) => {
 
     if (productId) {
       query.product = productId;
+    }
+
+    if (warehouseId) {
+      query.warehouse = warehouseId;
     }
 
     if (fromDate || toDate) {

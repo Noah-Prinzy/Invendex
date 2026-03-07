@@ -2,6 +2,7 @@ import { body, param, query } from 'express-validator';
 
 import Product from '../models/Product.js';
 import ReorderAlert from '../models/ReorderAlert.js';
+import Warehouse from '../models/Warehouse.js';
 
 const ensureOrganizationContext = (req) => {
   if (!req.organizationId) {
@@ -44,6 +45,23 @@ export const createManualReorderAlertValidator = [
       });
       if (!exists) {
         throw new Error('Product not found');
+      }
+      return true;
+    }),
+
+  body('warehouseId')
+    .optional({ values: 'falsy' })
+    .isMongoId()
+    .withMessage('warehouseId must be a valid ID')
+    .bail()
+    .custom(async (warehouseId, { req }) => {
+      const organizationId = ensureOrganizationContext(req);
+      const exists = await Warehouse.exists({
+        _id: warehouseId,
+        organization: organizationId
+      });
+      if (!exists) {
+        throw new Error('Warehouse not found');
       }
       return true;
     })

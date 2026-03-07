@@ -67,3 +67,4 @@ backups/
 .playwright/
 .cypress/
 test-results/
+playwright-report/

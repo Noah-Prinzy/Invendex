@@ -11,7 +11,7 @@ import { successResponse } from '../utils/response.js';
  */
 export const analyzeForecastVsStatic = async (req, res, next) => {
   try {
-    const { fromDate, toDate, minConfidence } = req.query;
+    const { fromDate, toDate, minConfidence, warehouseId } = req.query;
     const organizationId = req.organizationId;
 
     const dateFilter = {};
@@ -21,6 +21,10 @@ export const analyzeForecastVsStatic = async (req, res, next) => {
     const baseMatch = Object.keys(dateFilter).length
       ? { organization: organizationId, triggeredAt: dateFilter }
       : { organization: organizationId };
+
+    if (warehouseId) {
+      baseMatch.warehouse = warehouseId;
+    }
 
     const alerts = await ReorderAlert.find(baseMatch)
       .populate('product', 'stock')

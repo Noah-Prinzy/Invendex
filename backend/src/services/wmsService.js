@@ -1130,6 +1130,7 @@ export const transferStockBetweenWarehouses = async ({
 
 export const listWarehouseTransfers = async ({
   organizationId,
+  warehouseId = null,
   fromWarehouseId = null,
   toWarehouseId = null,
   productId = null,
@@ -1146,6 +1147,9 @@ export const listWarehouseTransfers = async ({
   }
   if (toWarehouseId) {
     query.toWarehouse = toWarehouseId;
+  }
+  if (warehouseId && !fromWarehouseId && !toWarehouseId) {
+    query.$or = [{ fromWarehouse: warehouseId }, { toWarehouse: warehouseId }];
   }
   if (productId) {
     query.product = productId;

@@ -210,24 +210,48 @@ const ensureSettingsDefaultWarehouse = async ({
   organizationId,
   warehouseId
 }) => {
-  let settings = await OrganizationSettings.findOne({
-    organization: organizationId
-  });
+  const updatedExistingSettings = await OrganizationSettings.findOneAndUpdate(
+    {
+      organization: organizationId,
+      $or: [
+        { 'inventory.defaultWarehouse': { $exists: false } },
+        { 'inventory.defaultWarehouse': null }
+      ]
+    },
+    {
+      $set: {
+        'inventory.defaultWarehouse': warehouseId
+      }
+    },
+    {
+      new: true
+    }
+  );
 
-  if (!settings) {
-    settings = await OrganizationSettings.create({
-      organization: organizationId
-    });
-  }
-
-  if (!settings.inventory?.defaultWarehouse) {
-    settings.inventory = settings.inventory || {};
-    settings.inventory.defaultWarehouse = warehouseId;
-    await settings.save();
+  if (updatedExistingSettings) {
     return true;
   }
 
-  return false;
+  const settings = await OrganizationSettings.findOneAndUpdate(
+    {
+      organization: organizationId
+    },
+    {
+      $setOnInsert: {
+        organization: organizationId,
+        'inventory.defaultWarehouse': warehouseId
+      }
+    },
+    {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true
+    }
+  );
+
+  return (
+    String(settings?.inventory?.defaultWarehouse || '') === String(warehouseId)
+  );
 };
 
 export const seedOrganizationSampleData = async ({

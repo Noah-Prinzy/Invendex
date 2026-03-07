@@ -1,3 +1,4 @@
+import Inventory from '../../models/Inventory.js';
 import InventorySnapshot from '../../models/InventorySnapshot.js';
 import InventoryReport from '../../models/InventoryReport.js';
 import { toCSV } from '../../utils/exporters/csvExporter.js';
@@ -44,7 +45,8 @@ export const buildInventoryReportFilters = ({
 export const fetchInventoryReportRows = async ({
   organizationId,
   from = null,
-  to = null
+  to = null,
+  warehouseId = null
 }) => {
   if (!organizationId) {
     throw new Error('organizationId is required to export inventory report');
@@ -65,19 +67,55 @@ export const fetchInventoryReportRows = async ({
     }
   }
 
-  const snapshots = await InventorySnapshot.find(query)
-    .sort({ recordedAt: 1 })
-    .select('sku stock price recordedAt source')
-    .lean();
+  let rows;
 
-  const rows = snapshots.map((snapshot) => ({
-    sku: snapshot.sku,
-    stock: Number(snapshot.stock || 0),
-    price: Number(snapshot.price || 0),
-    inventoryValue: Number(snapshot.stock || 0) * Number(snapshot.price || 0),
-    recordedAt: snapshot.recordedAt,
-    source: snapshot.source
-  }));
+  if (warehouseId) {
+    const inventoryQuery = {
+      organization: organizationId,
+      warehouse: warehouseId
+    };
+
+    const inventoryRows = await Inventory.find(inventoryQuery)
+      .sort({ updatedAt: 1 })
+      .populate('product', 'sku name price')
+      .populate('warehouse', 'code name')
+      .select(
+        'product warehouse quantityOnHand quantityReserved updatedAt lastMovementAt'
+      )
+      .lean();
+
+    rows = inventoryRows.map((row) => {
+      const quantityOnHand = Number(row.quantityOnHand || 0);
+      const quantityReserved = Number(row.quantityReserved || 0);
+      const unitPrice = Number(row.product?.price || 0);
+      return {
+        sku: row.product?.sku || '',
+        productName: row.product?.name || '',
+        warehouseCode: row.warehouse?.code || row.warehouse?.name || '',
+        stock: quantityOnHand,
+        quantityReserved,
+        quantityAvailable: Math.max(quantityOnHand - quantityReserved, 0),
+        price: unitPrice,
+        inventoryValue: quantityOnHand * unitPrice,
+        recordedAt: row.lastMovementAt || row.updatedAt || null,
+        source: 'LIVE_INVENTORY'
+      };
+    });
+  } else {
+    const snapshots = await InventorySnapshot.find(query)
+      .sort({ recordedAt: 1 })
+      .select('sku stock price recordedAt source')
+      .lean();
+
+    rows = snapshots.map((snapshot) => ({
+      sku: snapshot.sku,
+      stock: Number(snapshot.stock || 0),
+      price: Number(snapshot.price || 0),
+      inventoryValue: Number(snapshot.stock || 0) * Number(snapshot.price || 0),
+      recordedAt: snapshot.recordedAt,
+      source: snapshot.source
+    }));
+  }
 
   return {
     rows,
@@ -131,6 +169,7 @@ export const persistInventoryReportMetadata = async ({
   generatedBy,
   from = null,
   to = null,
+  warehouseId = null,
   format = 'csv',
   recordCount = 0
 }) => {
@@ -151,7 +190,8 @@ export const persistInventoryReportMetadata = async ({
     generatedBy,
     filters: {
       from: normalizedFrom,
-      to: normalizedTo
+      to: normalizedTo,
+      warehouseId: warehouseId || null
     },
     recordCount: Number(recordCount || 0),
     format: normalizedFormat
@@ -165,13 +205,15 @@ export const buildInventoryReportExport = async ({
   generatedBy,
   from = null,
   to = null,
+  warehouseId = null,
   format = 'csv'
 }) => {
   const normalizedFormat = normalizeInventoryReportExportFormat(format);
   const { rows, filters } = await fetchInventoryReportRows({
     organizationId,
     from,
-    to
+    to,
+    warehouseId
   });
 
   const report = await persistInventoryReportMetadata({
@@ -179,6 +221,7 @@ export const buildInventoryReportExport = async ({
     generatedBy,
     from: filters.from,
     to: filters.to,
+    warehouseId,
     format: normalizedFormat,
     recordCount: rows.length
   });

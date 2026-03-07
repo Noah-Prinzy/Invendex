@@ -65,10 +65,15 @@ const downloadFile = ({ filename, content, mimeType }) => {
 
 const buildReportFilename = (prefix, extension) => {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  return `ledgerly-${prefix}-${stamp}.${extension}`;
+  return `inventra-${prefix}-${stamp}.${extension}`;
 };
 
-const Reports = ({ accessToken, userRole = null }) => {
+const Reports = ({
+  accessToken,
+  userRole = null,
+  warehouseId = null,
+  activeWarehouseLabel = 'All warehouses'
+}) => {
   const [spendSearch, setSpendSearch] = useState('');
   const [spendSortKey, setSpendSortKey] = useState('totalSpend');
   const [spendSortDirection, setSpendSortDirection] = useState('desc');
@@ -105,6 +110,7 @@ const Reports = ({ accessToken, userRole = null }) => {
       String(activeCurrencyCode || ''),
       String(baseCurrencyCode || ''),
       String(conversionRate || 1),
+      String(warehouseId || ''),
       String(movementTypeFilter || ''),
       String(auditActionFilter || ''),
       String(auditSuccessFilter || 'all')
@@ -115,6 +121,7 @@ const Reports = ({ accessToken, userRole = null }) => {
       activeCurrencyCode,
       baseCurrencyCode,
       conversionRate,
+      warehouseId,
       movementTypeFilter,
       auditActionFilter,
       auditSuccessFilter
@@ -202,24 +209,37 @@ const Reports = ({ accessToken, userRole = null }) => {
         movementData,
         auditLogsData
       ] = await Promise.all([
-        getReportPurchaseOrderStatusSummaryRequest(accessToken),
-        getReportSpendSummaryRequest(accessToken),
-        getReportSpendBySupplierRequest(accessToken),
+        getReportPurchaseOrderStatusSummaryRequest({
+          accessToken,
+          warehouseId: warehouseId || null
+        }),
+        getReportSpendSummaryRequest({
+          accessToken,
+          warehouseId: warehouseId || null
+        }),
+        getReportSpendBySupplierRequest({
+          accessToken,
+          warehouseId: warehouseId || null
+        }),
         getFinanceInventoryValuationRequest({
           accessToken,
+          warehouseId: warehouseId || null,
           currencyCode: activeCurrencyCode
         }),
         getFinanceDeadStockRequest({
           accessToken,
+          warehouseId: warehouseId || null,
           currencyCode: activeCurrencyCode
         }),
         getFinanceGrossMarginRequest({
           accessToken,
           groupBy: 'day',
+          warehouseId: warehouseId || null,
           currencyCode: activeCurrencyCode
         }),
         getWmsMovementLedgerRequest({
           accessToken,
+          warehouseId: warehouseId || null,
           type: movementTypeFilter || null,
           limit: 50
         }),
@@ -228,6 +248,7 @@ const Reports = ({ accessToken, userRole = null }) => {
           page: 1,
           limit: 50,
           action: String(auditActionFilter || '').trim() || null,
+          warehouseId: warehouseId || null,
           success:
             auditSuccessFilter === 'all'
               ? null
@@ -524,6 +545,7 @@ const Reports = ({ accessToken, userRole = null }) => {
       const queuedJob = await queueReportExportJobRequest({
         accessToken,
         reportType,
+        warehouseId: warehouseId || null,
         format
       });
       setReportExportJob(queuedJob || null);
@@ -611,7 +633,8 @@ const Reports = ({ accessToken, userRole = null }) => {
     try {
       const queuedJob = await queueInventoryReportExportJobRequest({
         accessToken,
-        format
+        format,
+        warehouseId: warehouseId || null
       });
       setInventoryExportJob(queuedJob || null);
     } catch (error) {
@@ -775,7 +798,8 @@ const Reports = ({ accessToken, userRole = null }) => {
           <h2>Reports</h2>
           <p>
             Purchase order and spend summaries from reporting APIs. Display
-            currency: {activeCurrencyCode}
+            currency: {activeCurrencyCode}. Scope:{' '}
+            {activeWarehouseLabel || 'All warehouses'}
           </p>
         </div>
         <div className="obs-actions">

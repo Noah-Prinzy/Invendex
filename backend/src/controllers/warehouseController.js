@@ -124,27 +124,44 @@ const ensureWarehouse = async ({ warehouseId, organizationId }) => {
 };
 
 const maybeSetDefaultWarehouse = async ({ organizationId, warehouseId }) => {
-  const settings = await OrganizationSettings.findOne({
-    organization: organizationId
-  });
-
-  if (!settings) {
-    await OrganizationSettings.create({
+  const updatedExistingSettings = await OrganizationSettings.findOneAndUpdate(
+    {
       organization: organizationId,
-      inventory: {
-        defaultWarehouse: warehouseId
+      $or: [
+        { 'inventory.defaultWarehouse': { $exists: false } },
+        { 'inventory.defaultWarehouse': null }
+      ]
+    },
+    {
+      $set: {
+        'inventory.defaultWarehouse': warehouseId
       }
-    });
+    },
+    {
+      new: true
+    }
+  );
+
+  if (updatedExistingSettings) {
     return;
   }
 
-  if (settings.inventory?.defaultWarehouse) {
-    return;
-  }
-
-  settings.inventory = settings.inventory || {};
-  settings.inventory.defaultWarehouse = warehouseId;
-  await settings.save();
+  await OrganizationSettings.findOneAndUpdate(
+    {
+      organization: organizationId
+    },
+    {
+      $setOnInsert: {
+        organization: organizationId,
+        'inventory.defaultWarehouse': warehouseId
+      }
+    },
+    {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true
+    }
+  );
 };
 
 const unsetDefaultWarehouseIfArchived = async ({

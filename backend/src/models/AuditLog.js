@@ -37,6 +37,13 @@ const auditLogSchema = new mongoose.Schema(
       index: true
     },
 
+    warehouse: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Warehouse',
+      default: null,
+      index: true
+    },
+
     /* 🔄 State tracking (optional but critical) */
     before: {
       type: Object,
@@ -99,6 +106,7 @@ const auditLogSchema = new mongoose.Schema(
 /* 🚀 Performance & audit-grade indexing */
 auditLogSchema.index({ createdAt: -1 });
 auditLogSchema.index({ organization: 1, createdAt: -1 });
+auditLogSchema.index({ organization: 1, warehouse: 1, createdAt: -1 });
 auditLogSchema.index({ action: 1, createdAt: -1 });
 auditLogSchema.index({ entity: 1, entityId: 1 });
 

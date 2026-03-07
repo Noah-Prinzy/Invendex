@@ -13,13 +13,19 @@ import {
   generateAccessToken,
   generateRefreshToken,
   verifyRefreshToken,
-  getAccessTokenSigningSecret
+  getAccessTokenSigningSecret,
+  verifyAccessToken
 } from '../utils/token.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { logger } from '../observability/logger.js';
 import { publishEmployeeSignedIn } from '../realtime/publisher.js';
 import { createInAppNotification } from '../services/notifications/inAppNotificationService.js';
 import { queueEmailNotification } from '../services/notifications/emailJobService.js';
+import { notifyAdminsOfEmployeeAuthEvent } from '../services/notifications/adminAuthAlertService.js';
+import {
+  isValidMobileNumber,
+  normalizeMobileNumber
+} from '../utils/contactInfo.js';
 import {
   getRefreshCookieOptions,
   getClearRefreshCookieOptions
@@ -33,6 +39,7 @@ import {
   normalizeRecoveryCodeInput,
   verifyTotp
 } from '../utils/totp.js';
+import { verifyEmployeeSignupEmailActionToken } from '../utils/employeeSignupEmailActions.js';
 
 const MAX_SESSIONS = 5;
 const SESSION_ID_PREFIX = 'sess';
@@ -42,7 +49,7 @@ const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
 const ADMIN_ROLES = new Set(['owner', 'admin']);
 const ALLOWED_UI_THEMES = new Set([
-  'ledgerly-classic',
+  'inventra-classic',
   'glacier-blue',
   'emerald-shift',
   'graphite-noir',
@@ -51,7 +58,7 @@ const ALLOWED_UI_THEMES = new Set([
   'sand-dune',
   'neon-grid'
 ]);
-const DEFAULT_UI_THEME = 'ledgerly-classic';
+const DEFAULT_UI_THEME = 'inventra-classic';
 const TWO_FACTOR_CHALLENGE_TTL_SECONDS = (() => {
   const raw = Number(process.env.AUTH_2FA_CHALLENGE_TTL_SECONDS || 600);
   if (!Number.isFinite(raw) || raw < 60 || raw > 3600) {
@@ -59,11 +66,14 @@ const TWO_FACTOR_CHALLENGE_TTL_SECONDS = (() => {
   }
   return Math.floor(raw);
 })();
-const TWO_FACTOR_ISSUER = String(process.env.AUTH_2FA_ISSUER || 'Ledgerly')
+const TWO_FACTOR_ISSUER = String(process.env.AUTH_2FA_ISSUER || 'Inventra')
   .trim()
   .slice(0, 80);
 const TWO_FACTOR_RECOVERY_CODES_COUNT = 10;
 const APP_WEB_URL = String(process.env.APP_WEB_URL || '').trim();
+const PUBLIC_API_BASE_URL = String(
+  process.env.PUBLIC_API_BASE_URL || ''
+).trim();
 const USERNAME_REGEX = /^[a-zA-Z0-9._-]{3,32}$/;
 
 const buildEmailActionHint = (fallbackMessage = '') => {
@@ -72,6 +82,763 @@ const buildEmailActionHint = (fallbackMessage = '') => {
   }
   return `\n\nOpen ${APP_WEB_URL} to continue.`;
 };
+
+const resolveAppAssetUrl = (assetPath = '') => {
+  const normalizedBaseUrl = String(APP_WEB_URL || '')
+    .trim()
+    .replace(/\/+$/, '');
+  const normalizedAssetPath = `/${String(assetPath || '')
+    .trim()
+    .replace(/^\/+/, '')}`;
+
+  if (!normalizedBaseUrl || normalizedAssetPath === '/') {
+    return '';
+  }
+
+  return `${normalizedBaseUrl}${normalizedAssetPath}`;
+};
+
+const buildEmployeeSignupDecisionEmailHtml = ({
+  title,
+  username,
+  organizationName,
+  decision,
+  reason = ''
+}) => {
+  const normalizedDecision = String(decision || '')
+    .trim()
+    .toLowerCase();
+  const isApproved = normalizedDecision === 'approved';
+  const logoUrl = resolveAppAssetUrl('/apple-touch-icon.png');
+  const openAppUrl = APP_WEB_URL || '';
+  const headline = isApproved
+    ? 'Your workspace access is ready'
+    : 'Your workspace access request was declined';
+  const message = isApproved
+    ? `Your Inventra signup request for ${organizationName || 'your organization'} was approved. You can now sign in with your company name, username, and password.`
+    : `Your Inventra signup request for ${organizationName || 'your organization'} was declined.`;
+  const supportMessage = isApproved
+    ? 'If you did not request this account, contact a workspace administrator immediately.'
+    : reason
+      ? `Reason: ${reason}`
+      : 'If you still need access, contact a workspace administrator.';
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(title || 'Inventra')}</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 28px 16px;
+        background:
+          radial-gradient(circle at top, rgba(88, 179, 255, 0.24), transparent 34%),
+          linear-gradient(180deg, #07111f 0%, #0d1727 54%, #111c2f 100%);
+        color: #eff7ff;
+        font-family: "Segoe UI", Arial, sans-serif;
+      }
+      .shell {
+        max-width: 620px;
+        margin: 0 auto;
+      }
+      .card {
+        border-radius: 28px;
+        padding: 32px;
+        border: 1px solid rgba(174, 227, 255, 0.18);
+        background: rgba(7, 17, 31, 0.88);
+        box-shadow: 0 28px 80px rgba(0, 0, 0, 0.3);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .brand-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(174, 227, 255, 0.14);
+        color: #aee3ff;
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      .logo {
+        width: 52px;
+        height: 52px;
+        border-radius: 16px;
+        object-fit: cover;
+      }
+      h1 {
+        margin: 22px 0 10px;
+        font-size: 30px;
+        line-height: 1.14;
+      }
+      p {
+        margin: 0;
+        color: rgba(239, 247, 255, 0.84);
+        line-height: 1.65;
+        font-size: 15px;
+      }
+      .details {
+        margin-top: 20px;
+        padding: 18px;
+        border-radius: 20px;
+        background: rgba(174, 227, 255, 0.07);
+        border: 1px solid rgba(174, 227, 255, 0.12);
+      }
+      .detail-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 9px 0;
+        border-bottom: 1px solid rgba(174, 227, 255, 0.08);
+      }
+      .detail-row:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+      .detail-label {
+        color: rgba(239, 247, 255, 0.58);
+      }
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 22px;
+        min-width: 184px;
+        min-height: 48px;
+        padding: 0 18px;
+        border-radius: 16px;
+        color: #04111f !important;
+        font-weight: 700;
+        text-decoration: none;
+        background: linear-gradient(135deg, #aee3ff 0%, #63b6ff 100%);
+      }
+      .support {
+        margin-top: 18px;
+        color: rgba(239, 247, 255, 0.62);
+        font-size: 13px;
+      }
+      @media (max-width: 640px) {
+        .card {
+          padding: 24px;
+        }
+        .detail-row {
+          flex-direction: column;
+          gap: 6px;
+        }
+        .button {
+          width: 100%;
+          min-width: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="card">
+        <div class="brand">
+          ${logoUrl ? `<img class="logo" src="${escapeHtml(logoUrl)}" alt="Inventra logo" />` : ''}
+          <span class="brand-badge">Inventra access</span>
+        </div>
+        <h1>${escapeHtml(headline)}</h1>
+        <p>Hi ${escapeHtml(username || 'there')},</p>
+        <p style="margin-top: 10px;">${escapeHtml(message)}</p>
+        <div class="details">
+          <div class="detail-row">
+            <span class="detail-label">Workspace</span>
+            <strong>${escapeHtml(organizationName || 'n/a')}</strong>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Username</span>
+            <strong>${escapeHtml(username || 'n/a')}</strong>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Request status</span>
+            <strong>${escapeHtml(String(decision || '').toUpperCase())}</strong>
+          </div>
+        </div>
+        ${
+          openAppUrl
+            ? `<a class="button" href="${escapeHtml(openAppUrl)}">Open Inventra</a>`
+            : ''
+        }
+        <div class="support">${escapeHtml(supportMessage)}</div>
+      </div>
+    </div>
+  </body>
+</html>`;
+};
+
+const buildAuthTokenEmailHtml = ({
+  title,
+  eyebrow,
+  headline,
+  intro,
+  recipientLabel,
+  organizationName,
+  tokenLabel,
+  tokenValue,
+  expiresText,
+  supportMessage
+}) => {
+  const logoUrl = resolveAppAssetUrl('/apple-touch-icon.png');
+  const openAppUrl = APP_WEB_URL || '';
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(title || 'Inventra')}</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 28px 16px;
+        background:
+          radial-gradient(circle at top, rgba(88, 179, 255, 0.24), transparent 34%),
+          linear-gradient(180deg, #07111f 0%, #0d1727 54%, #111c2f 100%);
+        color: #eff7ff;
+        font-family: "Segoe UI", Arial, sans-serif;
+      }
+      .shell {
+        max-width: 620px;
+        margin: 0 auto;
+      }
+      .card {
+        border-radius: 28px;
+        padding: 32px;
+        border: 1px solid rgba(174, 227, 255, 0.18);
+        background: rgba(7, 17, 31, 0.88);
+        box-shadow: 0 28px 80px rgba(0, 0, 0, 0.3);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .brand-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(174, 227, 255, 0.14);
+        color: #aee3ff;
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      .logo {
+        width: 52px;
+        height: 52px;
+        border-radius: 16px;
+        object-fit: cover;
+      }
+      h1 {
+        margin: 22px 0 10px;
+        font-size: 30px;
+        line-height: 1.14;
+      }
+      p {
+        margin: 0;
+        color: rgba(239, 247, 255, 0.84);
+        line-height: 1.65;
+        font-size: 15px;
+      }
+      .details {
+        margin-top: 20px;
+        padding: 18px;
+        border-radius: 20px;
+        background: rgba(174, 227, 255, 0.07);
+        border: 1px solid rgba(174, 227, 255, 0.12);
+      }
+      .detail-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 9px 0;
+        border-bottom: 1px solid rgba(174, 227, 255, 0.08);
+      }
+      .detail-row:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+      .detail-label {
+        color: rgba(239, 247, 255, 0.58);
+      }
+      .token-block {
+        margin-top: 20px;
+        padding: 18px;
+        border-radius: 20px;
+        background: rgba(99, 182, 255, 0.12);
+        border: 1px solid rgba(99, 182, 255, 0.18);
+      }
+      .token-label {
+        display: block;
+        margin-bottom: 8px;
+        color: rgba(239, 247, 255, 0.62);
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .token-value {
+        display: inline-flex;
+        font-family: Consolas, "SFMono-Regular", monospace;
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        color: #eff7ff;
+      }
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 22px;
+        min-width: 184px;
+        min-height: 48px;
+        padding: 0 18px;
+        border-radius: 16px;
+        color: #04111f !important;
+        font-weight: 700;
+        text-decoration: none;
+        background: linear-gradient(135deg, #aee3ff 0%, #63b6ff 100%);
+      }
+      .support {
+        margin-top: 18px;
+        color: rgba(239, 247, 255, 0.62);
+        font-size: 13px;
+      }
+      @media (max-width: 640px) {
+        .card {
+          padding: 24px;
+        }
+        .detail-row {
+          flex-direction: column;
+          gap: 6px;
+        }
+        .button {
+          width: 100%;
+          min-width: 0;
+        }
+        .token-value {
+          font-size: 18px;
+          word-break: break-all;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="card">
+        <div class="brand">
+          ${logoUrl ? `<img class="logo" src="${escapeHtml(logoUrl)}" alt="Inventra logo" />` : ''}
+          <span class="brand-badge">${escapeHtml(eyebrow || 'Inventra security')}</span>
+        </div>
+        <h1>${escapeHtml(headline || title || 'Inventra')}</h1>
+        <p>${escapeHtml(intro || '')}</p>
+        <div class="details">
+          <div class="detail-row">
+            <span class="detail-label">Email</span>
+            <strong>${escapeHtml(recipientLabel || 'n/a')}</strong>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Workspace</span>
+            <strong>${escapeHtml(organizationName || 'n/a')}</strong>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Expires</span>
+            <strong>${escapeHtml(expiresText || 'n/a')}</strong>
+          </div>
+        </div>
+        <div class="token-block">
+          <span class="token-label">${escapeHtml(tokenLabel || 'Token')}</span>
+          <span class="token-value">${escapeHtml(tokenValue || '')}</span>
+        </div>
+        ${
+          openAppUrl
+            ? `<a class="button" href="${escapeHtml(openAppUrl)}">Open Inventra</a>`
+            : ''
+        }
+        <div class="support">${escapeHtml(supportMessage || '')}</div>
+      </div>
+    </div>
+  </body>
+</html>`;
+};
+
+const buildSecurityAlertEmailHtml = ({
+  title,
+  eyebrow = 'Inventra security',
+  headline,
+  intro,
+  detailRows = [],
+  supportMessage = ''
+}) => {
+  const logoUrl = resolveAppAssetUrl('/apple-touch-icon.png');
+  const openAppUrl = APP_WEB_URL || '';
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(title || 'Inventra')}</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 28px 16px;
+        background:
+          radial-gradient(circle at top, rgba(88, 179, 255, 0.24), transparent 34%),
+          linear-gradient(180deg, #07111f 0%, #0d1727 54%, #111c2f 100%);
+        color: #eff7ff;
+        font-family: "Segoe UI", Arial, sans-serif;
+      }
+      .shell {
+        max-width: 620px;
+        margin: 0 auto;
+      }
+      .card {
+        border-radius: 28px;
+        padding: 32px;
+        border: 1px solid rgba(174, 227, 255, 0.18);
+        background: rgba(7, 17, 31, 0.88);
+        box-shadow: 0 28px 80px rgba(0, 0, 0, 0.3);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .brand-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(174, 227, 255, 0.14);
+        color: #aee3ff;
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      .logo {
+        width: 52px;
+        height: 52px;
+        border-radius: 16px;
+        object-fit: cover;
+      }
+      h1 {
+        margin: 22px 0 10px;
+        font-size: 30px;
+        line-height: 1.14;
+      }
+      p {
+        margin: 0;
+        color: rgba(239, 247, 255, 0.84);
+        line-height: 1.65;
+        font-size: 15px;
+      }
+      .details {
+        margin-top: 20px;
+        padding: 18px;
+        border-radius: 20px;
+        background: rgba(174, 227, 255, 0.07);
+        border: 1px solid rgba(174, 227, 255, 0.12);
+      }
+      .detail-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 9px 0;
+        border-bottom: 1px solid rgba(174, 227, 255, 0.08);
+      }
+      .detail-row:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+      .detail-label {
+        color: rgba(239, 247, 255, 0.58);
+      }
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 22px;
+        min-width: 184px;
+        min-height: 48px;
+        padding: 0 18px;
+        border-radius: 16px;
+        color: #04111f !important;
+        font-weight: 700;
+        text-decoration: none;
+        background: linear-gradient(135deg, #aee3ff 0%, #63b6ff 100%);
+      }
+      .support {
+        margin-top: 18px;
+        color: rgba(239, 247, 255, 0.62);
+        font-size: 13px;
+      }
+      @media (max-width: 640px) {
+        .card {
+          padding: 24px;
+        }
+        .detail-row {
+          flex-direction: column;
+          gap: 6px;
+        }
+        .button {
+          width: 100%;
+          min-width: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="card">
+        <div class="brand">
+          ${logoUrl ? `<img class="logo" src="${escapeHtml(logoUrl)}" alt="Inventra logo" />` : ''}
+          <span class="brand-badge">${escapeHtml(eyebrow)}</span>
+        </div>
+        <h1>${escapeHtml(headline || title || 'Inventra')}</h1>
+        <p>${escapeHtml(intro || '')}</p>
+        ${
+          Array.isArray(detailRows) && detailRows.length
+            ? `<div class="details">
+                ${detailRows
+                  .map(
+                    ({ label, value }) => `
+                      <div class="detail-row">
+                        <span class="detail-label">${escapeHtml(label)}</span>
+                        <strong>${escapeHtml(value)}</strong>
+                      </div>
+                    `
+                  )
+                  .join('')}
+              </div>`
+            : ''
+        }
+        ${
+          openAppUrl
+            ? `<a class="button" href="${escapeHtml(openAppUrl)}">Open Inventra</a>`
+            : ''
+        }
+        ${
+          supportMessage
+            ? `<div class="support">${escapeHtml(supportMessage)}</div>`
+            : ''
+        }
+      </div>
+    </div>
+  </body>
+</html>`;
+};
+
+const resolvePublicApiBaseUrl = (req = null) => {
+  if (PUBLIC_API_BASE_URL) {
+    return PUBLIC_API_BASE_URL.replace(/\/+$/, '');
+  }
+
+  const protocol = String(req?.protocol || '').trim();
+  const host = String(req?.get?.('host') || req?.headers?.host || '').trim();
+  if (!protocol || !host) return '';
+  return `${protocol}://${host}`;
+};
+
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const buildEmailActionPage = ({
+  title,
+  message,
+  status = 'info',
+  metaRows = [],
+  primaryActionHref = '',
+  primaryActionLabel = '',
+  secondaryActionHref = '',
+  secondaryActionLabel = '',
+  footerNote = ''
+}) => `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(title || 'Inventra')}</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at top, rgba(68, 154, 255, 0.22), transparent 42%),
+          linear-gradient(180deg, #07111f 0%, #0d1727 52%, #111c2f 100%);
+        color: #eff7ff;
+        font-family: "Segoe UI", sans-serif;
+      }
+      .panel {
+        width: min(92vw, 640px);
+        padding: 2.2rem;
+        border-radius: 28px;
+        border: 1px solid rgba(174, 227, 255, 0.18);
+        background: rgba(7, 17, 31, 0.86);
+        box-shadow: 0 32px 90px rgba(0, 0, 0, 0.34);
+      }
+      .eyebrow {
+        display: inline-flex;
+        padding: 0.32rem 0.72rem;
+        border-radius: 999px;
+        background: rgba(174, 227, 255, 0.12);
+        color: #aee3ff;
+        font-size: 0.78rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .panel h1 {
+        margin: 1rem 0 0.75rem;
+        font-size: clamp(1.8rem, 3vw, 2.4rem);
+      }
+      .panel p {
+        margin: 0;
+        color: rgba(239, 247, 255, 0.82);
+        line-height: 1.6;
+      }
+      .meta {
+        margin-top: 1.5rem;
+        padding: 1rem 1.1rem;
+        border-radius: 18px;
+        border: 1px solid rgba(174, 227, 255, 0.1);
+        background: rgba(174, 227, 255, 0.06);
+      }
+      .meta-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.62rem 0;
+        border-bottom: 1px solid rgba(174, 227, 255, 0.08);
+      }
+      .meta-row:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+      .meta-label {
+        color: rgba(239, 247, 255, 0.56);
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.85rem;
+        margin-top: 1.6rem;
+      }
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48px;
+        padding: 0 1rem;
+        border-radius: 14px;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      .button-primary {
+        color: #04111f !important;
+        background: linear-gradient(135deg, #aee3ff 0%, #63b6ff 100%);
+      }
+      .button-secondary {
+        color: #eff7ff !important;
+        background: rgba(174, 227, 255, 0.08);
+        border: 1px solid rgba(174, 227, 255, 0.14);
+      }
+      .footer-note {
+        margin-top: 1.2rem;
+        font-size: 0.9rem;
+        color: rgba(239, 247, 255, 0.58);
+      }
+      .panel a {
+        color: #aee3ff;
+      }
+      .panel[data-status="success"] .eyebrow {
+        background: rgba(118, 255, 191, 0.12);
+        color: #76ffbf;
+      }
+      .panel[data-status="warning"] .eyebrow {
+        background: rgba(255, 206, 120, 0.14);
+        color: #ffce78;
+      }
+      .panel[data-status="error"] .eyebrow {
+        background: rgba(255, 131, 131, 0.14);
+        color: #ff8383;
+      }
+      @media (max-width: 640px) {
+        .panel {
+          padding: 1.5rem;
+        }
+        .meta-row {
+          flex-direction: column;
+          gap: 0.35rem;
+        }
+        .actions {
+          flex-direction: column;
+        }
+        .button {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="panel" data-status="${escapeHtml(status || 'info')}">
+      <span class="eyebrow">Inventra</span>
+      <h1>${escapeHtml(title || 'Action processed')}</h1>
+      <p>${escapeHtml(message || '')}</p>
+      ${
+        Array.isArray(metaRows) && metaRows.length
+          ? `<section class="meta">
+              ${metaRows
+                .map(
+                  ({ label, value }) => `
+                    <div class="meta-row">
+                      <span class="meta-label">${escapeHtml(label)}</span>
+                      <strong>${escapeHtml(value)}</strong>
+                    </div>
+                  `
+                )
+                .join('')}
+            </section>`
+          : ''
+      }
+      ${
+        primaryActionHref || secondaryActionHref
+          ? `<div class="actions">
+              ${
+                primaryActionHref && primaryActionLabel
+                  ? `<a class="button button-primary" href="${escapeHtml(primaryActionHref)}">${escapeHtml(primaryActionLabel)}</a>`
+                  : ''
+              }
+              ${
+                secondaryActionHref && secondaryActionLabel
+                  ? `<a class="button button-secondary" href="${escapeHtml(secondaryActionHref)}">${escapeHtml(secondaryActionLabel)}</a>`
+                  : ''
+              }
+            </div>`
+          : ''
+      }
+      ${
+        footerNote
+          ? `<div class="footer-note">${escapeHtml(footerNote)}</div>`
+          : ''
+      }
+    </main>
+  </body>
+</html>`;
 
 const getTwoFactorChallengeSecret = () => {
   const explicitSecret = String(
@@ -213,6 +980,8 @@ const normalizeOrganizationNameInput = (value) =>
     .trim()
     .replace(/\s+/g, ' ');
 
+const normalizeMobileNumberInput = (value) => normalizeMobileNumber(value);
+
 const escapeRegex = (value) =>
   String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -266,6 +1035,15 @@ const getRequestIpAddress = (req) => {
 
   const directIp = String(req.ip || req.socket?.remoteAddress || '').trim();
   return directIp || null;
+};
+
+const extractBearerAccessToken = (req) => {
+  const authorizationHeader = String(req.headers?.authorization || '').trim();
+  if (!authorizationHeader.startsWith('Bearer ')) {
+    return '';
+  }
+
+  return String(authorizationHeader.slice(7) || '').trim();
 };
 
 const buildSessionMetadata = (req, overrides = {}) => {
@@ -425,6 +1203,7 @@ const resolveOrganizationPayloadById = async (organizationId) => {
 const buildAuthUser = (user, organization = null) => ({
   _id: user._id,
   email: user.email,
+  mobileNumber: user.mobileNumber || null,
   username: user.username || null,
   role: user.role,
   twoFactorEnabled: Boolean(user?.twoFactor?.enabled),
@@ -507,6 +1286,7 @@ const queueAuthEmail = async ({
   to,
   subject,
   message,
+  html = null,
   notificationType,
   metadata = {}
 }) => {
@@ -521,6 +1301,7 @@ const queueAuthEmail = async ({
       to,
       subject,
       text: message,
+      html,
       notificationType,
       metadata
     });
@@ -533,6 +1314,373 @@ const queueAuthEmail = async ({
     });
   }
 };
+
+const queueSecurityAlertEmail = async ({
+  organizationId,
+  userId = null,
+  to,
+  subject,
+  headline,
+  intro,
+  detailRows = [],
+  supportMessage = '',
+  notificationType,
+  metadata = {}
+}) => {
+  const plainTextMessage = [
+    intro,
+    '',
+    ...detailRows.map(
+      ({ label, value }) =>
+        `${String(label || '').trim()}: ${String(value || '').trim()}`
+    ),
+    buildEmailActionHint(supportMessage)
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  await queueAuthEmail({
+    organizationId,
+    userId,
+    to,
+    subject,
+    message: plainTextMessage,
+    html: buildSecurityAlertEmailHtml({
+      title: subject,
+      headline,
+      intro,
+      detailRows,
+      supportMessage
+    }),
+    notificationType,
+    metadata
+  });
+};
+
+const queueEmployeeSignupDecisionEmail = async ({
+  organizationId,
+  organizationName,
+  to,
+  username,
+  decision,
+  reason = ''
+}) => {
+  const normalizedDecision = String(decision || '')
+    .trim()
+    .toLowerCase();
+  const normalizedUsername = String(username || '').trim() || 'there';
+  const normalizedEmail = normalizeEmailInput(to);
+
+  if (!normalizedEmail) {
+    return;
+  }
+
+  if (normalizedDecision === 'approved') {
+    const message = [
+      `Hi ${normalizedUsername},`,
+      '',
+      `Your Inventra signup request for ${organizationName || 'your organization'} was approved.`,
+      'You can now sign in with your username and password.',
+      buildEmailActionHint(
+        'If you did not request this account, contact an administrator.'
+      )
+    ].join('\n');
+
+    await queueAuthEmail({
+      organizationId,
+      to: normalizedEmail,
+      subject: 'Your Inventra signup request was approved',
+      message,
+      html: buildEmployeeSignupDecisionEmailHtml({
+        title: 'Your Inventra signup request was approved',
+        username: normalizedUsername,
+        organizationName: organizationName || 'your organization',
+        decision: 'approved'
+      }),
+      notificationType: 'EMPLOYEE_SIGNUP_APPROVED',
+      metadata: {
+        organizationName: organizationName || null,
+        username: normalizedUsername
+      }
+    });
+    return;
+  }
+
+  const message = [
+    `Hi ${normalizedUsername},`,
+    '',
+    `Your Inventra signup request for ${organizationName || 'your organization'} was declined.`,
+    reason
+      ? `Reason: ${reason}`
+      : 'Contact an administrator if you need access.',
+    buildEmailActionHint(
+      'If you believe this is an error, contact the workspace administrator.'
+    )
+  ].join('\n');
+
+  await queueAuthEmail({
+    organizationId,
+    to: normalizedEmail,
+    subject: 'Your Inventra signup request was declined',
+    message,
+    html: buildEmployeeSignupDecisionEmailHtml({
+      title: 'Your Inventra signup request was declined',
+      username: normalizedUsername,
+      organizationName: organizationName || 'your organization',
+      decision: 'declined',
+      reason
+    }),
+    notificationType: 'EMPLOYEE_SIGNUP_DECLINED',
+    metadata: {
+      organizationName: organizationName || null,
+      username: normalizedUsername,
+      reason: reason || null
+    }
+  });
+};
+
+const buildSyntheticAuditRequest = ({
+  reviewedByUserId,
+  organizationId,
+  path
+}) => ({
+  user: reviewedByUserId
+    ? { _id: reviewedByUserId, organization: organizationId }
+    : null,
+  organizationId,
+  method: 'GET',
+  originalUrl: path,
+  headers: {
+    'user-agent': 'Inventra email action'
+  }
+});
+
+const reviewEmployeeSignupRequestInternal = async ({
+  organizationId,
+  requestId,
+  decision,
+  reviewedByUserId = null,
+  reason = '',
+  auditRequest = null
+}) => {
+  const normalizedDecision = String(decision || '')
+    .trim()
+    .toLowerCase();
+  if (!organizationId || !requestId) {
+    throw new AppError('organization and request id are required', 400);
+  }
+  if (!['approve', 'decline'].includes(normalizedDecision)) {
+    throw new AppError('decision must be approve or decline', 400);
+  }
+
+  if (normalizedDecision === 'approve') {
+    const signupRequest = await EmployeeSignupRequest.findOne({
+      _id: requestId,
+      organization: organizationId,
+      status: 'PENDING'
+    }).select('+passwordHash');
+
+    if (!signupRequest) {
+      throw new AppError('Signup request not found', 404);
+    }
+
+    const [existingByEmail, existingByUsername] = await Promise.all([
+      User.findOne({ email: signupRequest.email }).select('_id').lean(),
+      User.findOne({ username: signupRequest.username }).select('_id').lean()
+    ]);
+
+    if (existingByEmail || existingByUsername) {
+      throw new AppError(
+        'A user with this email or username already exists',
+        409
+      );
+    }
+
+    const organizationSettings = await OrganizationSettings.findOne({
+      organization: organizationId
+    })
+      .select('userAccess.defaultEmployeeRole')
+      .lean();
+
+    const defaultEmployeeRole =
+      organizationSettings?.userAccess?.defaultEmployeeRole === 'manager'
+        ? 'manager'
+        : 'staff';
+
+    const createdUser = await User.create({
+      email: signupRequest.email,
+      mobileNumber: signupRequest.mobileNumber || null,
+      username: signupRequest.username,
+      password: signupRequest.passwordHash,
+      role: defaultEmployeeRole,
+      organization: organizationId,
+      isVerified: true,
+      isActive: true
+    });
+
+    signupRequest.status = 'APPROVED';
+    signupRequest.reviewedBy = reviewedByUserId || null;
+    signupRequest.reviewedAt = new Date();
+    signupRequest.declineReason = null;
+    await signupRequest.save();
+
+    const organization = await resolveOrganizationPayloadById(organizationId);
+
+    await createInAppNotification({
+      organizationId,
+      actorUserId: reviewedByUserId || null,
+      type: 'employee_signup_approved',
+      title: 'Employee signup approved',
+      message: `${signupRequest.username} was approved and can now sign in.`,
+      severity: 'info',
+      entityType: 'EMPLOYEE_SIGNUP_REQUEST',
+      entityId: signupRequest._id,
+      metadata: {
+        signupRequestId: signupRequest._id,
+        userId: createdUser._id,
+        email: signupRequest.email,
+        mobileNumber: signupRequest.mobileNumber || null,
+        username: signupRequest.username,
+        status: signupRequest.status
+      }
+    });
+
+    await queueEmployeeSignupDecisionEmail({
+      organizationId,
+      organizationName: organization?.name || 'your organization',
+      to: signupRequest.email,
+      username: signupRequest.username,
+      decision: 'approved'
+    });
+
+    await logAudit({
+      req:
+        auditRequest ||
+        buildSyntheticAuditRequest({
+          reviewedByUserId,
+          organizationId,
+          path: `/auth/employee/signup-requests/${requestId}/approve`
+        }),
+      action: 'EMPLOYEE_SIGNUP_REQUEST_APPROVE',
+      resource: 'AUTH',
+      resourceId: signupRequest._id,
+      organizationId,
+      meta: {
+        username: signupRequest.username,
+        email: signupRequest.email,
+        mobileNumber: signupRequest.mobileNumber || null,
+        userId: createdUser._id
+      }
+    });
+
+    return {
+      requestId: signupRequest._id,
+      status: signupRequest.status,
+      userId: createdUser._id,
+      username: createdUser.username,
+      organization,
+      signupRequest
+    };
+  }
+
+  const signupRequest = await EmployeeSignupRequest.findOne({
+    _id: requestId,
+    organization: organizationId,
+    status: 'PENDING'
+  });
+
+  if (!signupRequest) {
+    throw new AppError('Signup request not found', 404);
+  }
+
+  signupRequest.status = 'DECLINED';
+  signupRequest.reviewedBy = reviewedByUserId || null;
+  signupRequest.reviewedAt = new Date();
+  signupRequest.declineReason = reason || null;
+  await signupRequest.save();
+
+  const organization = await resolveOrganizationPayloadById(organizationId);
+
+  await createInAppNotification({
+    organizationId,
+    actorUserId: reviewedByUserId || null,
+    type: 'employee_signup_declined',
+    title: 'Employee signup declined',
+    message: `${signupRequest.username} signup request was declined.`,
+    severity: 'warning',
+    entityType: 'EMPLOYEE_SIGNUP_REQUEST',
+    entityId: signupRequest._id,
+    metadata: {
+      signupRequestId: signupRequest._id,
+      email: signupRequest.email,
+      username: signupRequest.username,
+      status: signupRequest.status,
+      reason: reason || null
+    }
+  });
+
+  await queueEmployeeSignupDecisionEmail({
+    organizationId,
+    organizationName: organization?.name || 'your organization',
+    to: signupRequest.email,
+    username: signupRequest.username,
+    decision: 'declined',
+    reason
+  });
+
+  await logAudit({
+    req:
+      auditRequest ||
+      buildSyntheticAuditRequest({
+        reviewedByUserId,
+        organizationId,
+        path: `/auth/employee/signup-requests/${requestId}/decline`
+      }),
+    action: 'EMPLOYEE_SIGNUP_REQUEST_DECLINE',
+    resource: 'AUTH',
+    resourceId: signupRequest._id,
+    organizationId,
+    meta: {
+      username: signupRequest.username,
+      email: signupRequest.email,
+      reason: reason || null
+    }
+  });
+
+  return {
+    requestId: signupRequest._id,
+    status: signupRequest.status,
+    organization,
+    signupRequest
+  };
+};
+
+const sendEmployeeSignupEmailActionPage = ({
+  res,
+  statusCode = 200,
+  title,
+  message,
+  status = 'info',
+  metaRows = [],
+  primaryActionHref = '',
+  primaryActionLabel = '',
+  secondaryActionHref = '',
+  secondaryActionLabel = '',
+  footerNote = ''
+}) =>
+  res.status(statusCode).type('html').send(
+    buildEmailActionPage({
+      title,
+      message,
+      status,
+      metaRows,
+      primaryActionHref,
+      primaryActionLabel,
+      secondaryActionHref,
+      secondaryActionLabel,
+      footerNote
+    })
+  );
 
 const resolveOrganizationByName = async (companyName) => {
   const normalizedCompanyName = normalizeOrganizationNameInput(companyName);
@@ -964,6 +2112,9 @@ export const requestEmployeeSignup = async (req, res, next) => {
       req.body?.companyName || req.body?.organizationName
     );
     const normalizedEmail = normalizeEmailInput(req.body?.email);
+    const normalizedMobileNumber = normalizeMobileNumberInput(
+      req.body?.mobileNumber
+    );
     const normalizedPassword = String(req.body?.password || '').trim();
     const normalizedConfirmPassword = String(
       req.body?.confirmPassword || ''
@@ -981,6 +2132,14 @@ export const requestEmployeeSignup = async (req, res, next) => {
         'companyName, email, username, password, and confirmPassword are required',
         400
       );
+    }
+
+    if (
+      req.body?.mobileNumber !== undefined &&
+      normalizedMobileNumber &&
+      !isValidMobileNumber(normalizedMobileNumber)
+    ) {
+      throw new AppError('mobileNumber must be a valid phone number', 400);
     }
 
     if (normalizedPassword.length < 8) {
@@ -1044,6 +2203,7 @@ export const requestEmployeeSignup = async (req, res, next) => {
     const signupRequest = await EmployeeSignupRequest.create({
       organization: organization._id,
       email: normalizedEmail,
+      mobileNumber: normalizedMobileNumber || null,
       username: normalizedUsername,
       passwordHash,
       requestedByIp: getRequestIpAddress(req),
@@ -1066,10 +2226,24 @@ export const requestEmployeeSignup = async (req, res, next) => {
       metadata: {
         signupRequestId: signupRequest._id,
         email: normalizedEmail,
+        mobileNumber: normalizedMobileNumber || null,
         username: normalizedUsername,
         companyName: organization.name,
         status: signupRequest.status
       }
+    });
+
+    await notifyAdminsOfEmployeeAuthEvent({
+      organizationId: organization._id,
+      actorUserId: null,
+      eventType: 'employee_signup_request',
+      signupRequestId: signupRequest._id,
+      publicApiBaseUrl: resolvePublicApiBaseUrl(req),
+      organizationName: organization.name,
+      employeeEmail: normalizedEmail,
+      employeeUsername: normalizedUsername,
+      employeeRole: 'pending',
+      employeeMobileNumber: normalizedMobileNumber || null
     });
 
     await logAudit({
@@ -1080,6 +2254,7 @@ export const requestEmployeeSignup = async (req, res, next) => {
       organizationId: organization._id,
       meta: {
         email: normalizedEmail,
+        mobileNumber: normalizedMobileNumber || null,
         username: normalizedUsername
       }
     });
@@ -1103,97 +2278,21 @@ export const approveEmployeeSignupRequest = async (req, res, next) => {
     const organizationId = req.organizationId || req.user?.organization || null;
     const requestId = String(req.params?.id || '').trim();
 
-    if (!organizationId || !requestId) {
-      throw new AppError('organization and request id are required', 400);
-    }
-
-    const signupRequest = await EmployeeSignupRequest.findOne({
-      _id: requestId,
-      organization: organizationId,
-      status: 'PENDING'
-    }).select('+passwordHash');
-
-    if (!signupRequest) {
-      throw new AppError('Signup request not found', 404);
-    }
-
-    const [existingByEmail, existingByUsername] = await Promise.all([
-      User.findOne({ email: signupRequest.email }).select('_id').lean(),
-      User.findOne({ username: signupRequest.username }).select('_id').lean()
-    ]);
-
-    if (existingByEmail || existingByUsername) {
-      throw new AppError(
-        'A user with this email or username already exists',
-        409
-      );
-    }
-
-    const organizationSettings = await OrganizationSettings.findOne({
-      organization: organizationId
-    })
-      .select('userAccess.defaultEmployeeRole')
-      .lean();
-
-    const defaultEmployeeRole =
-      organizationSettings?.userAccess?.defaultEmployeeRole === 'manager'
-        ? 'manager'
-        : 'staff';
-
-    const createdUser = await User.create({
-      email: signupRequest.email,
-      username: signupRequest.username,
-      password: signupRequest.passwordHash,
-      role: defaultEmployeeRole,
-      organization: organizationId,
-      isVerified: true,
-      isActive: true
-    });
-
-    signupRequest.status = 'APPROVED';
-    signupRequest.reviewedBy = req.user?._id || null;
-    signupRequest.reviewedAt = new Date();
-    signupRequest.declineReason = null;
-    await signupRequest.save();
-
-    await createInAppNotification({
+    const result = await reviewEmployeeSignupRequestInternal({
       organizationId,
-      actorUserId: req.user?._id || null,
-      type: 'employee_signup_approved',
-      title: 'Employee signup approved',
-      message: `${signupRequest.username} was approved and can now sign in.`,
-      severity: 'info',
-      entityType: 'EMPLOYEE_SIGNUP_REQUEST',
-      entityId: signupRequest._id,
-      metadata: {
-        signupRequestId: signupRequest._id,
-        userId: createdUser._id,
-        email: signupRequest.email,
-        username: signupRequest.username,
-        status: signupRequest.status
-      }
-    });
-
-    await logAudit({
-      req,
-      action: 'EMPLOYEE_SIGNUP_REQUEST_APPROVE',
-      resource: 'AUTH',
-      resourceId: signupRequest._id,
-      organizationId,
-      meta: {
-        username: signupRequest.username,
-        email: signupRequest.email,
-        userId: createdUser._id
-      }
+      requestId,
+      decision: 'approve',
+      reviewedByUserId: req.user?._id || null,
+      auditRequest: req
     });
 
     return successResponse(
       res,
       {
-        requestId: signupRequest._id,
-        status: signupRequest.status,
-        userId: createdUser._id,
-        username: createdUser.username
+        requestId: result.requestId,
+        status: result.status,
+        userId: result.userId,
+        username: result.username
       },
       'Employee signup approved'
     );
@@ -1208,66 +2307,194 @@ export const declineEmployeeSignupRequest = async (req, res, next) => {
     const requestId = String(req.params?.id || '').trim();
     const reason = String(req.body?.reason || '').trim();
 
-    if (!organizationId || !requestId) {
-      throw new AppError('organization and request id are required', 400);
-    }
-
-    const signupRequest = await EmployeeSignupRequest.findOne({
-      _id: requestId,
-      organization: organizationId,
-      status: 'PENDING'
-    });
-
-    if (!signupRequest) {
-      throw new AppError('Signup request not found', 404);
-    }
-
-    signupRequest.status = 'DECLINED';
-    signupRequest.reviewedBy = req.user?._id || null;
-    signupRequest.reviewedAt = new Date();
-    signupRequest.declineReason = reason || null;
-    await signupRequest.save();
-
-    await createInAppNotification({
+    const result = await reviewEmployeeSignupRequestInternal({
       organizationId,
-      actorUserId: req.user?._id || null,
-      type: 'employee_signup_declined',
-      title: 'Employee signup declined',
-      message: `${signupRequest.username} signup request was declined.`,
-      severity: 'warning',
-      entityType: 'EMPLOYEE_SIGNUP_REQUEST',
-      entityId: signupRequest._id,
-      metadata: {
-        signupRequestId: signupRequest._id,
-        email: signupRequest.email,
-        username: signupRequest.username,
-        status: signupRequest.status,
-        reason: reason || null
-      }
-    });
-
-    await logAudit({
-      req,
-      action: 'EMPLOYEE_SIGNUP_REQUEST_DECLINE',
-      resource: 'AUTH',
-      resourceId: signupRequest._id,
-      organizationId,
-      meta: {
-        username: signupRequest.username,
-        email: signupRequest.email,
-        reason: reason || null
-      }
+      requestId,
+      decision: 'decline',
+      reviewedByUserId: req.user?._id || null,
+      reason,
+      auditRequest: req
     });
 
     return successResponse(
       res,
       {
-        requestId: signupRequest._id,
-        status: signupRequest.status
+        requestId: result.requestId,
+        status: result.status
       },
       'Employee signup declined'
     );
   } catch (error) {
+    return next(error);
+  }
+};
+
+export const reviewEmployeeSignupRequestFromEmail = async (req, res, next) => {
+  const defaultPrimaryActionHref = APP_WEB_URL || '';
+  const defaultPrimaryActionLabel = APP_WEB_URL ? 'Open Inventra' : '';
+
+  try {
+    const token = String(req.query?.token || '').trim();
+
+    if (!token) {
+      return sendEmployeeSignupEmailActionPage({
+        res,
+        statusCode: 400,
+        title: 'Email action link missing',
+        message: 'This review link is invalid or incomplete.',
+        status: 'error',
+        primaryActionHref: defaultPrimaryActionHref,
+        primaryActionLabel: defaultPrimaryActionLabel
+      });
+    }
+
+    let tokenPayload;
+    try {
+      tokenPayload = verifyEmployeeSignupEmailActionToken(token);
+    } catch {
+      return sendEmployeeSignupEmailActionPage({
+        res,
+        statusCode: 401,
+        title: 'Email action link expired',
+        message:
+          'This approval link is invalid or has expired. Open Inventra and review the signup request from the notification panel.',
+        status: 'error',
+        primaryActionHref: defaultPrimaryActionHref,
+        primaryActionLabel: defaultPrimaryActionLabel
+      });
+    }
+
+    const reviewer = await User.findOne({
+      _id: tokenPayload.reviewerUserId,
+      organization: tokenPayload.organizationId,
+      role: { $in: Array.from(ADMIN_ROLES) },
+      isActive: true
+    })
+      .select('_id email username organization role')
+      .lean();
+
+    if (!reviewer) {
+      return sendEmployeeSignupEmailActionPage({
+        res,
+        statusCode: 403,
+        title: 'Admin access no longer valid',
+        message:
+          'This review link belongs to an account that no longer has admin access in this workspace.',
+        status: 'error',
+        primaryActionHref: defaultPrimaryActionHref,
+        primaryActionLabel: defaultPrimaryActionLabel
+      });
+    }
+
+    const existingSignupRequest = await EmployeeSignupRequest.findOne({
+      _id: tokenPayload.signupRequestId,
+      organization: tokenPayload.organizationId
+    }).lean();
+
+    if (!existingSignupRequest) {
+      return sendEmployeeSignupEmailActionPage({
+        res,
+        statusCode: 404,
+        title: 'Signup request not found',
+        message:
+          'This signup request no longer exists. Open Inventra to review current requests.',
+        status: 'warning',
+        primaryActionHref: defaultPrimaryActionHref,
+        primaryActionLabel: defaultPrimaryActionLabel
+      });
+    }
+
+    if (existingSignupRequest.status !== 'PENDING') {
+      return sendEmployeeSignupEmailActionPage({
+        res,
+        title: 'Signup request already reviewed',
+        message: `${existingSignupRequest.username || 'This account'} was already ${String(
+          existingSignupRequest.status || 'processed'
+        ).toLowerCase()}. No further action was applied.`,
+        status: 'warning',
+        metaRows: [
+          {
+            label: 'Employee email',
+            value: existingSignupRequest.email || 'n/a'
+          },
+          {
+            label: 'Username',
+            value: existingSignupRequest.username || 'n/a'
+          },
+          {
+            label: 'Current status',
+            value: existingSignupRequest.status || 'n/a'
+          }
+        ],
+        primaryActionHref: defaultPrimaryActionHref,
+        primaryActionLabel: defaultPrimaryActionLabel
+      });
+    }
+
+    const result = await reviewEmployeeSignupRequestInternal({
+      organizationId: tokenPayload.organizationId,
+      requestId: tokenPayload.signupRequestId,
+      decision: tokenPayload.action,
+      reviewedByUserId: reviewer._id,
+      reason:
+        tokenPayload.action === 'decline'
+          ? 'Declined from signed email review link'
+          : '',
+      auditRequest: buildSyntheticAuditRequest({
+        reviewedByUserId: reviewer._id,
+        organizationId: tokenPayload.organizationId,
+        path: `/auth/employee/signup-requests/review-email?token=${encodeURIComponent(
+          token
+        )}`
+      })
+    });
+
+    const actionLabel =
+      tokenPayload.action === 'approve' ? 'approved' : 'declined';
+
+    return sendEmployeeSignupEmailActionPage({
+      res,
+      title: `Signup request ${actionLabel}`,
+      message: `${result.signupRequest?.username || 'The employee'} was ${actionLabel} successfully. You can close this tab and return to Inventra.`,
+      status: 'success',
+      metaRows: [
+        {
+          label: 'Workspace',
+          value: result.organization?.name || reviewer.organization || 'n/a'
+        },
+        {
+          label: 'Employee email',
+          value: result.signupRequest?.email || 'n/a'
+        },
+        {
+          label: 'Username',
+          value: result.signupRequest?.username || 'n/a'
+        },
+        {
+          label: 'Reviewed by',
+          value: reviewer.username || reviewer.email || 'Admin'
+        }
+      ],
+      primaryActionHref: defaultPrimaryActionHref,
+      primaryActionLabel: defaultPrimaryActionLabel,
+      footerNote:
+        tokenPayload.action === 'approve'
+          ? 'The employee can now sign in with their company name, username, and password.'
+          : 'No account was created for this employee request.'
+    });
+  } catch (error) {
+    if (error instanceof AppError) {
+      return sendEmployeeSignupEmailActionPage({
+        res,
+        statusCode: error.statusCode || 400,
+        title: 'Unable to complete review',
+        message: error.message,
+        status: 'error',
+        primaryActionHref: defaultPrimaryActionHref,
+        primaryActionLabel: defaultPrimaryActionLabel
+      });
+    }
+
     return next(error);
   }
 };
@@ -1302,11 +2529,28 @@ export const updateMePreferences = async (req, res, next) => {
     }
 
     const requestedTheme = String(req.body?.uiTheme || '').trim();
-    if (!ALLOWED_UI_THEMES.has(requestedTheme)) {
+    const requestedMobileNumber = normalizeMobileNumberInput(
+      req.body?.mobileNumber
+    );
+
+    if (requestedTheme && !ALLOWED_UI_THEMES.has(requestedTheme)) {
       throw new AppError('Unsupported uiTheme value', 400);
     }
 
-    req.user.uiTheme = requestedTheme;
+    if (
+      req.body?.mobileNumber !== undefined &&
+      requestedMobileNumber &&
+      !isValidMobileNumber(requestedMobileNumber)
+    ) {
+      throw new AppError('mobileNumber must be a valid phone number', 400);
+    }
+
+    if (requestedTheme) {
+      req.user.uiTheme = requestedTheme;
+    }
+    if (req.body?.mobileNumber !== undefined) {
+      req.user.mobileNumber = requestedMobileNumber || null;
+    }
     await req.user.save();
 
     const organization = await resolveOrganizationPayloadById(
@@ -1321,7 +2565,12 @@ export const updateMePreferences = async (req, res, next) => {
       resourceId: req.user._id,
       organizationId: req.user.organization || null,
       meta: {
-        uiTheme: requestedTheme
+        ...(requestedTheme ? { uiTheme: requestedTheme } : {}),
+        ...(req.body?.mobileNumber !== undefined
+          ? {
+              mobileNumberUpdated: true
+            }
+          : {})
       }
     });
 
@@ -1410,7 +2659,7 @@ export const setupTwoFactor = async (req, res, next) => {
       user.organization
     );
     const otpAuthUrl = buildOtpAuthUri({
-      issuer: TWO_FACTOR_ISSUER || 'Ledgerly',
+      issuer: TWO_FACTOR_ISSUER || 'Inventra',
       accountName: user.email,
       base32Secret
     });
@@ -1422,7 +2671,7 @@ export const setupTwoFactor = async (req, res, next) => {
       resourceId: user._id,
       organizationId: user.organization || null,
       meta: {
-        issuer: TWO_FACTOR_ISSUER || 'Ledgerly',
+        issuer: TWO_FACTOR_ISSUER || 'Inventra',
         organizationId: organization?._id || null
       }
     });
@@ -1881,6 +3130,7 @@ export const revokeSession = async (req, res, next) => {
 
     const isCurrentSession =
       Boolean(currentToken) && String(sessionToRevoke.token) === currentToken;
+    const revokedAt = new Date().toISOString();
 
     user.refreshTokens = user.refreshTokens.filter(
       (entry) => String(entry.sessionId || '').trim() !== sessionId
@@ -1903,6 +3153,48 @@ export const revokeSession = async (req, res, next) => {
       meta: {
         sessionId,
         currentSessionRevoked: isCurrentSession
+      }
+    });
+
+    const organization = await resolveOrganizationPayloadById(
+      user.organization
+    );
+    await queueSecurityAlertEmail({
+      organizationId: user.organization || null,
+      userId: user._id,
+      to: user.email,
+      subject: 'Inventra session revoked',
+      headline: isCurrentSession
+        ? 'Your current session was revoked'
+        : 'A session was removed from your account',
+      intro: isCurrentSession
+        ? 'Your active Inventra session was revoked. Sign in again if you still need access.'
+        : 'A signed-in Inventra session was removed from your account.',
+      detailRows: [
+        {
+          label: 'Workspace',
+          value: organization?.name || 'your organization'
+        },
+        {
+          label: 'Session ID',
+          value: sessionId
+        },
+        {
+          label: 'Device',
+          value: sessionToRevoke?.deviceId || 'Unknown device'
+        },
+        {
+          label: 'Revoked at',
+          value: revokedAt
+        }
+      ],
+      supportMessage:
+        'If you did not expect this change, reset your password and review your account security settings.',
+      notificationType: 'AUTH_SESSION_REVOKED',
+      metadata: {
+        sessionId,
+        currentSessionRevoked: isCurrentSession,
+        revokedAt
       }
     });
 
@@ -1946,6 +3238,7 @@ export const logoutOtherSessions = async (req, res, next) => {
       (entry) => String(entry.token || '') === currentToken
     );
     const removedCount = Math.max(0, previousCount - user.refreshTokens.length);
+    const clearedAt = new Date().toISOString();
 
     if (shapeChanged || removedCount > 0) {
       await user.save();
@@ -1961,6 +3254,42 @@ export const logoutOtherSessions = async (req, res, next) => {
         removedCount
       }
     });
+
+    if (removedCount > 0) {
+      const organization = await resolveOrganizationPayloadById(
+        user.organization
+      );
+      await queueSecurityAlertEmail({
+        organizationId: user.organization || null,
+        userId: user._id,
+        to: user.email,
+        subject: 'Inventra other sessions signed out',
+        headline: 'Other sessions were signed out',
+        intro:
+          'All other Inventra sessions for your account were removed. Your current session remains active.',
+        detailRows: [
+          {
+            label: 'Workspace',
+            value: organization?.name || 'your organization'
+          },
+          {
+            label: 'Sessions removed',
+            value: String(removedCount)
+          },
+          {
+            label: 'Completed at',
+            value: clearedAt
+          }
+        ],
+        supportMessage:
+          'If you did not trigger this action, change your password immediately.',
+        notificationType: 'AUTH_SESSIONS_CLEARED',
+        metadata: {
+          removedCount,
+          clearedAt
+        }
+      });
+    }
 
     return successResponse(
       res,
@@ -1978,6 +3307,18 @@ export const logout = async (req, res, next) => {
   try {
     const cookieToken = req.cookies.refreshToken;
     let user = req.user || null;
+
+    if (!user) {
+      const accessToken = extractBearerAccessToken(req);
+      if (accessToken) {
+        try {
+          const decoded = verifyAccessToken(accessToken);
+          user = await User.findById(decoded.id);
+        } catch {
+          user = null;
+        }
+      }
+    }
 
     if (!user && cookieToken) {
       try {
@@ -1997,6 +3338,45 @@ export const logout = async (req, res, next) => {
 
     clearRefreshCookie(res);
 
+    if (
+      user &&
+      !ADMIN_ROLES.has(
+        String(user.role || '')
+          .trim()
+          .toLowerCase()
+      ) &&
+      user.organization
+    ) {
+      try {
+        const organization = await resolveOrganizationPayloadById(
+          user.organization
+        );
+
+        await createInAppNotification({
+          organizationId: user.organization,
+          actorUserId: user._id,
+          type: 'employee_signout',
+          title: 'Employee signed out',
+          message: `${user.email} signed out of ${organization?.name || 'organization'}.`,
+          severity: 'info',
+          entityType: 'USER',
+          entityId: user._id,
+          metadata: {
+            email: user.email,
+            username: user.username || null,
+            role: user.role,
+            organizationName: organization?.name || null
+          }
+        });
+      } catch (notificationError) {
+        logger.warn('employee_signout_alert_failed', {
+          userId: String(user._id || ''),
+          organizationId: String(user.organization || ''),
+          err: notificationError
+        });
+      }
+    }
+
     await logAudit({
       req,
       action: 'LOGOUT',
@@ -2014,6 +3394,9 @@ export const logout = async (req, res, next) => {
 export const register = async (req, res, next) => {
   try {
     const normalizedEmail = normalizeEmailInput(req.body?.email);
+    const normalizedMobileNumber = normalizeMobileNumberInput(
+      req.body?.mobileNumber
+    );
     const requestedUsername = req.body?.username;
     const normalizedPassword = String(req.body?.password || '').trim();
     const normalizedConfirmPassword = String(
@@ -2040,6 +3423,14 @@ export const register = async (req, res, next) => {
 
     if (!normalizedOrganizationName) {
       throw new AppError('organizationName is required', 400);
+    }
+
+    if (
+      req.body?.mobileNumber !== undefined &&
+      normalizedMobileNumber &&
+      !isValidMobileNumber(normalizedMobileNumber)
+    ) {
+      throw new AppError('mobileNumber must be a valid phone number', 400);
     }
 
     const existingUser = await User.findOne({ email: normalizedEmail });
@@ -2080,6 +3471,7 @@ export const register = async (req, res, next) => {
 
     const user = await User.create({
       email: normalizedEmail,
+      mobileNumber: normalizedMobileNumber || null,
       username: normalizedUsername,
       password: normalizedPassword,
       role: 'admin',
@@ -2114,7 +3506,7 @@ export const register = async (req, res, next) => {
         `Hi ${normalizedEmail},`,
         '',
         `Welcome to ${organization.name}.`,
-        `Use this verification token to activate your Ledgerly account: ${verificationToken}`,
+        `Use this verification token to activate your Inventra account: ${verificationToken}`,
         'This token expires in 24 hours.',
         buildEmailActionHint(
           'If you did not create this account, ignore this message.'
@@ -2125,8 +3517,21 @@ export const register = async (req, res, next) => {
         organizationId: organization._id,
         userId: user._id,
         to: normalizedEmail,
-        subject: 'Verify your Ledgerly account',
+        subject: 'Verify your Inventra account',
         message: verificationMessage,
+        html: buildAuthTokenEmailHtml({
+          title: 'Verify your Inventra account',
+          eyebrow: 'Inventra verification',
+          headline: 'Verify your account',
+          intro: `Hi ${normalizedEmail}, use this verification token to activate your Inventra account.`,
+          recipientLabel: normalizedEmail,
+          organizationName: organization.name,
+          tokenLabel: 'Verification token',
+          tokenValue: verificationToken,
+          expiresText: '24 hours',
+          supportMessage:
+            'If you did not create this account, ignore this message.'
+        }),
         notificationType: 'AUTH_EMAIL_VERIFICATION',
         metadata: {
           organizationName: organization.name,
@@ -2146,6 +3551,7 @@ export const register = async (req, res, next) => {
         organizationName: organization.name,
         organizationCode: organization.code,
         username: normalizedUsername,
+        mobileNumberProvided: Boolean(normalizedMobileNumber),
         verificationRequired
       }
     });
@@ -2222,7 +3628,7 @@ export const requestEmailVerification = async (req, res, next) => {
     const verificationMessage = [
       `Hi ${normalizedEmail},`,
       '',
-      `Use this verification token to verify your Ledgerly account: ${verificationToken}`,
+      `Use this verification token to verify your Inventra account: ${verificationToken}`,
       'This token expires in 24 hours.',
       buildEmailActionHint('If you did not request this, ignore this message.')
     ].join('\n');
@@ -2231,8 +3637,20 @@ export const requestEmailVerification = async (req, res, next) => {
       organizationId: user.organization || null,
       userId: user._id,
       to: normalizedEmail,
-      subject: 'Ledgerly email verification token',
+      subject: 'Inventra email verification token',
       message: verificationMessage,
+      html: buildAuthTokenEmailHtml({
+        title: 'Inventra email verification token',
+        eyebrow: 'Inventra verification',
+        headline: 'Verify your account',
+        intro: `Hi ${normalizedEmail}, use this verification token to verify your Inventra account.`,
+        recipientLabel: normalizedEmail,
+        organizationName: organization?.name || 'your organization',
+        tokenLabel: 'Verification token',
+        tokenValue: verificationToken,
+        expiresText: '24 hours',
+        supportMessage: 'If you did not request this, ignore this message.'
+      }),
       notificationType: 'AUTH_EMAIL_VERIFICATION',
       metadata: {
         organizationName: organization?.name || null,
@@ -2328,7 +3746,7 @@ export const forgotPassword = async (req, res, next) => {
     const resetMessage = [
       `Hi ${normalizedEmail},`,
       '',
-      `Use this password reset token for your Ledgerly account: ${resetToken}`,
+      `Use this password reset token for your Inventra account: ${resetToken}`,
       'This token expires in 1 hour.',
       buildEmailActionHint('If you did not request this, ignore this message.')
     ].join('\n');
@@ -2337,8 +3755,21 @@ export const forgotPassword = async (req, res, next) => {
       organizationId: user.organization || null,
       userId: user._id,
       to: normalizedEmail,
-      subject: 'Ledgerly password reset token',
+      subject: 'Inventra password reset token',
       message: resetMessage,
+      html: buildAuthTokenEmailHtml({
+        title: 'Inventra password reset token',
+        eyebrow: 'Inventra security',
+        headline: 'Reset your password',
+        intro: `Hi ${normalizedEmail}, use this token to reset your Inventra password.`,
+        recipientLabel: normalizedEmail,
+        organizationName: organization?.name || 'your organization',
+        tokenLabel: 'Password reset token',
+        tokenValue: resetToken,
+        expiresText: '1 hour',
+        supportMessage:
+          'If you did not request this password reset, ignore this message.'
+      }),
       notificationType: 'AUTH_PASSWORD_RESET',
       metadata: {
         organizationName: organization?.name || null,
@@ -2413,6 +3844,41 @@ export const resetPassword = async (req, res, next) => {
     user.passwordResetExpiresAt = null;
     user.refreshTokens = [];
     await user.save();
+
+    const organization = await resolveOrganizationPayloadById(
+      user.organization
+    );
+    const changedAt = new Date().toISOString();
+    await queueSecurityAlertEmail({
+      organizationId: user.organization || null,
+      userId: user._id,
+      to: normalizedEmail,
+      subject: 'Inventra password changed',
+      headline: 'Your password was changed',
+      intro:
+        'Your Inventra password was updated successfully and all previous sessions were signed out.',
+      detailRows: [
+        {
+          label: 'Email',
+          value: normalizedEmail
+        },
+        {
+          label: 'Workspace',
+          value: organization?.name || 'your organization'
+        },
+        {
+          label: 'Changed at',
+          value: changedAt
+        }
+      ],
+      supportMessage:
+        'If you did not make this change, reset your password again immediately and contact a workspace administrator.',
+      notificationType: 'AUTH_PASSWORD_CHANGED',
+      metadata: {
+        organizationName: organization?.name || null,
+        changedAt
+      }
+    });
 
     return successResponse(res, null, 'Password reset successfully');
   } catch (err) {

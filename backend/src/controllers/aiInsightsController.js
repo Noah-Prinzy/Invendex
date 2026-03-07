@@ -57,7 +57,8 @@ export const getSupplierReliability = async (req, res, next) => {
   try {
     const data = await getSupplierReliabilityScores({
       organizationId: req.organizationId,
-      lookbackDays: req.query.days || 180
+      lookbackDays: req.query.days || 180,
+      warehouseId: req.query.warehouseId || null
     });
 
     return successResponse(res, data, 'Supplier reliability scoring generated');

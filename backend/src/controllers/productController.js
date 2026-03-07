@@ -1,4 +1,5 @@
 import Product from '../models/Product.js';
+import Inventory from '../models/Inventory.js';
 import ReorderAlert from '../models/ReorderAlert.js';
 import OrganizationSettings from '../models/OrganizationSettings.js';
 import { successResponse } from '../utils/response.js';
@@ -155,6 +156,69 @@ const getLastStockMovementDate = (product) => {
   return null;
 };
 
+const toObjectIdOrNull = (value) => {
+  const normalized = String(value || '').trim();
+  if (!normalized || !mongoose.Types.ObjectId.isValid(normalized)) {
+    return null;
+  }
+  return new mongoose.Types.ObjectId(normalized);
+};
+
+const buildWarehouseScopedStockMap = async ({
+  organizationId,
+  warehouseId,
+  productIds = []
+}) => {
+  const warehouseObjectId = toObjectIdOrNull(warehouseId);
+  if (!warehouseObjectId) {
+    return new Map();
+  }
+
+  const match = {
+    organization: toObjectIdOrNull(organizationId) || organizationId,
+    warehouse: warehouseObjectId
+  };
+
+  if (Array.isArray(productIds) && productIds.length) {
+    match.product = {
+      $in: productIds
+        .map((productId) => toObjectIdOrNull(productId))
+        .filter(Boolean)
+    };
+  }
+
+  const rows = await Inventory.find(match)
+    .select('product quantityOnHand')
+    .lean();
+
+  return new Map(
+    rows.map((row) => [
+      String(row.product || ''),
+      Number(row.quantityOnHand || 0)
+    ])
+  );
+};
+
+const applyWarehouseScopedStockToProducts = (products = [], stockMap = null) =>
+  products.map((product) => {
+    if (!stockMap) {
+      return {
+        ...product,
+        stock: Number(product?.stock || 0)
+      };
+    }
+
+    const productId = String(product?._id || product?.id || '').trim();
+    const stock = stockMap?.has(productId)
+      ? Number(stockMap.get(productId) || 0)
+      : 0;
+
+    return {
+      ...product,
+      stock
+    };
+  });
+
 const assertParentProductIfProvided = async ({
   organizationId,
   parentProductId,
@@ -241,7 +305,22 @@ export const getProducts = async (req, res, next) => {
     }
 
     const products = await Product.find(filter).sort({ createdAt: -1 });
-    return successResponse(res, products, 'Products fetched');
+    const warehouseId = String(req.query?.warehouseId || '').trim();
+
+    if (!warehouseId) {
+      return successResponse(res, products, 'Products fetched');
+    }
+
+    const stockMap = await buildWarehouseScopedStockMap({
+      organizationId: req.organizationId,
+      warehouseId,
+      productIds: products.map((product) => product._id)
+    });
+    const scopedProducts = applyWarehouseScopedStockToProducts(
+      products.map((product) => product.toObject()),
+      stockMap
+    );
+    return successResponse(res, scopedProducts, 'Products fetched');
   } catch (err) {
     next(err);
   }
@@ -721,6 +800,30 @@ export const adjustProductStock = async (req, res, next) => {
 
 export const getLowStockProducts = async (req, res, next) => {
   try {
+    const warehouseId = String(req.query?.warehouseId || '').trim();
+    if (warehouseId) {
+      const products = await Product.find({
+        organization: req.organizationId,
+        isActive: true
+      }).lean();
+
+      const stockMap = await buildWarehouseScopedStockMap({
+        organizationId: req.organizationId,
+        warehouseId,
+        productIds: products.map((product) => product._id)
+      });
+
+      const scopedProducts = applyWarehouseScopedStockToProducts(
+        products,
+        stockMap
+      ).filter(
+        (product) =>
+          Number(product.stock || 0) <= Number(product.lowStockThreshold || 0)
+      );
+
+      return successResponse(res, scopedProducts, 'Low stock products fetched');
+    }
+
     const products = await Product.find({
       organization: req.organizationId,
       isActive: true,
@@ -735,6 +838,36 @@ export const getLowStockProducts = async (req, res, next) => {
 
 export const getLowStockSummary = async (req, res, next) => {
   try {
+    const warehouseId = String(req.query?.warehouseId || '').trim();
+    if (warehouseId) {
+      const products = await Product.find({
+        organization: req.organizationId,
+        isActive: true
+      })
+        .select('sku lowStockThreshold')
+        .lean();
+
+      const stockMap = await buildWarehouseScopedStockMap({
+        organizationId: req.organizationId,
+        warehouseId,
+        productIds: products.map((product) => product._id)
+      });
+
+      const summary = products
+        .map((product) => {
+          const stock = Number(stockMap.get(String(product._id)) || 0);
+          return {
+            sku: product.sku,
+            stock,
+            lowStockThreshold: Number(product.lowStockThreshold || 0),
+            isLow: stock <= Number(product.lowStockThreshold || 0)
+          };
+        })
+        .filter((row) => row.isLow);
+
+      return successResponse(res, summary, 'Low stock summary fetched');
+    }
+
     const summary = await Product.aggregate([
       { $match: { isActive: true } },
       {
@@ -766,7 +899,19 @@ export const getInventoryHealthOverview = async (req, res, next) => {
       isActive: true
     }).lean();
 
-    const overview = products.map((p) => ({
+    const warehouseId = String(req.query?.warehouseId || '').trim();
+    const stockMap = warehouseId
+      ? await buildWarehouseScopedStockMap({
+          organizationId: req.organizationId,
+          warehouseId,
+          productIds: products.map((product) => product._id)
+        })
+      : null;
+
+    const overview = applyWarehouseScopedStockToProducts(
+      products,
+      stockMap
+    ).map((p) => ({
       sku: p.sku,
       stock: p.stock,
       status:
@@ -785,6 +930,7 @@ export const getInventoryHealthOverview = async (req, res, next) => {
 
 export const getInventoryHealthScore = async (req, res, next) => {
   try {
+    const warehouseId = String(req.query?.warehouseId || '').trim();
     const [products, settings, activeAlertsCount] = await Promise.all([
       Product.find({
         organization: req.organizationId,
@@ -801,17 +947,30 @@ export const getInventoryHealthScore = async (req, res, next) => {
         .lean(),
       ReorderAlert.countDocuments({
         organization: req.organizationId,
+        ...(warehouseId ? { warehouse: warehouseId } : {}),
         resolved: false,
         status: 'ACTIVE'
       })
     ]);
+
+    const stockMap = warehouseId
+      ? await buildWarehouseScopedStockMap({
+          organizationId: req.organizationId,
+          warehouseId,
+          productIds: products.map((product) => product._id)
+        })
+      : null;
+    const scopedProducts = applyWarehouseScopedStockToProducts(
+      products,
+      stockMap
+    );
 
     const deadStockDays = Math.max(
       1,
       Number(settings?.inventory?.deadStockThresholdDays || 90)
     );
 
-    if (!products.length) {
+    if (!scopedProducts.length) {
       return successResponse(
         res,
         {
@@ -841,7 +1000,7 @@ export const getInventoryHealthScore = async (req, res, next) => {
     let stockoutCount = 0;
     let staleStockCount = 0;
 
-    for (const product of products) {
+    for (const product of scopedProducts) {
       const stock = Number(product?.stock || 0);
       const threshold = Number(product?.lowStockThreshold || 0);
 
@@ -864,7 +1023,7 @@ export const getInventoryHealthScore = async (req, res, next) => {
       }
     }
 
-    const totalProducts = products.length;
+    const totalProducts = scopedProducts.length;
     const lowStockRatio = lowStockCount / totalProducts;
     const stockoutRatio = stockoutCount / totalProducts;
     const staleStockRatio = staleStockCount / totalProducts;

@@ -1,9 +1,8 @@
-const CACHE_NAME = 'ledgerly-shell-v4';
+const CACHE_NAME = 'inventra-shell-v7';
 const OFFLINE_URLS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
-  '/favicon.ico',
   '/favicon-16.png',
   '/favicon-32.png',
   '/favicon-48.png',

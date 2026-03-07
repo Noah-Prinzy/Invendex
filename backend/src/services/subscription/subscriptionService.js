@@ -5,6 +5,10 @@ export const DEFAULT_PLAN_CODE = 'FREE';
 
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(['TRIALING', 'ACTIVE']);
 const SUBSCRIPTION_CACHE_TTL_MS = 60 * 1000;
+let organizationSubscriptionIndexReadyPromise = null;
+const ORGANIZATION_SUBSCRIPTION_UNIQUE_INDEX =
+  'organization_unique_subscription';
+const LEGACY_ORGANIZATION_SUBSCRIPTION_INDEX = 'organization_1';
 
 const normalizePlanCode = (value) =>
   String(value || DEFAULT_PLAN_CODE)
@@ -14,6 +18,68 @@ const normalizePlanCode = (value) =>
 const nowMs = () => Date.now();
 
 const effectiveSubscriptionCache = new Map();
+
+const ensureOrganizationSubscriptionIndexes = async () => {
+  if (!organizationSubscriptionIndexReadyPromise) {
+    organizationSubscriptionIndexReadyPromise = (async () => {
+      try {
+        await OrganizationSubscription.createCollection();
+      } catch (error) {
+        const codeName = String(error?.codeName || '').trim();
+        if (codeName !== 'NamespaceExists') {
+          throw error;
+        }
+      }
+
+      const indexes = await OrganizationSubscription.collection.indexes();
+      const hasUniqueOrganizationIndex = indexes.some(
+        (index) =>
+          index?.key?.organization === 1 &&
+          index?.unique === true &&
+          String(index?.name || '').trim() ===
+            ORGANIZATION_SUBSCRIPTION_UNIQUE_INDEX
+      );
+
+      if (!hasUniqueOrganizationIndex) {
+        const legacyOrganizationIndex = indexes.find(
+          (index) =>
+            index?.key?.organization === 1 &&
+            String(index?.name || '').trim() ===
+              LEGACY_ORGANIZATION_SUBSCRIPTION_INDEX &&
+            index?.unique !== true
+        );
+
+        if (legacyOrganizationIndex) {
+          await OrganizationSubscription.collection.dropIndex(
+            LEGACY_ORGANIZATION_SUBSCRIPTION_INDEX
+          );
+        }
+
+        const refreshedIndexes =
+          await OrganizationSubscription.collection.indexes();
+        const hasAnyUniqueOrganizationIndex = refreshedIndexes.some(
+          (index) => index?.key?.organization === 1 && index?.unique === true
+        );
+
+        if (!hasAnyUniqueOrganizationIndex) {
+          await OrganizationSubscription.collection.createIndex(
+            { organization: 1 },
+            {
+              unique: true,
+              background: true,
+              name: ORGANIZATION_SUBSCRIPTION_UNIQUE_INDEX
+            }
+          );
+        }
+      }
+    })().catch((error) => {
+      organizationSubscriptionIndexReadyPromise = null;
+      throw error;
+    });
+  }
+
+  return organizationSubscriptionIndexReadyPromise;
+};
 
 export const DEFAULT_PLAN_CATALOG = Object.freeze([
   {
@@ -152,19 +218,26 @@ export const getPlanByCode = async (planCode) => {
 };
 
 export const getOrCreateOrganizationSubscription = async (organizationId) => {
-  let subscription = await OrganizationSubscription.findOne({
-    organization: organizationId
-  });
-  if (subscription) return subscription;
-
-  subscription = await OrganizationSubscription.create({
-    organization: organizationId,
-    planCode: DEFAULT_PLAN_CODE,
-    status: 'ACTIVE',
-    currentPeriodStart: new Date()
-  });
-
-  return subscription;
+  await ensureOrganizationSubscriptionIndexes();
+  const now = new Date();
+  return OrganizationSubscription.findOneAndUpdate(
+    {
+      organization: organizationId
+    },
+    {
+      $setOnInsert: {
+        organization: organizationId,
+        planCode: DEFAULT_PLAN_CODE,
+        status: 'ACTIVE',
+        currentPeriodStart: now
+      }
+    },
+    {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true
+    }
+  );
 };
 
 export const getEffectiveSubscription = async (organizationId) => {

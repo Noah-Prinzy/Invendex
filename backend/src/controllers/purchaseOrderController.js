@@ -122,9 +122,15 @@ export const createPurchaseOrder = async (req, res, next) => {
  */
 export const getPurchaseOrders = async (req, res, next) => {
   try {
-    const orders = await PurchaseOrder.find({
+    const query = {
       organization: req.organizationId
-    })
+    };
+
+    if (req.query?.warehouseId) {
+      query.warehouse = req.query.warehouseId;
+    }
+
+    const orders = await PurchaseOrder.find(query)
       .sort({ createdAt: -1 })
       .populate('supplier', 'name')
       .populate('warehouse', 'name code')
@@ -345,7 +351,8 @@ export const generatePurchaseOrdersFromAlerts = async (req, res, next) => {
         entityId: order._id,
         metadata: {
           status: order.status,
-          source: order.source
+          source: order.source,
+          warehouseId: order.warehouse
         }
       });
     }

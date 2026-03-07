@@ -57,7 +57,12 @@ app.use(
   cors({
     origin: corsOriginValidator,
     credentials: true,
-    exposedHeaders: ['x-request-id', 'x-client-trace-id']
+    exposedHeaders: [
+      'x-request-id',
+      'x-client-trace-id',
+      'content-disposition',
+      'content-length'
+    ]
   })
 );
 
@@ -113,7 +118,7 @@ const mountOpenApiDocs = ({ basePath, authBasePath }) => {
 
   app.get(openApiSpecPath, (req, res) => {
     const spec = createOpenApiSpec({
-      title: 'Ledgerly API',
+      title: 'Inventra API',
       version: '1.0.0',
       apiBasePath: basePath,
       authBasePath
@@ -129,7 +134,7 @@ const mountOpenApiDocs = ({ basePath, authBasePath }) => {
       swaggerOptions: {
         url: openApiSpecPath
       },
-      customSiteTitle: `Ledgerly API Docs (${basePath})`
+      customSiteTitle: `Inventra API Docs (${basePath})`
     })
   );
 };

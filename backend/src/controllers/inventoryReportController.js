@@ -28,13 +28,19 @@ const ensureInventoryReportExportJob = (job) => {
 
 export const exportInventoryReport = async (req, res, next) => {
   try {
-    const { format = 'csv', from = null, to = null } = req.query || {};
+    const {
+      format = 'csv',
+      from = null,
+      to = null,
+      warehouseId = null
+    } = req.query || {};
 
     const report = await buildInventoryReportExport({
       organizationId: req.organizationId,
       generatedBy: req.user?._id,
       from,
       to,
+      warehouseId,
       format
     });
 
@@ -56,12 +62,14 @@ export const queueInventoryReportExport = async (req, res, next) => {
     );
     const from = req.body?.from || null;
     const to = req.body?.to || null;
+    const warehouseId = req.body?.warehouseId || null;
 
     const dedupeKey = [
       INVENTORY_REPORT_EXPORT_TYPE,
       format,
       String(from || ''),
-      String(to || '')
+      String(to || ''),
+      String(warehouseId || '')
     ].join(':');
 
     const job = await createBackgroundJob({
@@ -73,7 +81,8 @@ export const queueInventoryReportExport = async (req, res, next) => {
         reportType: INVENTORY_REPORT_EXPORT_TYPE,
         format,
         from,
-        to
+        to,
+        warehouseId
       }
     });
 

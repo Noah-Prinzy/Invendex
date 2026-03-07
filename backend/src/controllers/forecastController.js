@@ -1,4 +1,5 @@
 import InventorySnapshot from '../models/InventorySnapshot.js';
+import Inventory from '../models/Inventory.js';
 import Product from '../models/Product.js';
 import ReorderAlert from '../models/ReorderAlert.js';
 
@@ -99,6 +100,11 @@ export const generateReorderAlertsFromForecast = async (req, res, next) => {
       organization: organizationId,
       isActive: true
     });
+    const inventoryRows = await Inventory.find({
+      organization: organizationId
+    })
+      .select('product warehouse quantityOnHand')
+      .lean();
 
     const createdAlerts = [];
 
@@ -135,41 +141,51 @@ export const generateReorderAlertsFromForecast = async (req, res, next) => {
       if (adc <= 0) continue;
 
       const leadTime = product.supplierLeadTimeDays || 7;
-      const daysUntilStockOut = product.stock / adc;
-
-      // 🛑 Not urgent enough
-      if (daysUntilStockOut > leadTime + bufferDays) continue;
-
-      // 🔒 Prevent duplicates
-      const existingAlert = await ReorderAlert.findOne({
-        organization: organizationId,
-        product: product._id,
-        resolved: false
-      });
-
-      if (existingAlert) continue;
-
-      const reorderQty = Math.ceil(
-        adc * (leadTime + bufferDays) - product.stock
+      const productInventories = inventoryRows.filter(
+        (row) => String(row.product) === String(product._id)
       );
 
-      const alert = await ReorderAlert.create({
-        organization: organizationId,
-        product: product._id,
-        sku: product.sku,
-        stock: product.stock,
-        reorderLevel: reorderQty,
-        triggeredAt: new Date(),
-        source: 'system',
-        supplier: null,
-        supplierLeadTimeDays: leadTime,
-        supplierUnitCost: null,
-        metadata: {
-          confidenceScore: forecast.confidenceScore
-        }
-      });
+      for (const inventoryRow of productInventories) {
+        const currentStock = Number(inventoryRow.quantityOnHand || 0);
+        const daysUntilStockOut = currentStock / adc;
 
-      createdAlerts.push(alert);
+        // 🛑 Not urgent enough
+        if (daysUntilStockOut > leadTime + bufferDays) continue;
+
+        // 🔒 Prevent duplicates
+        const existingAlert = await ReorderAlert.findOne({
+          organization: organizationId,
+          product: product._id,
+          warehouse: inventoryRow.warehouse,
+          resolved: false
+        });
+
+        if (existingAlert) continue;
+
+        const reorderQty = Math.ceil(
+          adc * (leadTime + bufferDays) - currentStock
+        );
+
+        const alert = await ReorderAlert.create({
+          organization: organizationId,
+          product: product._id,
+          warehouse: inventoryRow.warehouse,
+          sku: product.sku,
+          stock: currentStock,
+          reorderLevel: reorderQty,
+          triggeredAt: new Date(),
+          source: 'system',
+          supplier: null,
+          supplierLeadTimeDays: leadTime,
+          supplierUnitCost: null,
+          metadata: {
+            confidenceScore: forecast.confidenceScore,
+            warehouseId: String(inventoryRow.warehouse || '')
+          }
+        });
+
+        createdAlerts.push(alert);
+      }
     }
 
     return successResponse(

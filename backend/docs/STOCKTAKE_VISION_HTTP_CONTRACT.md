@@ -1,6 +1,6 @@
 # Stocktake Vision HTTP Provider Contract
 
-When `STOCKTAKE_VISION_PROVIDER=http`, Ledgerly calls `STOCKTAKE_VISION_HTTP_URL` with:
+When `STOCKTAKE_VISION_PROVIDER=http`, Inventra calls `STOCKTAKE_VISION_HTTP_URL` with:
 
 ```json
 {
@@ -44,8 +44,8 @@ Notes:
 
 - `counts` can include `productId` or `sku` (both preferred).
 - `estimatedQuantity` must be a non-negative integer.
-- `confidence` is clamped to `[0, 1]` by Ledgerly.
-- Ledgerly applies policy gates server-side:
+- `confidence` is clamped to `[0, 1]` by Inventra.
+- Inventra applies policy gates server-side:
   - min confidence
   - max variance ratio
   - max absolute variance

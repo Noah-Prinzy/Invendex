@@ -2,6 +2,10 @@ import OrganizationFeatureFlag from '../../models/OrganizationFeatureFlag.js';
 
 const FEATURE_FLAG_CACHE_TTL_MS = 60 * 1000;
 const featureFlagCache = new Map();
+let organizationFeatureFlagIndexReadyPromise = null;
+const ORGANIZATION_FEATURE_FLAG_UNIQUE_INDEX =
+  'organization_unique_feature_flags';
+const LEGACY_ORGANIZATION_FEATURE_FLAG_INDEX = 'organization_1';
 
 const normalizeKey = (value) =>
   String(value || '')
@@ -125,21 +129,90 @@ const mapToSortedArray = (map) =>
     String(a.key || '').localeCompare(String(b.key || ''))
   );
 
-const ensureDocument = async (organizationId) => {
-  let doc = await OrganizationFeatureFlag.findOne({
-    organization: organizationId
-  });
+const ensureOrganizationFeatureFlagIndexes = async () => {
+  if (!organizationFeatureFlagIndexReadyPromise) {
+    organizationFeatureFlagIndexReadyPromise = (async () => {
+      try {
+        await OrganizationFeatureFlag.createCollection();
+      } catch (error) {
+        const codeName = String(error?.codeName || '').trim();
+        if (codeName !== 'NamespaceExists') {
+          throw error;
+        }
+      }
 
+      const indexes = await OrganizationFeatureFlag.collection.indexes();
+      const hasUniqueOrganizationIndex = indexes.some(
+        (index) =>
+          index?.key?.organization === 1 &&
+          index?.unique === true &&
+          String(index?.name || '').trim() ===
+            ORGANIZATION_FEATURE_FLAG_UNIQUE_INDEX
+      );
+
+      if (!hasUniqueOrganizationIndex) {
+        const legacyOrganizationIndex = indexes.find(
+          (index) =>
+            index?.key?.organization === 1 &&
+            String(index?.name || '').trim() ===
+              LEGACY_ORGANIZATION_FEATURE_FLAG_INDEX &&
+            index?.unique !== true
+        );
+
+        if (legacyOrganizationIndex) {
+          await OrganizationFeatureFlag.collection.dropIndex(
+            LEGACY_ORGANIZATION_FEATURE_FLAG_INDEX
+          );
+        }
+
+        const refreshedIndexes =
+          await OrganizationFeatureFlag.collection.indexes();
+        const hasAnyUniqueOrganizationIndex = refreshedIndexes.some(
+          (index) => index?.key?.organization === 1 && index?.unique === true
+        );
+
+        if (!hasAnyUniqueOrganizationIndex) {
+          await OrganizationFeatureFlag.collection.createIndex(
+            { organization: 1 },
+            {
+              unique: true,
+              background: true,
+              name: ORGANIZATION_FEATURE_FLAG_UNIQUE_INDEX
+            }
+          );
+        }
+      }
+    })().catch((error) => {
+      organizationFeatureFlagIndexReadyPromise = null;
+      throw error;
+    });
+  }
+
+  return organizationFeatureFlagIndexReadyPromise;
+};
+
+const ensureDocument = async (organizationId) => {
+  await ensureOrganizationFeatureFlagIndexes();
   const defaultEntries = DEFAULT_FEATURE_FLAGS.map((entry) =>
     cloneEntry(entry)
   );
-  if (!doc) {
-    doc = await OrganizationFeatureFlag.create({
-      organization: organizationId,
-      flags: defaultEntries
-    });
-    return doc;
-  }
+
+  const doc = await OrganizationFeatureFlag.findOneAndUpdate(
+    {
+      organization: organizationId
+    },
+    {
+      $setOnInsert: {
+        organization: organizationId,
+        flags: defaultEntries
+      }
+    },
+    {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true
+    }
+  );
 
   const merged = mergeWithDefaults(doc.flags || []);
   const normalizedExisting = mapToSortedArray(toMapFromArray(doc.flags || []));

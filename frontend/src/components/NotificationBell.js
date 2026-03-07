@@ -7,6 +7,28 @@ const formatDateTime = (value) => {
   return date.toLocaleString();
 };
 
+const resolveWarehouseLabel = (item) => {
+  const metadata =
+    item?.metadata && typeof item.metadata === 'object' ? item.metadata : {};
+
+  const warehouseCode = String(
+    item?.warehouseCode || metadata?.warehouseCode || ''
+  ).trim();
+  const warehouseName = String(
+    item?.warehouseName || metadata?.warehouseName || ''
+  ).trim();
+  const hasWarehouse =
+    String(item?.warehouseId || metadata?.warehouseId || '').trim() ||
+    warehouseCode ||
+    warehouseName;
+
+  if (!hasWarehouse) return '';
+  if (warehouseName && warehouseCode) {
+    return `${warehouseName} (${warehouseCode})`;
+  }
+  return warehouseName || warehouseCode || 'Selected warehouse';
+};
+
 const NotificationBell = ({
   count = 0,
   items = [],
@@ -118,6 +140,13 @@ const NotificationBell = ({
                     <p className="notification-item-message">
                       {String(item?.message || '')}
                     </p>
+                    {resolveWarehouseLabel(item) ? (
+                      <p className="notification-item-scope">
+                        <span className="notification-scope-pill">
+                          {resolveWarehouseLabel(item)}
+                        </span>
+                      </p>
+                    ) : null}
                     <p className="notification-item-meta">
                       {formatDateTime(item?.createdAt)} |{' '}
                       {String(item?.severity || 'info')}

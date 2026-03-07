@@ -284,7 +284,7 @@ const Account = ({
     }
 
     downloadJsonFile({
-      filename: `ledgerly-org-export-${Date.now()}.json`,
+      filename: `inventra-org-export-${Date.now()}.json`,
       data: response?.data || {}
     });
     setComplianceNotice('Organization export downloaded.');

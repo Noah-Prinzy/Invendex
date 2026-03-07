@@ -1,15 +1,62 @@
 import mongoose from 'mongoose';
 import request from 'supertest';
 import app from '../app.js';
+import BackgroundJob, {
+  BACKGROUND_JOB_STATUSES,
+  BACKGROUND_JOB_TYPES
+} from '../models/BackgroundJob.js';
 import User from '../models/User.js';
 import Organization from '../models/Organization.js';
 import EmployeeInvite from '../models/EmployeeInvite.js';
+import EmployeeSignupRequest from '../models/EmployeeSignupRequest.js';
 import { getTestDbUri } from './testDbUri.js';
 
 const originalAuthBypassValue = process.env.AUTH_TEST_BYPASS;
+const originalEmailNotificationsEnabled =
+  process.env.EMAIL_NOTIFICATIONS_ENABLED;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const waitForEmailJobsByTypeToSettle = async ({
+  notificationType,
+  expectedCount = 1,
+  maxAttempts = 50,
+  delayMs = 25
+}) => {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const jobs = await BackgroundJob.find({
+      type: BACKGROUND_JOB_TYPES.EMAIL_NOTIFICATION,
+      'payload.notificationType': notificationType
+    })
+      .sort({ createdAt: 1 })
+      .lean();
+
+    if (
+      jobs.length >= expectedCount &&
+      jobs.every(({ status }) =>
+        [
+          BACKGROUND_JOB_STATUSES.COMPLETED,
+          BACKGROUND_JOB_STATUSES.FAILED
+        ].includes(status)
+      )
+    ) {
+      return jobs;
+    }
+
+    await sleep(delayMs);
+  }
+
+  return BackgroundJob.find({
+    type: BACKGROUND_JOB_TYPES.EMAIL_NOTIFICATION,
+    'payload.notificationType': notificationType
+  })
+    .sort({ createdAt: 1 })
+    .lean();
+};
 
 beforeAll(async () => {
   process.env.AUTH_TEST_BYPASS = 'false';
+  process.env.EMAIL_NOTIFICATIONS_ENABLED = 'false';
 
   if (!process.env.JWT_ACCESS_SECRET) {
     process.env.JWT_ACCESS_SECRET = 'test_access_secret';
@@ -26,7 +73,9 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await Promise.all([
+    BackgroundJob.deleteMany({}),
     EmployeeInvite.deleteMany({}),
+    EmployeeSignupRequest.deleteMany({}),
     User.deleteMany({}),
     Organization.deleteMany({})
   ]);
@@ -34,6 +83,7 @@ beforeEach(async () => {
 
 afterAll(async () => {
   process.env.AUTH_TEST_BYPASS = originalAuthBypassValue;
+  process.env.EMAIL_NOTIFICATIONS_ENABLED = originalEmailNotificationsEnabled;
   await mongoose.connection.close();
 });
 
@@ -148,6 +198,66 @@ describe('auth e2e', () => {
     expect(revokeResponse.status).toBe(200);
     expect(revokeResponse.body?.success).toBe(true);
     expect(revokeResponse.body?.data?.currentSessionTerminated).toBe(false);
+
+    const [sessionRevokedEmailJob] = await waitForEmailJobsByTypeToSettle({
+      notificationType: 'AUTH_SESSION_REVOKED'
+    });
+    expect(sessionRevokedEmailJob?.payload?.html).toContain(
+      'session was removed from your account'
+    );
+    expect(sessionRevokedEmailJob?.payload?.html).toContain('Session ID');
+  });
+
+  it('logs out other sessions and queues a security alert email', async () => {
+    const email = 'logout-others@example.com';
+    const password = 'Password123!';
+
+    const registerResponse = await request(app).post('/auth/register').send({
+      email,
+      password,
+      confirmPassword: password,
+      organizationName: 'Logout Others Org'
+    });
+    expect(registerResponse.status).toBe(201);
+
+    const firstLogin = await request(app).post('/auth/login').send({
+      email,
+      password
+    });
+    expect(firstLogin.status).toBe(200);
+
+    const secondLogin = await request(app)
+      .post('/auth/login')
+      .set('x-device-id', 'device_keep')
+      .send({
+        email,
+        password
+      });
+    expect(secondLogin.status).toBe(200);
+
+    const accessToken = secondLogin.body?.data?.accessToken;
+    const loginCookies = secondLogin.headers['set-cookie'] || [];
+    expect(typeof accessToken).toBe('string');
+    expect(loginCookies.length).toBeGreaterThan(0);
+
+    const logoutOthersResponse = await request(app)
+      .delete('/auth/sessions/others')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Cookie', loginCookies);
+
+    expect(logoutOthersResponse.status).toBe(200);
+    expect(logoutOthersResponse.body?.success).toBe(true);
+    expect(Number(logoutOthersResponse.body?.data?.removedCount || 0)).toBe(2);
+
+    const [sessionsClearedEmailJob] = await waitForEmailJobsByTypeToSettle({
+      notificationType: 'AUTH_SESSIONS_CLEARED'
+    });
+    expect(sessionsClearedEmailJob?.payload?.html).toContain(
+      'Other sessions were signed out'
+    );
+    expect(sessionsClearedEmailJob?.payload?.html).toContain(
+      'Sessions removed'
+    );
   });
 
   it('persists uiTheme preference updates on the authenticated profile', async () => {
@@ -220,6 +330,12 @@ describe('auth e2e', () => {
     expect(forgotResponse.body?.success).toBe(true);
     expect(typeof forgotResponse.body?.data?.debugToken).toBe('string');
 
+    const [resetEmailJob] = await waitForEmailJobsByTypeToSettle({
+      notificationType: 'AUTH_PASSWORD_RESET'
+    });
+    expect(resetEmailJob?.payload?.html).toContain('Reset your password');
+    expect(resetEmailJob?.payload?.html).toContain('Password reset token');
+
     const resetResponse = await request(app).post('/auth/reset-password').send({
       email,
       token: forgotResponse.body.data.debugToken,
@@ -229,6 +345,14 @@ describe('auth e2e', () => {
 
     expect(resetResponse.status).toBe(200);
     expect(resetResponse.body?.success).toBe(true);
+
+    const [passwordChangedEmailJob] = await waitForEmailJobsByTypeToSettle({
+      notificationType: 'AUTH_PASSWORD_CHANGED'
+    });
+    expect(passwordChangedEmailJob?.payload?.html).toContain(
+      'Your password was changed'
+    );
+    expect(passwordChangedEmailJob?.payload?.html).toContain('Changed at');
 
     const oldLoginResponse = await request(app).post('/auth/login').send({
       email,
@@ -261,6 +385,18 @@ describe('auth e2e', () => {
       expect(registerResponse.status).toBe(201);
       expect(registerResponse.body?.data?.verificationRequired).toBe(true);
 
+      const [registrationVerificationJob] =
+        await waitForEmailJobsByTypeToSettle({
+          notificationType: 'AUTH_EMAIL_VERIFICATION',
+          expectedCount: 1
+        });
+      expect(registrationVerificationJob?.payload?.html).toContain(
+        'Verify your account'
+      );
+      expect(registrationVerificationJob?.payload?.html).toContain(
+        'Verification token'
+      );
+
       const loginBeforeVerify = await request(app).post('/auth/login').send({
         email,
         password
@@ -273,6 +409,17 @@ describe('auth e2e', () => {
       expect(verificationTokenResponse.status).toBe(200);
       expect(typeof verificationTokenResponse.body?.data?.debugToken).toBe(
         'string'
+      );
+
+      const verificationJobs = await waitForEmailJobsByTypeToSettle({
+        notificationType: 'AUTH_EMAIL_VERIFICATION',
+        expectedCount: 2
+      });
+      expect(verificationJobs.at(-1)?.payload?.html).toContain(
+        'Verify your account'
+      );
+      expect(verificationJobs.at(-1)?.payload?.html).toContain(
+        'Verification token'
       );
 
       const verifyResponse = await request(app)
@@ -313,6 +460,14 @@ describe('auth e2e', () => {
         email: 'employee1@example.com'
       });
     expect(createInviteResponse.status).toBe(201);
+
+    const [inviteEmailJob] = await waitForEmailJobsByTypeToSettle({
+      notificationType: 'EMPLOYEE_INVITE'
+    });
+    expect(inviteEmailJob?.payload?.html).toContain('Inventra invite');
+    expect(inviteEmailJob?.payload?.html).toContain(
+      createInviteResponse.body?.data?.inviteCode
+    );
 
     const employeeLoginWithoutInvite = await request(app)
       .post('/auth/employee/login')
@@ -385,5 +540,49 @@ describe('auth e2e', () => {
         password: 'EmployeePass123!'
       });
     expect(staffLoginFromAdminPortal.status).toBe(403);
+  });
+
+  it('stores employee signup mobile number and carries it into the approved user', async () => {
+    const registerResponse = await request(app).post('/auth/register').send({
+      email: 'admin-mobile@example.com',
+      password: 'Password123!',
+      confirmPassword: 'Password123!',
+      organizationName: 'Mobile Org'
+    });
+
+    expect(registerResponse.status).toBe(201);
+    const adminToken = registerResponse.body?.data?.accessToken;
+    const organizationId = registerResponse.body?.data?.organization?._id;
+
+    const signupResponse = await request(app)
+      .post('/auth/employee/signup')
+      .send({
+        companyName: 'Mobile Org',
+        username: 'mobile.staff',
+        email: 'mobile.staff@example.com',
+        mobileNumber: '+256700000099',
+        password: 'Password123!',
+        confirmPassword: 'Password123!'
+      });
+
+    expect(signupResponse.status).toBe(201);
+
+    const signupRequest = await EmployeeSignupRequest.findOne({
+      organization: organizationId,
+      email: 'mobile.staff@example.com'
+    }).lean();
+    expect(signupRequest?.mobileNumber).toBe('+256700000099');
+
+    const approveResponse = await request(app)
+      .post(`/auth/employee/signup-requests/${signupRequest?._id}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({});
+
+    expect(approveResponse.status).toBe(200);
+
+    const employee = await User.findOne({
+      email: 'mobile.staff@example.com'
+    }).lean();
+    expect(employee?.mobileNumber).toBe('+256700000099');
   });
 });

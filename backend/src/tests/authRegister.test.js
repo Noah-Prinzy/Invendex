@@ -31,6 +31,7 @@ describe('auth register', () => {
   it('creates organization and admin account', async () => {
     const response = await request(app).post('/auth/register').send({
       email: 'new-admin@example.com',
+      mobileNumber: '+256700000001',
       password: 'Password123!',
       confirmPassword: 'Password123!',
       organizationName: 'Northstar Logistics'
@@ -40,6 +41,7 @@ describe('auth register', () => {
     expect(response.body?.success).toBe(true);
     expect(typeof response.body?.data?.accessToken).toBe('string');
     expect(response.body?.data?.user?.email).toBe('new-admin@example.com');
+    expect(response.body?.data?.user?.mobileNumber).toBe('+256700000001');
     expect(response.body?.data?.user?.role).toBe('admin');
     expect(response.body?.data?.organization?.name).toBe('Northstar Logistics');
     expect(
@@ -54,6 +56,7 @@ describe('auth register', () => {
     }).lean();
     expect(savedUser).toBeTruthy();
     expect(savedUser.organization).toBeTruthy();
+    expect(savedUser.mobileNumber).toBe('+256700000001');
 
     const savedOrg = await Organization.findById(savedUser.organization).lean();
     expect(savedOrg).toBeTruthy();

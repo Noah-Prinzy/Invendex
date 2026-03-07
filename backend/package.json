@@ -1,8 +1,8 @@
 {
-  "name": "ledgerly-backend",
+  "name": "inventra-backend",
   "version": "1.0.0",
   "type": "module",
-  "description": "Ledgerly backend API",
+  "description": "Inventra backend API",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
@@ -19,6 +19,7 @@
     "test:inventory-intelligence": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand src/tests/serialBatchTracking.test.js src/tests/dashboardIntelligence.test.js src/tests/serialHistoryApi.test.js src/tests/operationsPolish.test.js",
     "migrate:tenant": "node scripts/migrateTenantBackfill.js",
     "migrate:financial": "node scripts/migrateFinancialBackfill.js",
+    "migrate:warehouse-scope": "node scripts/reconcileWarehouseScope.js",
     "sync:product-stock": "node scripts/syncProductStockFromInventory.js",
     "backup:snapshot": "node scripts/createSnapshotBackup.js",
     "backup:simulate-restore": "node scripts/simulateSnapshotRestore.js"

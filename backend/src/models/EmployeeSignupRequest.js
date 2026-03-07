@@ -14,6 +14,11 @@ const employeeSignupRequestSchema = new mongoose.Schema(
       lowercase: true,
       trim: true
     },
+    mobileNumber: {
+      type: String,
+      default: null,
+      trim: true
+    },
     username: {
       type: String,
       required: true,

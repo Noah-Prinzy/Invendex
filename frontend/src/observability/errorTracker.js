@@ -17,7 +17,7 @@ const provider = resolveProvider();
 const shouldSendWebhook = () => provider === 'webhook' || provider === 'both';
 
 const buildPayload = (error, context = {}) => ({
-  source: 'ledgerly-frontend',
+  source: 'inventra-frontend',
   errorName: error?.name || 'Error',
   errorMessage: error?.message || 'Unknown frontend error',
   stack: error?.stack || null,

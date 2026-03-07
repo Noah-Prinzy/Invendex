@@ -25,6 +25,13 @@ const reorderAlertSchema = new mongoose.Schema(
       index: true
     },
 
+    warehouse: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Warehouse',
+      default: null,
+      index: true
+    },
+
     sku: {
       type: String,
       required: true,
@@ -175,6 +182,7 @@ reorderAlertSchema.index(
   {
     organization: 1,
     product: 1,
+    warehouse: 1,
     triggeredAt: 1,
     resolved: 1
   },

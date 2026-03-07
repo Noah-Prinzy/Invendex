@@ -21,6 +21,7 @@ export const generatePurchaseOrdersFromAlerts = async (req, res, next) => {
 
     const alerts = await ReorderAlert.find({
       organization: organizationId,
+      warehouse,
       resolved: false,
       supplier: { $ne: null }
     }).populate('product');

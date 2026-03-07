@@ -175,6 +175,7 @@ export const getWarehouseTransferLedger = async (req, res, next) => {
   try {
     const rows = await listWarehouseTransfers({
       organizationId: req.organizationId,
+      warehouseId: req.query.warehouseId || null,
       fromWarehouseId: req.query.fromWarehouseId || null,
       toWarehouseId: req.query.toWarehouseId || null,
       productId: req.query.productId || null,

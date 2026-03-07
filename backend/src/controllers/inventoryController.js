@@ -1,4 +1,5 @@
 import InventorySnapshot from '../models/InventorySnapshot.js';
+import Inventory from '../models/Inventory.js';
 import Product from '../models/Product.js';
 import ReorderAlert from '../models/ReorderAlert.js';
 import SupplierProduct from '../models/SupplierProduct.js';
@@ -135,12 +136,19 @@ export const getReorderIntelligence = async (req, res, next) => {
 
 export const getActiveReorderAlerts = async (req, res, next) => {
   try {
-    const alerts = await ReorderAlert.find({
+    const query = {
       organization: req.organizationId,
       resolved: false
-    })
+    };
+
+    if (req.query?.warehouseId) {
+      query.warehouse = req.query.warehouseId;
+    }
+
+    const alerts = await ReorderAlert.find(query)
       .sort({ triggeredAt: -1 })
       .populate('product', 'sku name')
+      .populate('warehouse', 'name code')
       .populate('supplier', 'name');
 
     return successResponse(res, alerts, 'Active reorder alerts fetched');
@@ -151,10 +159,18 @@ export const getActiveReorderAlerts = async (req, res, next) => {
 
 export const getResolvedReorderAlerts = async (req, res, next) => {
   try {
-    const alerts = await ReorderAlert.find({
+    const query = {
       organization: req.organizationId,
       resolved: true
-    }).sort({ resolvedAt: -1 });
+    };
+
+    if (req.query?.warehouseId) {
+      query.warehouse = req.query.warehouseId;
+    }
+
+    const alerts = await ReorderAlert.find(query)
+      .sort({ resolvedAt: -1 })
+      .populate('warehouse', 'name code');
 
     return successResponse(res, alerts, 'Resolved reorder alerts fetched');
   } catch (err) {
@@ -232,7 +248,7 @@ export const getInventoryDrops = async (req, res, next) => {
  */
 export const createManualReorderAlert = async (req, res, next) => {
   try {
-    const { productId } = req.body;
+    const { productId, warehouseId = null } = req.body;
 
     const product = await Product.findOne({
       _id: productId,
@@ -249,6 +265,7 @@ export const createManualReorderAlert = async (req, res, next) => {
     const exists = await ReorderAlert.findOne({
       organization: req.organizationId,
       product: product._id,
+      ...(warehouseId ? { warehouse: warehouseId } : {}),
       resolved: false,
       triggeredAt: { $gte: startOfDay }
     });
@@ -263,11 +280,26 @@ export const createManualReorderAlert = async (req, res, next) => {
       isActive: true
     }).lean();
 
+    const inventoryRow = warehouseId
+      ? await Inventory.findOne({
+          organization: req.organizationId,
+          product: product._id,
+          warehouse: warehouseId
+        })
+          .select('quantityOnHand')
+          .lean()
+      : null;
+
+    const scopedStock = warehouseId
+      ? Number(inventoryRow?.quantityOnHand || 0)
+      : Number(product.stock || 0);
+
     const alert = await ReorderAlert.create({
       organization: req.organizationId,
       product: product._id,
+      warehouse: warehouseId,
       sku: product.sku,
-      stock: product.stock,
+      stock: scopedStock,
       reorderLevel: product.lowStockThreshold,
       triggeredAt: new Date(),
       source: 'manual',
@@ -325,12 +357,20 @@ export const runAutomaticReorderAlerts = async (req, res, next) => {
  */
 export const getActiveAlertsBySku = async (req, res, next) => {
   try {
+    const match = {
+      organization: new mongoose.Types.ObjectId(req.organizationId),
+      resolved: false
+    };
+
+    if (req.query?.warehouseId) {
+      match.warehouse = new mongoose.Types.ObjectId(
+        String(req.query.warehouseId)
+      );
+    }
+
     const data = await ReorderAlert.aggregate([
       {
-        $match: {
-          organization: new mongoose.Types.ObjectId(req.organizationId),
-          resolved: false
-        }
+        $match: match
       },
       {
         $group: {
@@ -364,11 +404,19 @@ export const getActiveAlertsBySku = async (req, res, next) => {
  */
 export const getReorderAlertTrend = async (req, res, next) => {
   try {
+    const match = {
+      organization: new mongoose.Types.ObjectId(req.organizationId)
+    };
+
+    if (req.query?.warehouseId) {
+      match.warehouse = new mongoose.Types.ObjectId(
+        String(req.query.warehouseId)
+      );
+    }
+
     const trend = await ReorderAlert.aggregate([
       {
-        $match: {
-          organization: new mongoose.Types.ObjectId(req.organizationId)
-        }
+        $match: match
       },
       {
         $group: {
@@ -402,6 +450,11 @@ export const getReorderAlertTrend = async (req, res, next) => {
  */
 export const getReorderAlertKPIs = async (req, res, next) => {
   try {
+    const baseQuery = {
+      organization: req.organizationId,
+      ...(req.query?.warehouseId ? { warehouse: req.query.warehouseId } : {})
+    };
+
     const [
       totalAlerts,
       activeAlerts,
@@ -410,25 +463,25 @@ export const getReorderAlertKPIs = async (req, res, next) => {
       staticAlerts,
       convertedAlerts
     ] = await Promise.all([
-      ReorderAlert.countDocuments({ organization: req.organizationId }),
+      ReorderAlert.countDocuments(baseQuery),
       ReorderAlert.countDocuments({
-        organization: req.organizationId,
+        ...baseQuery,
         resolved: false
       }),
       ReorderAlert.countDocuments({
-        organization: req.organizationId,
+        ...baseQuery,
         resolved: true
       }),
       ReorderAlert.countDocuments({
-        organization: req.organizationId,
+        ...baseQuery,
         source: 'forecast'
       }),
       ReorderAlert.countDocuments({
-        organization: req.organizationId,
+        ...baseQuery,
         source: 'static'
       }),
       ReorderAlert.countDocuments({
-        organization: req.organizationId,
+        ...baseQuery,
         usedInPurchaseOrder: true
       })
     ]);

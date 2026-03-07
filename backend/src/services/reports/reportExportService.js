@@ -55,14 +55,22 @@ const buildDownloadName = ({ reportType, format }) => {
   return `reports-full-summary-${stamp}.${format}`;
 };
 
-const getPurchaseOrderStatusSummary = async ({ organizationId }) => {
+const getPurchaseOrderStatusSummary = async ({
+  organizationId,
+  warehouseId = null
+}) => {
   const orgId = normalizeObjectId(organizationId);
+  const match = {
+    organization: orgId
+  };
+
+  if (warehouseId) {
+    match.warehouse = normalizeObjectId(warehouseId);
+  }
 
   const grouped = await PurchaseOrder.aggregate([
     {
-      $match: {
-        organization: orgId
-      }
+      $match: match
     },
     {
       $group: {
@@ -90,15 +98,23 @@ const getPurchaseOrderStatusSummary = async ({ organizationId }) => {
   };
 };
 
-const getSpendBySupplierSummary = async ({ organizationId }) => {
+const getSpendBySupplierSummary = async ({
+  organizationId,
+  warehouseId = null
+}) => {
   const orgId = normalizeObjectId(organizationId);
+  const match = {
+    organization: orgId,
+    status: { $in: CLOSED_PO_STATUSES }
+  };
+
+  if (warehouseId) {
+    match.warehouse = normalizeObjectId(warehouseId);
+  }
 
   return PurchaseOrder.aggregate([
     {
-      $match: {
-        organization: orgId,
-        status: { $in: CLOSED_PO_STATUSES }
-      }
+      $match: match
     },
     { $unwind: '$items' },
     {
@@ -125,9 +141,16 @@ const getSpendBySupplierSummary = async ({ organizationId }) => {
   ]);
 };
 
-const buildPoStatusSummaryExport = async ({ organizationId, format }) => {
+const buildPoStatusSummaryExport = async ({
+  organizationId,
+  warehouseId = null,
+  format
+}) => {
   const normalizedFormat = normalizeReportExportFormat(format);
-  const { rows } = await getPurchaseOrderStatusSummary({ organizationId });
+  const { rows } = await getPurchaseOrderStatusSummary({
+    organizationId,
+    warehouseId
+  });
 
   if (normalizedFormat === 'csv') {
     return {
@@ -146,7 +169,7 @@ const buildPoStatusSummaryExport = async ({ organizationId, format }) => {
 
   if (normalizedFormat === 'pdf') {
     const buffer = await toPdfBuffer({
-      title: 'Ledgerly PO Status Summary',
+      title: 'Inventra PO Status Summary',
       subtitle: `Generated on ${new Date().toLocaleString()}`,
       sections: [
         {
@@ -189,11 +212,15 @@ const buildPoStatusSummaryExport = async ({ organizationId, format }) => {
   };
 };
 
-const buildFullSummaryExport = async ({ organizationId, format }) => {
+const buildFullSummaryExport = async ({
+  organizationId,
+  warehouseId = null,
+  format
+}) => {
   const normalizedFormat = normalizeReportExportFormat(format);
   const [{ rows: statusRows }, spendBySupplier] = await Promise.all([
-    getPurchaseOrderStatusSummary({ organizationId }),
-    getSpendBySupplierSummary({ organizationId })
+    getPurchaseOrderStatusSummary({ organizationId, warehouseId }),
+    getSpendBySupplierSummary({ organizationId, warehouseId })
   ]);
 
   const totalSpend = spendBySupplier.reduce(
@@ -259,7 +286,7 @@ const buildFullSummaryExport = async ({ organizationId, format }) => {
     }));
 
     const buffer = await toPdfBuffer({
-      title: 'Ledgerly Full Summary Report',
+      title: 'Inventra Full Summary Report',
       subtitle: `Generated on ${new Date().toLocaleString()}`,
       sections: [
         {
@@ -333,6 +360,7 @@ const buildFullSummaryExport = async ({ organizationId, format }) => {
 export const buildReportExportPayload = async ({
   organizationId,
   reportType,
+  warehouseId = null,
   format = 'xlsx'
 }) => {
   const normalizedType = normalizeReportExportType(reportType);
@@ -341,12 +369,14 @@ export const buildReportExportPayload = async ({
   if (normalizedType === REPORT_EXPORT_TYPES.PURCHASE_ORDER_STATUS_SUMMARY) {
     return buildPoStatusSummaryExport({
       organizationId,
+      warehouseId,
       format: normalizedFormat
     });
   }
 
   return buildFullSummaryExport({
     organizationId,
+    warehouseId,
     format: normalizedFormat
   });
 };

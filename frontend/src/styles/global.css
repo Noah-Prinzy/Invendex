@@ -60,7 +60,7 @@
   --shadow-lg: 0 34px 68px rgba(3, 9, 20, 0.26);
 }
 
-:root[data-theme='ledgerly-classic'] {
+:root[data-theme='inventra-classic'] {
   --bg-start: #0b1528;
   --bg-end: #050a14;
   --orb-a: rgba(98, 140, 255, 0.36);
@@ -652,7 +652,7 @@ textarea:focus-visible {
 }
 
 .auth-landing-stage-logo {
-  width: clamp(182px, 24vw, 308px);
+  width: clamp(236px, 31vw, 404px);
   height: auto;
   filter: drop-shadow(0 24px 40px rgba(2, 10, 26, 0.44));
   animation: intro-logo-float 4s ease-in-out infinite;
@@ -660,7 +660,7 @@ textarea:focus-visible {
 
 .auth-landing-stage-title {
   color: #f6fbff;
-  font-size: clamp(2.5rem, 7.6vw, 5.8rem);
+  font-size: clamp(2.2rem, 6.4vw, 4.9rem);
   line-height: 0.96;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -726,11 +726,21 @@ textarea:focus-visible {
 }
 
 .auth-story-step-wrap {
-  min-height: 118vh;
+  min-height: 96vh;
   display: grid;
   align-items: center;
   position: relative;
-  padding: clamp(0.72rem, 2.2vw, 1.8rem);
+  padding: clamp(0.62rem, 1.8vw, 1.4rem);
+}
+
+/* Push the first story card farther below the logo stage. */
+.story-gap-after-stage {
+  margin-top: clamp(16vh, 22vw, 28vh);
+}
+
+/* Targeted spacing: keep Decision Signals from intruding under Realtime Operations. */
+.story-gap-before-decision {
+  margin-top: clamp(10vh, 13vw, 18vh);
 }
 
 .auth-story-step-wrap::before,
@@ -766,42 +776,50 @@ textarea:focus-visible {
   align-items: center;
   position: sticky;
   top: 50%;
-  opacity: 0.08;
-  transform: translateY(calc(-50% + 14vh)) scale(0.965);
+  opacity: calc(0.04 + (var(--story-visibility, 0) * 0.96));
+  transform: translateY(calc(-50% + (var(--story-phase, 1) * 14vh)))
+    scale(calc(0.935 + (var(--story-visibility, 0) * 0.085)));
   transition:
-    opacity 0.52s ease,
-    transform 0.52s ease;
+    opacity 0.18s linear,
+    transform 0.2s ease-out,
+    filter 0.24s ease;
+  filter:
+    saturate(calc(0.72 + (var(--story-visibility, 0) * 0.34)))
+    brightness(calc(0.86 + (var(--story-visibility, 0) * 0.2)));
   will-change: transform, opacity;
 }
 
 .auth-story-step.story-past {
-  opacity: 0.16;
-  transform: translateY(calc(-50% - 10vh)) scale(0.96);
+  z-index: 1;
 }
 
 .auth-story-step.story-future {
-  opacity: 0.08;
-  transform: translateY(calc(-50% + 14vh)) scale(0.965);
+  z-index: 1;
 }
 
 .auth-story-step.story-active {
+  z-index: 3;
   opacity: 1;
-}
-
-.auth-story-step.story-active.story-direction-down {
-  animation: story-step-enter-up 0.62s cubic-bezier(0.2, 0.72, 0.24, 1)
-    both;
-}
-
-.auth-story-step.story-active.story-direction-up {
-  animation: story-step-enter-down 0.62s cubic-bezier(0.2, 0.72, 0.24, 1)
-    both;
+  filter: saturate(1) brightness(1);
+  transform: translateY(-50%) scale(1);
 }
 
 .auth-story-card,
 .auth-story-art {
   border: 0;
   border-radius: 0;
+  opacity: calc(0.08 + (var(--story-visibility, 0) * 0.92));
+  transition:
+    opacity 0.2s linear,
+    transform 0.28s cubic-bezier(0.22, 0.7, 0.24, 1),
+    box-shadow 0.28s ease,
+    filter 0.28s ease;
+  will-change: transform, opacity;
+}
+
+.auth-story-step.story-active .auth-story-card,
+.auth-story-step.story-active .auth-story-art {
+  opacity: 1;
 }
 
 .auth-story-card {
@@ -814,6 +832,8 @@ textarea:focus-visible {
   position: relative;
   isolation: isolate;
   overflow: hidden;
+  transform: translateY(calc((1 - var(--story-visibility, 0)) * 26px));
+  filter: saturate(calc(0.82 + (var(--story-visibility, 0) * 0.24)));
   clip-path: polygon(
     0 0,
     calc(100% - 24px) 0,
@@ -915,6 +935,8 @@ textarea:focus-visible {
   display: grid;
   place-items: center;
   position: relative;
+  transform: translateY(calc((1 - var(--story-visibility, 0)) * 28px))
+    scale(calc(0.88 + (var(--story-visibility, 0) * 0.12)));
 }
 
 .story-align-right .auth-story-art {
@@ -2505,6 +2527,25 @@ textarea:focus-visible {
   color: var(--ink-main);
 }
 
+.notification-item-scope {
+  margin: 0 0 0.34rem;
+}
+
+.notification-scope-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.22rem 0.58rem;
+  border-radius: 999px;
+  border: 1px solid rgba(174, 227, 255, 0.2);
+  background: rgba(174, 227, 255, 0.08);
+  color: #aee3ff;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .notification-item-meta {
   margin: 0;
   font-size: 0.66rem;
@@ -3296,11 +3337,11 @@ textarea:focus-visible {
   }
 
   .auth-landing-stage-logo {
-    width: clamp(152px, 34vw, 210px);
+    width: clamp(188px, 42vw, 276px);
   }
 
   .auth-landing-stage-title {
-    font-size: clamp(2rem, 12vw, 3.2rem);
+    font-size: clamp(1.9rem, 10.4vw, 2.85rem);
   }
 
   .auth-landing-stage-pills {
@@ -3320,6 +3361,14 @@ textarea:focus-visible {
   .auth-story-step-wrap {
     min-height: auto;
     padding: 0.3rem 0;
+  }
+
+  .story-gap-after-stage {
+    margin-top: clamp(8vh, 10vw, 14vh);
+  }
+
+  .story-gap-before-decision {
+    margin-top: clamp(5vh, 7vw, 10vh);
   }
 
   .auth-story-step,

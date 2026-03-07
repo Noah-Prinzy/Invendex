@@ -148,10 +148,27 @@ describe('Reports page', () => {
       }
     });
 
-    renderWithProviders(<Reports accessToken="token" userRole="admin" />);
+    renderWithProviders(
+      <Reports
+        accessToken="token"
+        userRole="admin"
+        warehouseId="warehouse-1"
+        activeWarehouseLabel="Main Warehouse"
+      />
+    );
 
     expect(await screen.findByText('Acme Supply')).toBeInTheDocument();
     expect(screen.getByText('Bravo Parts')).toBeInTheDocument();
+    expect(getReportSpendSummaryRequest).toHaveBeenCalledWith({
+      accessToken: 'token',
+      warehouseId: 'warehouse-1'
+    });
+    expect(getAuditLogsRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accessToken: 'token',
+        warehouseId: 'warehouse-1'
+      })
+    );
 
     fireEvent.change(screen.getByPlaceholderText('Supplier name'), {
       target: { value: 'Bravo' }
@@ -206,7 +223,14 @@ describe('Reports page', () => {
       }
     });
 
-    renderWithProviders(<Reports accessToken="token" userRole="admin" />);
+    renderWithProviders(
+      <Reports
+        accessToken="token"
+        userRole="admin"
+        warehouseId="warehouse-1"
+        activeWarehouseLabel="Main Warehouse"
+      />
+    );
 
     const trigger = await screen.findByRole('button', {
       name: 'Download reports'

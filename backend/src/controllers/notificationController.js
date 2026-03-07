@@ -10,6 +10,8 @@ export const getNotifications = async (req, res, next) => {
     const result = await listInAppNotifications({
       organizationId: req.organizationId,
       userId: req.user?._id,
+      userRole: req.user?.role || null,
+      warehouseId: req.query?.warehouseId || null,
       limit: req.query?.limit,
       unreadOnly:
         String(req.query?.unreadOnly || '')
@@ -35,6 +37,7 @@ export const readNotification = async (req, res, next) => {
     const notification = await markNotificationAsRead({
       organizationId: req.organizationId,
       userId: req.user?._id,
+      userRole: req.user?.role || null,
       notificationId: req.params.id
     });
 
@@ -48,7 +51,9 @@ export const readAllNotifications = async (req, res, next) => {
   try {
     const result = await markAllNotificationsAsRead({
       organizationId: req.organizationId,
-      userId: req.user?._id
+      userId: req.user?._id,
+      userRole: req.user?.role || null,
+      warehouseId: req.query?.warehouseId || null
     });
 
     return successResponse(res, result, 'All notifications marked as read');

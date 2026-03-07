@@ -23,6 +23,12 @@ const notificationEventSchema = new mongoose.Schema(
       required: true,
       index: true
     },
+    warehouse: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Warehouse',
+      default: null,
+      index: true
+    },
     type: {
       type: String,
       required: true,
@@ -73,7 +79,14 @@ const notificationEventSchema = new mongoose.Schema(
 );
 
 notificationEventSchema.index({ organization: 1, createdAt: -1 });
+notificationEventSchema.index({ organization: 1, warehouse: 1, createdAt: -1 });
 notificationEventSchema.index({ organization: 1, type: 1, createdAt: -1 });
+notificationEventSchema.index({
+  organization: 1,
+  warehouse: 1,
+  type: 1,
+  createdAt: -1
+});
 notificationEventSchema.index({ organization: 1, 'readBy.user': 1 });
 
 export default mongoose.model('NotificationEvent', notificationEventSchema);

@@ -297,6 +297,7 @@ export const authEmployeeSignupRequest = ({
   companyName,
   username,
   email,
+  mobileNumber,
   password,
   confirmPassword
 }) =>
@@ -307,6 +308,7 @@ export const authEmployeeSignupRequest = ({
       companyName,
       username,
       email,
+      mobileNumber,
       password,
       confirmPassword
     }
@@ -339,6 +341,7 @@ export const authDeclineEmployeeSignupRequest = ({
 export const authRegisterRequest = ({
   username,
   email,
+  mobileNumber,
   password,
   confirmPassword,
   organizationName
@@ -346,7 +349,14 @@ export const authRegisterRequest = ({
   request({
     method: 'POST',
     path: API_ENDPOINTS.AUTH_REGISTER,
-    body: { username, email, password, confirmPassword, organizationName }
+    body: {
+      username,
+      email,
+      mobileNumber,
+      password,
+      confirmPassword,
+      organizationName
+    }
   });
 
 export const authVerifyEmailRequest = ({ email }) =>
@@ -511,13 +521,18 @@ export const authLogoutOtherSessionsRequest = (accessToken) =>
     accessToken
   });
 
-export const authUpdatePreferencesRequest = ({ accessToken, uiTheme }) =>
+export const authUpdatePreferencesRequest = ({
+  accessToken,
+  uiTheme,
+  mobileNumber
+}) =>
   request({
     method: 'PATCH',
     path: API_ENDPOINTS.AUTH_ME_PREFERENCES,
     accessToken,
     body: {
-      uiTheme
+      ...(uiTheme !== undefined ? { uiTheme } : {}),
+      ...(mobileNumber !== undefined ? { mobileNumber } : {})
     }
   });
 
@@ -536,6 +551,8 @@ export const getProductsRequest = (accessToken, filters = {}) => {
   if (filters?.sku) query.set('sku', String(filters.sku));
   if (filters?.barcode) query.set('barcode', String(filters.barcode));
   if (filters?.category) query.set('category', String(filters.category));
+  if (filters?.warehouseId)
+    query.set('warehouseId', String(filters.warehouseId));
   const suffix = query.toString() ? `?${query.toString()}` : '';
 
   return request({
@@ -552,21 +569,31 @@ export const getDeletedProductsRequest = (accessToken) =>
     accessToken
   }).then(readData);
 
-export const getProductsHealthScoreRequest = (accessToken) =>
-  request({
+export const getProductsHealthScoreRequest = ({
+  accessToken,
+  warehouseId = null
+}) => {
+  const query = new URLSearchParams();
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
     method: 'GET',
-    path: API_ENDPOINTS.PRODUCTS_HEALTH_SCORE,
+    path: `${API_ENDPOINTS.PRODUCTS_HEALTH_SCORE}${suffix}`,
     accessToken
   }).then(readData);
+};
 
 export const getDashboardTopSellingItemsRequest = ({
   accessToken,
   days = 30,
-  limit = 10
+  limit = 10,
+  warehouseId = null
 }) => {
   const query = new URLSearchParams();
   query.set('days', String(days));
   query.set('limit', String(limit));
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
   const suffix = query.toString() ? `?${query.toString()}` : '';
 
   return request({
@@ -579,11 +606,13 @@ export const getDashboardTopSellingItemsRequest = ({
 export const getDashboardTurnoverSkusRequest = ({
   accessToken,
   days = 30,
-  limit = 20
+  limit = 20,
+  warehouseId = null
 }) => {
   const query = new URLSearchParams();
   query.set('days', String(days));
   query.set('limit', String(limit));
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
   const suffix = query.toString() ? `?${query.toString()}` : '';
 
   return request({
@@ -596,11 +625,13 @@ export const getDashboardTurnoverSkusRequest = ({
 export const getDashboardSlowMovingSkusRequest = ({
   accessToken,
   days = 60,
-  limit = 20
+  limit = 20,
+  warehouseId = null
 }) => {
   const query = new URLSearchParams();
   query.set('days', String(days));
   query.set('limit', String(limit));
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
   const suffix = query.toString() ? `?${query.toString()}` : '';
 
   return request({
@@ -610,19 +641,29 @@ export const getDashboardSlowMovingSkusRequest = ({
   }).then(readData);
 };
 
-export const getDashboardStockAgingBucketsRequest = (accessToken) =>
-  request({
+export const getDashboardStockAgingBucketsRequest = ({
+  accessToken,
+  warehouseId = null
+}) => {
+  const query = new URLSearchParams();
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
     method: 'GET',
-    path: API_ENDPOINTS.DASHBOARD_STOCK_AGING_BUCKETS,
+    path: `${API_ENDPOINTS.DASHBOARD_STOCK_AGING_BUCKETS}${suffix}`,
     accessToken
   }).then(readData);
+};
 
 export const getDashboardSupplierRankingRequest = ({
   accessToken,
-  days = 180
+  days = 180,
+  warehouseId = null
 }) => {
   const query = new URLSearchParams();
   query.set('days', String(days));
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
   const suffix = query.toString() ? `?${query.toString()}` : '';
 
   return request({
@@ -740,10 +781,12 @@ export const getAiDemandAnomaliesRequest = ({
 
 export const getAiSupplierReliabilityRequest = ({
   accessToken,
-  days = 180
+  days = 180,
+  warehouseId = null
 }) => {
   const query = new URLSearchParams();
   query.set('days', String(days));
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
   const suffix = query.toString() ? `?${query.toString()}` : '';
 
   return request({
@@ -878,12 +921,20 @@ export const downloadProductLabelRequest = ({
   });
 };
 
-export const getPurchaseOrdersRequest = (accessToken) =>
-  request({
+export const getPurchaseOrdersRequest = ({
+  accessToken,
+  warehouseId = null
+}) => {
+  const query = new URLSearchParams();
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
     method: 'GET',
-    path: API_ENDPOINTS.PURCHASE_ORDERS,
+    path: `${API_ENDPOINTS.PURCHASE_ORDERS}${suffix}`,
     accessToken
   }).then(readData);
+};
 
 export const getUsersRequest = (accessToken) =>
   request({
@@ -914,12 +965,16 @@ export const updateUserRolePermissionsMatrixRequest = ({
 export const getNotificationsRequest = ({
   accessToken,
   limit = 20,
-  unreadOnly = false
+  unreadOnly = false,
+  warehouseId = null
 }) => {
   const query = new URLSearchParams();
   query.set('limit', String(limit));
   if (unreadOnly) {
     query.set('unreadOnly', 'true');
+  }
+  if (warehouseId) {
+    query.set('warehouseId', String(warehouseId));
   }
 
   const suffix = query.toString() ? `?${query.toString()}` : '';
@@ -938,12 +993,22 @@ export const markNotificationReadRequest = ({ accessToken, notificationId }) =>
     accessToken
   }).then(readData);
 
-export const markAllNotificationsReadRequest = ({ accessToken }) =>
-  request({
+export const markAllNotificationsReadRequest = ({
+  accessToken,
+  warehouseId = null
+}) => {
+  const query = new URLSearchParams();
+  if (warehouseId) {
+    query.set('warehouseId', String(warehouseId));
+  }
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
     method: 'PATCH',
-    path: API_ENDPOINTS.NOTIFICATIONS_READ_ALL,
+    path: `${API_ENDPOINTS.NOTIFICATIONS_READ_ALL}${suffix}`,
     accessToken
   }).then(readData);
+};
 
 export const getSettingsRequest = (accessToken) =>
   request({
@@ -1124,12 +1189,14 @@ export const getFinanceGrossMarginRequest = ({
   from = null,
   to = null,
   groupBy = 'day',
+  warehouseId = null,
   currencyCode = null
 }) => {
   const query = new URLSearchParams();
   if (from) query.set('from', String(from));
   if (to) query.set('to', String(to));
   if (groupBy) query.set('groupBy', String(groupBy));
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
   if (currencyCode) query.set('currencyCode', String(currencyCode));
   const suffix = query.toString() ? `?${query.toString()}` : '';
 
@@ -1232,12 +1299,20 @@ export const updateUserRoleRequest = ({ accessToken, userId, role }) =>
     body: { role }
   }).then(readData);
 
-export const getProductsLowStockSummaryRequest = (accessToken) =>
-  request({
+export const getProductsLowStockSummaryRequest = ({
+  accessToken,
+  warehouseId = null
+}) => {
+  const query = new URLSearchParams();
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
     method: 'GET',
-    path: API_ENDPOINTS.PRODUCTS_LOW_STOCK_SUMMARY,
+    path: `${API_ENDPOINTS.PRODUCTS_LOW_STOCK_SUMMARY}${suffix}`,
     accessToken
   }).then(readData);
+};
 
 export const adjustProductStockRequest = async ({
   accessToken,
@@ -1587,6 +1662,7 @@ export const getAuditLogsRequest = ({
   user = null,
   action = null,
   resource = null,
+  warehouseId = null,
   success = null,
   from = null,
   to = null
@@ -1597,6 +1673,7 @@ export const getAuditLogsRequest = ({
   if (user) query.set('user', String(user));
   if (action) query.set('action', String(action));
   if (resource) query.set('resource', String(resource));
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
   if (success !== null && success !== undefined && success !== 'all') {
     query.set('success', String(success));
   }
@@ -1611,30 +1688,55 @@ export const getAuditLogsRequest = ({
   }).then(readData);
 };
 
-export const getReportPurchaseOrderStatusSummaryRequest = (accessToken) =>
-  request({
-    method: 'GET',
-    path: API_ENDPOINTS.REPORT_PO_STATUS_SUMMARY,
-    accessToken
-  }).then(readData);
+export const getReportPurchaseOrderStatusSummaryRequest = ({
+  accessToken,
+  warehouseId = null
+}) => {
+  const query = new URLSearchParams();
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
 
-export const getReportSpendSummaryRequest = (accessToken) =>
-  request({
+  return request({
     method: 'GET',
-    path: API_ENDPOINTS.REPORT_SPEND_SUMMARY,
+    path: `${API_ENDPOINTS.REPORT_PO_STATUS_SUMMARY}${suffix}`,
     accessToken
   }).then(readData);
+};
 
-export const getReportSpendBySupplierRequest = (accessToken) =>
-  request({
+export const getReportSpendSummaryRequest = ({
+  accessToken,
+  warehouseId = null
+}) => {
+  const query = new URLSearchParams();
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
     method: 'GET',
-    path: API_ENDPOINTS.REPORT_SPEND_BY_SUPPLIER,
+    path: `${API_ENDPOINTS.REPORT_SPEND_SUMMARY}${suffix}`,
     accessToken
   }).then(readData);
+};
+
+export const getReportSpendBySupplierRequest = ({
+  accessToken,
+  warehouseId = null
+}) => {
+  const query = new URLSearchParams();
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.REPORT_SPEND_BY_SUPPLIER}${suffix}`,
+    accessToken
+  }).then(readData);
+};
 
 export const queueReportExportJobRequest = ({
   accessToken,
   reportType,
+  warehouseId = null,
   format = 'xlsx'
 }) =>
   request({
@@ -1643,7 +1745,8 @@ export const queueReportExportJobRequest = ({
     accessToken,
     body: {
       reportType,
-      format
+      format,
+      ...(warehouseId ? { warehouseId } : {})
     }
   }).then(readData);
 
@@ -1685,7 +1788,8 @@ export const queueInventoryReportExportJobRequest = ({
   accessToken,
   format = 'csv',
   from = null,
-  to = null
+  to = null,
+  warehouseId = null
 }) =>
   request({
     method: 'POST',
@@ -1694,7 +1798,8 @@ export const queueInventoryReportExportJobRequest = ({
     body: {
       format,
       ...(String(from || '').trim() ? { from } : {}),
-      ...(String(to || '').trim() ? { to } : {})
+      ...(String(to || '').trim() ? { to } : {}),
+      ...(warehouseId ? { warehouseId } : {})
     }
   }).then(readData);
 

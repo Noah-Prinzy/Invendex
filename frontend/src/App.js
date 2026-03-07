@@ -15,7 +15,7 @@ import NotificationBell from './components/NotificationBell.js';
 import TabBar from './components/TabBar.js';
 import useAuth from './hooks/auth/useAuth.js';
 import useTabs from './hooks/ui/useTabs.js';
-import { useLedgerlyRealtime } from './hooks/realtime/useLedgerlyRealtime.js';
+import { useInventraRealtime } from './hooks/realtime/useInventraRealtime.js';
 import { useOfflineSync } from './hooks/offline/useOfflineSync.js';
 import AuthLayout from './layouts/AuthLayout.js';
 import DashboardLayout from './layouts/DashboardLayout.js';
@@ -47,10 +47,31 @@ const EVENT_LIMIT = 40;
 const ADMIN_ROLES = new Set(['owner', 'admin']);
 const TAB_QUERY_KEY = 'tab';
 const SETTINGS_PAGE_QUERY_KEY = 'settingsPage';
+const AUTH_INTRO_COMPLETED_STORAGE_KEY = 'Inventra:auth_intro_completed:v1';
 const sanitizeBaseUrl = (value) =>
   String(value || '')
     .trim()
     .replace(/\/+$/, '');
+
+const readAuthIntroCompleted = () => {
+  if (typeof window === 'undefined') return false;
+  try {
+    return (
+      window.localStorage.getItem(AUTH_INTRO_COMPLETED_STORAGE_KEY) === '1'
+    );
+  } catch {
+    return false;
+  }
+};
+
+const persistAuthIntroCompleted = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(AUTH_INTRO_COMPLETED_STORAGE_KEY, '1');
+  } catch {
+    // Ignore storage errors and fallback to in-memory behavior.
+  }
+};
 
 const getRealtimeBaseUrl = () => {
   const envBase = sanitizeBaseUrl(
@@ -147,6 +168,20 @@ const buildAuthEvent = (payload) => {
   };
 };
 
+const resolveWarehouseIdFromPayload = (payload) => {
+  const data = payload?.data || {};
+  const warehouseCandidate =
+    data?.warehouseId ||
+    data?.warehouse?._id ||
+    data?.warehouse?.id ||
+    data?.warehouse ||
+    payload?.warehouseId ||
+    payload?.warehouse;
+
+  const normalized = String(warehouseCandidate || '').trim();
+  return normalized || null;
+};
+
 const prependEvent = (list, event) => [event, ...list].slice(0, EVENT_LIMIT);
 
 const readTabFromUrl = () => {
@@ -230,7 +265,10 @@ const App = () => {
   const [authEvents, setAuthEvents] = useState([]);
   const [poEvents, setPoEvents] = useState([]);
   const [themeId, setThemeId] = useState(() => readThemePreference());
-  const [showAuthPortal, setShowAuthPortal] = useState(false);
+  const [showAuthPortal, setShowAuthPortal] = useState(() =>
+    readAuthIntroCompleted()
+  );
+  const wasAuthenticatedRef = useRef(false);
 
   const realtimeBaseUrl = useMemo(() => getRealtimeBaseUrl(), []);
 
@@ -239,6 +277,18 @@ const App = () => {
       setShowAuthPortal(false);
     }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (wasAuthenticatedRef.current && !isAuthenticated) {
+      setShowAuthPortal(true);
+    }
+    wasAuthenticatedRef.current = isAuthenticated;
+  }, [isAuthenticated]);
+
+  const handleGetStarted = useCallback(() => {
+    persistAuthIntroCompleted();
+    setShowAuthPortal(true);
+  }, []);
   const companyName = useMemo(() => {
     const fromProfile = String(user?.organizationName || '').trim();
     if (fromProfile) return fromProfile;
@@ -336,7 +386,8 @@ const App = () => {
     try {
       const response = await getNotificationsRequest({
         accessToken,
-        limit: 20
+        limit: 20,
+        warehouseId: activeWarehouseId || null
       });
       const items = Array.isArray(response?.items) ? response.items : [];
       setNotifications(items);
@@ -346,7 +397,7 @@ const App = () => {
     } finally {
       setNotificationsLoading(false);
     }
-  }, [accessToken, isAuthenticated]);
+  }, [accessToken, activeWarehouseId, isAuthenticated]);
 
   const prefetchCoreData = useCallback(async () => {
     if (!accessToken) return;
@@ -357,8 +408,16 @@ const App = () => {
         queryFn: () => getSettingsRequest(accessToken)
       }),
       queryClient.prefetchQuery({
-        queryKey: ['purchase-orders', String(accessToken || '')],
-        queryFn: () => getPurchaseOrdersRequest(accessToken)
+        queryKey: [
+          'purchase-orders',
+          String(accessToken || ''),
+          String(activeWarehouseId || '')
+        ],
+        queryFn: () =>
+          getPurchaseOrdersRequest({
+            accessToken,
+            warehouseId: activeWarehouseId || null
+          })
       }),
       queryClient.prefetchQuery({
         queryKey: [
@@ -366,13 +425,17 @@ const App = () => {
           String(accessToken || ''),
           String(true),
           String(false),
+          String(activeWarehouseId || ''),
           '',
           ''
         ],
-        queryFn: () => getProductsRequest(accessToken)
+        queryFn: () =>
+          getProductsRequest(accessToken, {
+            warehouseId: activeWarehouseId || null
+          })
       })
     ]);
-  }, [accessToken, queryClient]);
+  }, [accessToken, activeWarehouseId, queryClient]);
 
   const handleMarkNotificationRead = useCallback(
     async (notificationId) => {
@@ -397,13 +460,14 @@ const App = () => {
     if (!accessToken) return;
     try {
       await markAllNotificationsReadRequest({
-        accessToken
+        accessToken,
+        warehouseId: activeWarehouseId || null
       });
       await refreshNotifications();
     } catch {
       // no-op
     }
-  }, [accessToken, refreshNotifications]);
+  }, [accessToken, activeWarehouseId, refreshNotifications]);
 
   const handleEmployeeSignupDecision = useCallback(
     async ({ notificationId, requestId, decision }) => {
@@ -511,7 +575,7 @@ const App = () => {
     refreshNotifications();
   }, [refreshNotifications]);
 
-  useLedgerlyRealtime({
+  useInventraRealtime({
     baseUrl: realtimeBaseUrl,
     accessToken,
     warehouseId: activeWarehouseId || null,
@@ -630,6 +694,33 @@ const App = () => {
     setUnreadCount(0);
   }, [isAuthenticated]);
 
+  const scopedInventoryEvents = useMemo(() => {
+    if (!activeWarehouseId) return inventoryEvents;
+    return inventoryEvents.filter(
+      (event) =>
+        String(resolveWarehouseIdFromPayload(event?.raw) || '') ===
+        String(activeWarehouseId)
+    );
+  }, [activeWarehouseId, inventoryEvents]);
+
+  const scopedFinanceEvents = useMemo(() => {
+    if (!activeWarehouseId) return financeEvents;
+    return financeEvents.filter(
+      (event) =>
+        String(resolveWarehouseIdFromPayload(event?.raw) || '') ===
+        String(activeWarehouseId)
+    );
+  }, [activeWarehouseId, financeEvents]);
+
+  const scopedPoEvents = useMemo(() => {
+    if (!activeWarehouseId) return poEvents;
+    return poEvents.filter(
+      (event) =>
+        String(resolveWarehouseIdFromPayload(event?.raw) || '') ===
+        String(activeWarehouseId)
+    );
+  }, [activeWarehouseId, poEvents]);
+
   useEffect(() => {
     setSession({
       userId: user?._id || null,
@@ -665,8 +756,8 @@ const App = () => {
         accessToken={accessToken}
         warehouseId={activeWarehouseId || null}
         activeWarehouseLabel={selectedWarehouseLabel}
-        inventoryEvents={inventoryEvents}
-        financeEvents={financeEvents}
+        inventoryEvents={scopedInventoryEvents}
+        financeEvents={scopedFinanceEvents}
         authEvents={authEvents}
       />
     );
@@ -681,7 +772,12 @@ const App = () => {
           allowedRoles={['owner', 'admin', 'manager']}
           fallback={roleGuardFallback}
         >
-          <PurchaseOrders accessToken={accessToken} poEvents={poEvents} />
+          <PurchaseOrders
+            accessToken={accessToken}
+            warehouseId={activeWarehouseId || null}
+            activeWarehouseLabel={selectedWarehouseLabel}
+            poEvents={scopedPoEvents}
+          />
         </RequireRole>
       );
     }
@@ -743,7 +839,12 @@ const App = () => {
           allowedRoles={['owner', 'admin', 'manager']}
           fallback={roleGuardFallback}
         >
-          <Reports accessToken={accessToken} userRole={role} />
+          <Reports
+            accessToken={accessToken}
+            userRole={role}
+            warehouseId={activeWarehouseId || null}
+            activeWarehouseLabel={selectedWarehouseLabel}
+          />
         </RequireRole>
       );
     }
@@ -785,8 +886,10 @@ const App = () => {
         <Settings
           accessToken={accessToken}
           userRole={role}
+          currentUser={user}
           themeId={themeId}
           onThemeChange={handleThemeChange}
+          onUpdateUserPreferences={updatePreferences}
         />
       );
     }
@@ -797,10 +900,10 @@ const App = () => {
     user,
     activeWarehouseId,
     selectedWarehouseLabel,
-    inventoryEvents,
-    financeEvents,
+    scopedInventoryEvents,
+    scopedFinanceEvents,
     authEvents,
-    poEvents,
+    scopedPoEvents,
     themeId,
     handleThemeChange,
     getTwoFactorStatus,
@@ -815,6 +918,7 @@ const App = () => {
     revokeSession,
     logoutOtherSessions,
     refreshWarehouses,
+    updatePreferences,
     roleGuardFallback
   ]);
 
@@ -854,9 +958,9 @@ const App = () => {
   ) : (
     <AuthIntroLanding
       eyebrow={t('app.brand')}
-      title="Welcome to Ledgerly"
+      title="Welcome to Inventra"
       description={t('app.authIntroDescription')}
-      onGetStarted={() => setShowAuthPortal(true)}
+      onGetStarted={handleGetStarted}
     />
   );
 

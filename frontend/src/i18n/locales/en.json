@@ -12,7 +12,7 @@
     "settings": "Settings"
   },
   "app": {
-    "brand": "Ledgerly",
+    "brand": "Inventra",
     "loadingSessionTitle": "Loading session...",
     "loadingSessionDescription": "Validating your access token and organization context.",
     "loadingSessionBody": "Please wait while we restore your session.",

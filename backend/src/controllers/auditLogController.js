@@ -22,6 +22,7 @@ export const getAuditLogs = async (req, res, next) => {
       user,
       action,
       resource,
+      warehouseId,
       success,
       from,
       to
@@ -33,7 +34,8 @@ export const getAuditLogs = async (req, res, next) => {
 
     if (user) query.user = user;
     if (action) query.action = action;
-    if (resource) query.resource = resource;
+    if (resource) query.entity = resource;
+    if (warehouseId) query.warehouse = warehouseId;
 
     if (success !== undefined) {
       query.success = success === 'true';

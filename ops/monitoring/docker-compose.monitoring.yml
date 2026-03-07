@@ -3,7 +3,7 @@ version: '3.9'
 services:
   prometheus:
     image: prom/prometheus:v2.55.1
-    container_name: ledgerly-prometheus
+    container_name: inventra-prometheus
     restart: unless-stopped
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -19,7 +19,7 @@ services:
 
   grafana:
     image: grafana/grafana:11.2.0
-    container_name: ledgerly-grafana
+    container_name: inventra-grafana
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}

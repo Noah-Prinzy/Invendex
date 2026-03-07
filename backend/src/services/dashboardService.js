@@ -48,54 +48,126 @@ const toObjectId = (value) => {
   }
 };
 
-const getSalesAggregatePipeline = ({ organizationId, sinceDate }) => [
-  {
-    $match: {
-      organization: new mongoose.Types.ObjectId(organizationId),
-      type: 'sale',
-      status: 'completed',
-      createdAt: { $gte: sinceDate }
-    }
-  },
-  { $unwind: '$products' },
-  {
-    $group: {
-      _id: '$products.product',
-      quantitySold: { $sum: '$products.quantity' },
-      salesCount: { $sum: 1 }
-    }
-  },
-  {
-    $lookup: {
-      from: 'products',
-      localField: '_id',
-      foreignField: '_id',
-      as: 'product'
-    }
-  },
-  { $unwind: { path: '$product', preserveNullAndEmptyArrays: true } },
-  {
-    $project: {
-      _id: 0,
-      productId: '$_id',
-      sku: '$product.sku',
-      name: '$product.name',
-      quantitySold: 1,
-      salesCount: 1,
-      stock: '$product.stock'
-    }
+const getSalesAggregatePipeline = ({
+  organizationId,
+  sinceDate,
+  warehouseId = null
+}) => {
+  const organizationObjectId = new mongoose.Types.ObjectId(organizationId);
+  const warehouseObjectId = warehouseId ? toObjectId(warehouseId) : null;
+
+  const pipeline = [
+    {
+      $match: {
+        organization: organizationObjectId,
+        type: 'sale',
+        status: 'completed',
+        createdAt: { $gte: sinceDate }
+      }
+    },
+    { $unwind: '$products' }
+  ];
+
+  if (warehouseObjectId) {
+    pipeline.push({
+      $match: {
+        $or: [
+          { 'products.warehouse': warehouseObjectId },
+          { warehouse: warehouseObjectId }
+        ]
+      }
+    });
   }
-];
+
+  pipeline.push(
+    {
+      $group: {
+        _id: '$products.product',
+        quantitySold: { $sum: '$products.quantity' },
+        salesCount: { $sum: 1 }
+      }
+    },
+    {
+      $lookup: {
+        from: 'products',
+        localField: '_id',
+        foreignField: '_id',
+        as: 'product'
+      }
+    },
+    { $unwind: { path: '$product', preserveNullAndEmptyArrays: true } }
+  );
+
+  if (warehouseObjectId) {
+    pipeline.push(
+      {
+        $lookup: {
+          from: 'inventories',
+          let: { productId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$organization', organizationObjectId] },
+                    { $eq: ['$product', '$$productId'] },
+                    { $eq: ['$warehouse', warehouseObjectId] }
+                  ]
+                }
+              }
+            },
+            {
+              $project: {
+                _id: 0,
+                quantityOnHand: 1
+              }
+            }
+          ],
+          as: 'inventoryRows'
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          productId: '$_id',
+          sku: '$product.sku',
+          name: '$product.name',
+          quantitySold: 1,
+          salesCount: 1,
+          stock: {
+            $ifNull: [{ $first: '$inventoryRows.quantityOnHand' }, 0]
+          }
+        }
+      }
+    );
+  } else {
+    pipeline.push({
+      $project: {
+        _id: 0,
+        productId: '$_id',
+        sku: '$product.sku',
+        name: '$product.name',
+        quantitySold: 1,
+        salesCount: 1,
+        stock: '$product.stock'
+      }
+    });
+  }
+
+  return pipeline;
+};
 
 export const getTopSellingItems = async ({
   organizationId,
   days = 30,
-  limit = 10
+  limit = 10,
+  warehouseId = null
 }) => {
   const rows = await Order.aggregate([
     ...getSalesAggregatePipeline({
       organizationId,
-      sinceDate: getSinceDate(days)
+      sinceDate: getSinceDate(days),
+      warehouseId
     }),
     { $sort: { quantitySold: -1 } },
     { $limit: normalizeLimit(limit) }
@@ -107,12 +179,14 @@ export const getTopSellingItems = async ({
 export const getTurnoverSkus = async ({
   organizationId,
   days = 30,
-  limit = 20
+  limit = 20,
+  warehouseId = null
 }) => {
   const rows = await Order.aggregate(
     getSalesAggregatePipeline({
       organizationId,
-      sinceDate: getSinceDate(days)
+      sinceDate: getSinceDate(days),
+      warehouseId
     })
   );
 
@@ -134,12 +208,14 @@ export const getTurnoverSkus = async ({
 export const getSlowMovingSkus = async ({
   organizationId,
   days = 60,
-  limit = 20
+  limit = 20,
+  warehouseId = null
 }) => {
   const rows = await Order.aggregate(
     getSalesAggregatePipeline({
       organizationId,
-      sinceDate: getSinceDate(days)
+      sinceDate: getSinceDate(days),
+      warehouseId
     })
   );
 
@@ -163,12 +239,17 @@ export const getSlowMovingSkus = async ({
   return slowMoving.slice(0, normalizeLimit(limit));
 };
 
-export const getStockAgingBuckets = async ({ organizationId }) => {
+export const getStockAgingBuckets = async ({
+  organizationId,
+  warehouseId = null
+}) => {
   const now = new Date();
+  const warehouseObjectId = warehouseId ? toObjectId(warehouseId) : null;
   const rows = await Inventory.aggregate([
     {
       $match: {
         organization: new mongoose.Types.ObjectId(organizationId),
+        ...(warehouseObjectId ? { warehouse: warehouseObjectId } : {}),
         quantityOnHand: { $gt: 0 }
       }
     },
@@ -231,10 +312,12 @@ export const getStockAgingBuckets = async ({ organizationId }) => {
 
 export const getSupplierPerformanceRanking = async ({
   organizationId,
-  days = 180
+  days = 180,
+  warehouseId = null
 }) => {
   const since = getSinceDate(days);
   const organizationObjectId = new mongoose.Types.ObjectId(organizationId);
+  const warehouseObjectId = warehouseId ? toObjectId(warehouseId) : null;
 
   const [suppliers, poStats] = await Promise.all([
     Supplier.find({ organization: organizationId, isActive: true })
@@ -244,6 +327,7 @@ export const getSupplierPerformanceRanking = async ({
       {
         $match: {
           organization: organizationObjectId,
+          ...(warehouseObjectId ? { warehouse: warehouseObjectId } : {}),
           sentAt: { $gte: since },
           receivedAt: { $ne: null },
           status: { $in: ['RECEIVED', 'CLOSED'] }

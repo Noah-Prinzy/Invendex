@@ -8,6 +8,8 @@ import Inventory from '../models/Inventory.js';
 import InventoryCostLayer from '../models/InventoryCostLayer.js';
 import InventorySnapshot from '../models/InventorySnapshot.js';
 import Organization from '../models/Organization.js';
+import OrganizationFeatureFlag from '../models/OrganizationFeatureFlag.js';
+import OrganizationSubscription from '../models/OrganizationSubscription.js';
 import Product from '../models/Product.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import User from '../models/User.js';
@@ -15,6 +17,14 @@ import Warehouse from '../models/Warehouse.js';
 import { getIo, initSocketServer } from '../realtime/socketServer.js';
 import { getTestDbUri } from './testDbUri.js';
 import { generateAccessToken } from '../utils/token.js';
+import {
+  clearFeatureFlagCache,
+  listOrganizationFeatureFlags
+} from '../services/featureFlags/featureFlagService.js';
+import {
+  clearSubscriptionCache,
+  getEffectiveSubscription
+} from '../services/subscription/subscriptionService.js';
 
 let httpServer;
 let baseUrl;
@@ -59,8 +69,10 @@ beforeEach(async () => {
     Inventory.deleteMany({}),
     InventoryCostLayer.deleteMany({}),
     InventorySnapshot.deleteMany({}),
+    OrganizationFeatureFlag.deleteMany({}),
     Product.deleteMany({}),
     PurchaseOrder.deleteMany({}),
+    OrganizationSubscription.deleteMany({}),
     User.deleteMany({}),
     Warehouse.deleteMany({}),
     Organization.deleteMany({})
@@ -201,4 +213,60 @@ describe('finance + realtime smoke flow', () => {
 
     client.disconnect();
   }, 20000);
+
+  it('creates at most one subscription record under concurrent access', async () => {
+    const organization = await Organization.create({
+      _id: new mongoose.Types.ObjectId(),
+      name: 'Fresh Finance Org',
+      code: `FFO-${Date.now()}`
+    });
+
+    clearSubscriptionCache(organization._id);
+    const results = await Promise.all(
+      Array.from({ length: 6 }, () =>
+        getEffectiveSubscription(organization._id)
+      )
+    );
+
+    expect(results).toHaveLength(6);
+    for (const result of results) {
+      expect(String(result?.subscription?.organization || '')).toBe(
+        String(organization._id)
+      );
+      expect(String(result?.plan?.code || '')).toBe('FREE');
+    }
+
+    const subscriptions = await OrganizationSubscription.find({
+      organization: organization._id
+    }).lean();
+    expect(subscriptions).toHaveLength(1);
+  });
+
+  it('creates at most one feature-flag record under concurrent access', async () => {
+    const organization = await Organization.create({
+      _id: new mongoose.Types.ObjectId(),
+      name: 'Fresh Feature Flag Org',
+      code: `FFG-${Date.now()}`
+    });
+
+    clearFeatureFlagCache(organization._id);
+    const results = await Promise.all(
+      Array.from({ length: 6 }, () =>
+        listOrganizationFeatureFlags(organization._id)
+      )
+    );
+
+    expect(results).toHaveLength(6);
+    for (const flags of results) {
+      expect(Array.isArray(flags)).toBe(true);
+      expect(flags.some((entry) => entry.key === 'finance_valuation')).toBe(
+        true
+      );
+    }
+
+    const featureFlagDocs = await OrganizationFeatureFlag.find({
+      organization: organization._id
+    }).lean();
+    expect(featureFlagDocs).toHaveLength(1);
+  });
 });

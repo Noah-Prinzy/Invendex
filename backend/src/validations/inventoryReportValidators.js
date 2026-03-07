@@ -28,7 +28,11 @@ export const exportInventoryReportValidator = [
       throw new Error('from cannot be after to');
     }
     return true;
-  })
+  }),
+  query('warehouseId')
+    .optional({ values: 'falsy' })
+    .isMongoId()
+    .withMessage('warehouseId must be a valid ID')
 ];
 
 export const queueInventoryReportExportValidator = [
@@ -53,7 +57,11 @@ export const queueInventoryReportExportValidator = [
       throw new Error('from cannot be after to');
     }
     return true;
-  })
+  }),
+  body('warehouseId')
+    .optional({ values: 'falsy' })
+    .isMongoId()
+    .withMessage('warehouseId must be a valid ID')
 ];
 
 export const inventoryReportExportJobIdValidator = [

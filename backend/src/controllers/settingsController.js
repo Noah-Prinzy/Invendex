@@ -31,17 +31,21 @@ const mergeNestedObject = (target = {}, patch = {}) => {
 };
 
 const getOrCreateOrganizationSettings = async (organizationId) => {
-  let settings = await OrganizationSettings.findOne({
-    organization: organizationId
-  });
-
-  if (!settings) {
-    settings = await OrganizationSettings.create({
+  return OrganizationSettings.findOneAndUpdate(
+    {
       organization: organizationId
-    });
-  }
-
-  return settings;
+    },
+    {
+      $setOnInsert: {
+        organization: organizationId
+      }
+    },
+    {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true
+    }
+  );
 };
 
 const buildSettingsResponse = ({ organization, settings }) => ({

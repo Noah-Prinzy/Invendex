@@ -166,7 +166,8 @@ export const getGrossMargin = async (req, res, next) => {
       organizationId: req.organizationId,
       from: req.query.from || null,
       to: req.query.to || null,
-      groupBy: req.query.groupBy || 'day'
+      groupBy: req.query.groupBy || 'day',
+      warehouseId: req.query.warehouseId || null
     });
 
     const conversionContext = await buildCurrencyConversionContext({

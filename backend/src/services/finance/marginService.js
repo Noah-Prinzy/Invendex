@@ -39,7 +39,8 @@ export const getGrossMarginReport = async ({
   organizationId,
   from = null,
   to = null,
-  groupBy = 'day'
+  groupBy = 'day',
+  warehouseId = null
 }) => {
   const normalizedGroupBy = normalizeGroupBy(groupBy);
   const recordedAtRange = buildDateRange({ from, to });
@@ -47,6 +48,9 @@ export const getGrossMarginReport = async ({
   const cogsQuery = {
     organization: organizationId
   };
+  if (warehouseId) {
+    cogsQuery.warehouse = warehouseId;
+  }
   if (recordedAtRange) {
     cogsQuery.recordedAt = recordedAtRange;
   }

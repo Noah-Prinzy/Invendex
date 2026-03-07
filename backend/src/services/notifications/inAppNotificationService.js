@@ -3,6 +3,15 @@ import NotificationEvent from '../../models/NotificationEvent.js';
 import { AppError } from '../../errors/AppError.js';
 import { publishNotificationCreated } from '../../realtime/publisher.js';
 
+const ADMIN_ROLES = new Set(['owner', 'admin']);
+const ADMIN_ONLY_NOTIFICATION_TYPES = Object.freeze([
+  'employee_signup_request',
+  'employee_signup_approved',
+  'employee_signup_declined',
+  'employee_signin',
+  'employee_signout'
+]);
+
 const toObjectId = (value) => {
   if (!value) return null;
   if (value instanceof mongoose.Types.ObjectId) return value;
@@ -16,15 +25,80 @@ const toPositiveInt = (value, fallback, min, max) => {
   return Math.max(min, Math.min(max, parsed));
 };
 
+const resolveWarehouseId = ({ warehouseId = null, metadata = {} }) => {
+  const explicitWarehouseId = toObjectId(warehouseId);
+  if (explicitWarehouseId) return explicitWarehouseId;
+
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return null;
+  }
+
+  return (
+    toObjectId(metadata.warehouseId) ||
+    toObjectId(metadata.warehouse) ||
+    toObjectId(metadata.warehouse?._id) ||
+    null
+  );
+};
+
+const isAdminRole = (userRole) =>
+  ADMIN_ROLES.has(
+    String(userRole || '')
+      .trim()
+      .toLowerCase()
+  );
+
+const mapWarehouseScope = (warehouse) => {
+  if (!warehouse) {
+    return {
+      warehouseId: null,
+      warehouseCode: null,
+      warehouseName: null
+    };
+  }
+
+  if (
+    typeof warehouse === 'object' &&
+    !Array.isArray(warehouse) &&
+    warehouse !== null
+  ) {
+    return {
+      warehouseId: warehouse._id ? String(warehouse._id) : null,
+      warehouseCode: warehouse.code || null,
+      warehouseName: warehouse.name || null
+    };
+  }
+
+  return {
+    warehouseId: String(warehouse),
+    warehouseCode: null,
+    warehouseName: null
+  };
+};
+
+const applyRoleScopeToQuery = ({ query, userRole }) => {
+  if (isAdminRole(userRole)) return query;
+  return {
+    ...query,
+    type: {
+      $nin: ADMIN_ONLY_NOTIFICATION_TYPES
+    }
+  };
+};
+
 const mapNotification = (notification, userId = null) => {
   if (!notification) return null;
   const normalizedUserId = String(userId || '').trim();
   const readEntry = (notification.readBy || []).find(
     (entry) => String(entry?.user || '') === normalizedUserId
   );
+  const warehouseScope = mapWarehouseScope(notification.warehouse);
 
   return {
     _id: notification._id,
+    warehouseId: warehouseScope.warehouseId,
+    warehouseCode: warehouseScope.warehouseCode,
+    warehouseName: warehouseScope.warehouseName,
     type: notification.type,
     title: notification.title,
     message: notification.message,
@@ -42,6 +116,7 @@ const mapNotification = (notification, userId = null) => {
 
 export const createInAppNotification = async ({
   organizationId,
+  warehouseId = null,
   type,
   title,
   message,
@@ -69,6 +144,10 @@ export const createInAppNotification = async ({
 
   const payload = {
     organization: organizationId,
+    warehouse: resolveWarehouseId({
+      warehouseId,
+      metadata
+    }),
     type: normalizedType,
     title: normalizedTitle,
     message: normalizedMessage,
@@ -98,6 +177,8 @@ export const createInAppNotification = async ({
 export const listInAppNotifications = async ({
   organizationId,
   userId,
+  userRole = null,
+  warehouseId = null,
   limit = 20,
   unreadOnly = false
 }) => {
@@ -106,12 +187,30 @@ export const listInAppNotifications = async ({
   }
 
   const normalizedLimit = toPositiveInt(limit, 20, 1, 100);
-  const baseQuery = {
-    organization: organizationId
+  const scopedWarehouseId = toObjectId(warehouseId);
+  const scopedBaseQuery = applyRoleScopeToQuery({
+    query: {
+      organization: organizationId
+    },
+    userRole
+  });
+  const listQuery = {
+    ...scopedBaseQuery
   };
+  const unreadQuery = {
+    organization: organizationId
+    // role scoping applied below
+  };
+  Object.assign(
+    unreadQuery,
+    applyRoleScopeToQuery({
+      query: unreadQuery,
+      userRole
+    })
+  );
 
   if (unreadOnly) {
-    baseQuery.readBy = {
+    listQuery.readBy = {
       $not: {
         $elemMatch: {
           user: userId
@@ -120,12 +219,23 @@ export const listInAppNotifications = async ({
     };
   }
 
+  if (scopedWarehouseId) {
+    const warehouseScope = [
+      { warehouse: scopedWarehouseId },
+      { warehouse: null },
+      { warehouse: { $exists: false } }
+    ];
+    listQuery.$and = [...(listQuery.$and || []), { $or: warehouseScope }];
+    unreadQuery.$and = [...(unreadQuery.$and || []), { $or: warehouseScope }];
+  }
+
   const [items, unreadCount] = await Promise.all([
-    NotificationEvent.find(baseQuery)
+    NotificationEvent.find(listQuery)
       .sort({ createdAt: -1 })
-      .limit(normalizedLimit),
+      .limit(normalizedLimit)
+      .populate('warehouse', 'name code'),
     NotificationEvent.countDocuments({
-      organization: organizationId,
+      ...unreadQuery,
       readBy: {
         $not: {
           $elemMatch: {
@@ -145,6 +255,7 @@ export const listInAppNotifications = async ({
 export const markNotificationAsRead = async ({
   organizationId,
   userId,
+  userRole = null,
   notificationId
 }) => {
   if (!organizationId || !userId || !notificationId) {
@@ -154,10 +265,17 @@ export const markNotificationAsRead = async ({
     );
   }
 
-  const notification = await NotificationEvent.findOne({
-    _id: notificationId,
-    organization: organizationId
+  const notificationQuery = applyRoleScopeToQuery({
+    query: {
+      _id: notificationId,
+      organization: organizationId
+    },
+    userRole
   });
+
+  const notification = await NotificationEvent.findOne(
+    notificationQuery
+  ).populate('warehouse', 'name code');
 
   if (!notification) {
     throw new AppError('Notification not found', 404);
@@ -180,22 +298,44 @@ export const markNotificationAsRead = async ({
 
 export const markAllNotificationsAsRead = async ({
   organizationId,
-  userId
+  userId,
+  userRole = null,
+  warehouseId = null
 }) => {
   if (!organizationId || !userId) {
     throw new AppError('organizationId and userId are required', 400);
   }
 
-  const unreadNotifications = await NotificationEvent.find({
-    organization: organizationId,
-    readBy: {
-      $not: {
-        $elemMatch: {
-          user: userId
+  const unreadQuery = applyRoleScopeToQuery({
+    query: {
+      organization: organizationId,
+      readBy: {
+        $not: {
+          $elemMatch: {
+            user: userId
+          }
         }
       }
-    }
-  }).select('_id readBy');
+    },
+    userRole
+  });
+
+  const scopedWarehouseId = toObjectId(warehouseId);
+  if (scopedWarehouseId) {
+    unreadQuery.$and = [
+      ...(unreadQuery.$and || []),
+      {
+        $or: [
+          { warehouse: scopedWarehouseId },
+          { warehouse: null },
+          { warehouse: { $exists: false } }
+        ]
+      }
+    ];
+  }
+
+  const unreadNotifications =
+    await NotificationEvent.find(unreadQuery).select('_id readBy');
 
   if (!unreadNotifications.length) {
     return {
