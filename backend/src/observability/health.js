@@ -35,7 +35,7 @@ const getMemory = () => {
 };
 
 const baseHealth = () => ({
-  service: 'inventra-backend',
+  service: 'invendex-backend',
   uptimeSeconds: Number(process.uptime().toFixed(2)),
   timestamp: new Date().toISOString(),
   memory: getMemory()

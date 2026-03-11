@@ -1,8 +1,8 @@
 {
-  "name": "inventra-frontend",
+  "name": "invendex-frontend",
   "version": "1.0.0",
   "private": true,
-  "description": "Inventra frontend app",
+  "description": "Invendex frontend app",
   "dependencies": {
     "@tanstack/react-query": "^5.66.0",
     "i18next": "^23.16.8",

@@ -15,7 +15,7 @@ import NotificationBell from './components/NotificationBell.js';
 import TabBar from './components/TabBar.js';
 import useAuth from './hooks/auth/useAuth.js';
 import useTabs from './hooks/ui/useTabs.js';
-import { useInventraRealtime } from './hooks/realtime/useInventraRealtime.js';
+import { useInvendexRealtime } from './hooks/realtime/useInvendexRealtime.js';
 import { useOfflineSync } from './hooks/offline/useOfflineSync.js';
 import AuthLayout from './layouts/AuthLayout.js';
 import DashboardLayout from './layouts/DashboardLayout.js';
@@ -47,7 +47,7 @@ const EVENT_LIMIT = 40;
 const ADMIN_ROLES = new Set(['owner', 'admin']);
 const TAB_QUERY_KEY = 'tab';
 const SETTINGS_PAGE_QUERY_KEY = 'settingsPage';
-const AUTH_INTRO_COMPLETED_STORAGE_KEY = 'Inventra:auth_intro_completed:v1';
+const AUTH_INTRO_COMPLETED_STORAGE_KEY = 'Invendex:auth_intro_completed:v1';
 const sanitizeBaseUrl = (value) =>
   String(value || '')
     .trim()
@@ -575,7 +575,7 @@ const App = () => {
     refreshNotifications();
   }, [refreshNotifications]);
 
-  useInventraRealtime({
+  useInvendexRealtime({
     baseUrl: realtimeBaseUrl,
     accessToken,
     warehouseId: activeWarehouseId || null,
@@ -958,7 +958,7 @@ const App = () => {
   ) : (
     <AuthIntroLanding
       eyebrow={t('app.brand')}
-      title="Welcome to Inventra"
+      title="Welcome to Invendex"
       description={t('app.authIntroDescription')}
       onGetStarted={handleGetStarted}
     />

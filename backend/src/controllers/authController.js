@@ -49,7 +49,7 @@ const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
 const ADMIN_ROLES = new Set(['owner', 'admin']);
 const ALLOWED_UI_THEMES = new Set([
-  'inventra-classic',
+  'invendex-classic',
   'glacier-blue',
   'emerald-shift',
   'graphite-noir',
@@ -58,7 +58,7 @@ const ALLOWED_UI_THEMES = new Set([
   'sand-dune',
   'neon-grid'
 ]);
-const DEFAULT_UI_THEME = 'inventra-classic';
+const DEFAULT_UI_THEME = 'invendex-classic';
 const TWO_FACTOR_CHALLENGE_TTL_SECONDS = (() => {
   const raw = Number(process.env.AUTH_2FA_CHALLENGE_TTL_SECONDS || 600);
   if (!Number.isFinite(raw) || raw < 60 || raw > 3600) {
@@ -66,7 +66,7 @@ const TWO_FACTOR_CHALLENGE_TTL_SECONDS = (() => {
   }
   return Math.floor(raw);
 })();
-const TWO_FACTOR_ISSUER = String(process.env.AUTH_2FA_ISSUER || 'Inventra')
+const TWO_FACTOR_ISSUER = String(process.env.AUTH_2FA_ISSUER || 'Invendex')
   .trim()
   .slice(0, 80);
 const TWO_FACTOR_RECOVERY_CODES_COUNT = 10;
@@ -115,8 +115,8 @@ const buildEmployeeSignupDecisionEmailHtml = ({
     ? 'Your workspace access is ready'
     : 'Your workspace access request was declined';
   const message = isApproved
-    ? `Your Inventra signup request for ${organizationName || 'your organization'} was approved. You can now sign in with your company name, username, and password.`
-    : `Your Inventra signup request for ${organizationName || 'your organization'} was declined.`;
+    ? `Your Invendex signup request for ${organizationName || 'your organization'} was approved. You can now sign in with your company name, username, and password.`
+    : `Your Invendex signup request for ${organizationName || 'your organization'} was declined.`;
   const supportMessage = isApproved
     ? 'If you did not request this account, contact a workspace administrator immediately.'
     : reason
@@ -128,7 +128,7 @@ const buildEmployeeSignupDecisionEmailHtml = ({
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escapeHtml(title || 'Inventra')}</title>
+    <title>${escapeHtml(title || 'Invendex')}</title>
     <style>
       body {
         margin: 0;
@@ -242,8 +242,8 @@ const buildEmployeeSignupDecisionEmailHtml = ({
     <div class="shell">
       <div class="card">
         <div class="brand">
-          ${logoUrl ? `<img class="logo" src="${escapeHtml(logoUrl)}" alt="Inventra logo" />` : ''}
-          <span class="brand-badge">Inventra access</span>
+          ${logoUrl ? `<img class="logo" src="${escapeHtml(logoUrl)}" alt="Invendex logo" />` : ''}
+          <span class="brand-badge">Invendex access</span>
         </div>
         <h1>${escapeHtml(headline)}</h1>
         <p>Hi ${escapeHtml(username || 'there')},</p>
@@ -264,7 +264,7 @@ const buildEmployeeSignupDecisionEmailHtml = ({
         </div>
         ${
           openAppUrl
-            ? `<a class="button" href="${escapeHtml(openAppUrl)}">Open Inventra</a>`
+            ? `<a class="button" href="${escapeHtml(openAppUrl)}">Open Invendex</a>`
             : ''
         }
         <div class="support">${escapeHtml(supportMessage)}</div>
@@ -294,7 +294,7 @@ const buildAuthTokenEmailHtml = ({
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escapeHtml(title || 'Inventra')}</title>
+    <title>${escapeHtml(title || 'Invendex')}</title>
     <style>
       body {
         margin: 0;
@@ -435,10 +435,10 @@ const buildAuthTokenEmailHtml = ({
     <div class="shell">
       <div class="card">
         <div class="brand">
-          ${logoUrl ? `<img class="logo" src="${escapeHtml(logoUrl)}" alt="Inventra logo" />` : ''}
-          <span class="brand-badge">${escapeHtml(eyebrow || 'Inventra security')}</span>
+          ${logoUrl ? `<img class="logo" src="${escapeHtml(logoUrl)}" alt="Invendex logo" />` : ''}
+          <span class="brand-badge">${escapeHtml(eyebrow || 'Invendex security')}</span>
         </div>
-        <h1>${escapeHtml(headline || title || 'Inventra')}</h1>
+        <h1>${escapeHtml(headline || title || 'Invendex')}</h1>
         <p>${escapeHtml(intro || '')}</p>
         <div class="details">
           <div class="detail-row">
@@ -460,7 +460,7 @@ const buildAuthTokenEmailHtml = ({
         </div>
         ${
           openAppUrl
-            ? `<a class="button" href="${escapeHtml(openAppUrl)}">Open Inventra</a>`
+            ? `<a class="button" href="${escapeHtml(openAppUrl)}">Open Invendex</a>`
             : ''
         }
         <div class="support">${escapeHtml(supportMessage || '')}</div>
@@ -472,7 +472,7 @@ const buildAuthTokenEmailHtml = ({
 
 const buildSecurityAlertEmailHtml = ({
   title,
-  eyebrow = 'Inventra security',
+  eyebrow = 'Invendex security',
   headline,
   intro,
   detailRows = [],
@@ -486,7 +486,7 @@ const buildSecurityAlertEmailHtml = ({
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escapeHtml(title || 'Inventra')}</title>
+    <title>${escapeHtml(title || 'Invendex')}</title>
     <style>
       body {
         margin: 0;
@@ -600,10 +600,10 @@ const buildSecurityAlertEmailHtml = ({
     <div class="shell">
       <div class="card">
         <div class="brand">
-          ${logoUrl ? `<img class="logo" src="${escapeHtml(logoUrl)}" alt="Inventra logo" />` : ''}
+          ${logoUrl ? `<img class="logo" src="${escapeHtml(logoUrl)}" alt="Invendex logo" />` : ''}
           <span class="brand-badge">${escapeHtml(eyebrow)}</span>
         </div>
-        <h1>${escapeHtml(headline || title || 'Inventra')}</h1>
+        <h1>${escapeHtml(headline || title || 'Invendex')}</h1>
         <p>${escapeHtml(intro || '')}</p>
         ${
           Array.isArray(detailRows) && detailRows.length
@@ -623,7 +623,7 @@ const buildSecurityAlertEmailHtml = ({
         }
         ${
           openAppUrl
-            ? `<a class="button" href="${escapeHtml(openAppUrl)}">Open Inventra</a>`
+            ? `<a class="button" href="${escapeHtml(openAppUrl)}">Open Invendex</a>`
             : ''
         }
         ${
@@ -671,7 +671,7 @@ const buildEmailActionPage = ({
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escapeHtml(title || 'Inventra')}</title>
+    <title>${escapeHtml(title || 'Invendex')}</title>
     <style>
       body {
         margin: 0;
@@ -796,7 +796,7 @@ const buildEmailActionPage = ({
   </head>
   <body>
     <main class="panel" data-status="${escapeHtml(status || 'info')}">
-      <span class="eyebrow">Inventra</span>
+      <span class="eyebrow">Invendex</span>
       <h1>${escapeHtml(title || 'Action processed')}</h1>
       <p>${escapeHtml(message || '')}</p>
       ${
@@ -1379,7 +1379,7 @@ const queueEmployeeSignupDecisionEmail = async ({
     const message = [
       `Hi ${normalizedUsername},`,
       '',
-      `Your Inventra signup request for ${organizationName || 'your organization'} was approved.`,
+      `Your Invendex signup request for ${organizationName || 'your organization'} was approved.`,
       'You can now sign in with your username and password.',
       buildEmailActionHint(
         'If you did not request this account, contact an administrator.'
@@ -1389,10 +1389,10 @@ const queueEmployeeSignupDecisionEmail = async ({
     await queueAuthEmail({
       organizationId,
       to: normalizedEmail,
-      subject: 'Your Inventra signup request was approved',
+      subject: 'Your Invendex signup request was approved',
       message,
       html: buildEmployeeSignupDecisionEmailHtml({
-        title: 'Your Inventra signup request was approved',
+        title: 'Your Invendex signup request was approved',
         username: normalizedUsername,
         organizationName: organizationName || 'your organization',
         decision: 'approved'
@@ -1409,7 +1409,7 @@ const queueEmployeeSignupDecisionEmail = async ({
   const message = [
     `Hi ${normalizedUsername},`,
     '',
-    `Your Inventra signup request for ${organizationName || 'your organization'} was declined.`,
+    `Your Invendex signup request for ${organizationName || 'your organization'} was declined.`,
     reason
       ? `Reason: ${reason}`
       : 'Contact an administrator if you need access.',
@@ -1421,10 +1421,10 @@ const queueEmployeeSignupDecisionEmail = async ({
   await queueAuthEmail({
     organizationId,
     to: normalizedEmail,
-    subject: 'Your Inventra signup request was declined',
+    subject: 'Your Invendex signup request was declined',
     message,
     html: buildEmployeeSignupDecisionEmailHtml({
-      title: 'Your Inventra signup request was declined',
+      title: 'Your Invendex signup request was declined',
       username: normalizedUsername,
       organizationName: organizationName || 'your organization',
       decision: 'declined',
@@ -1451,7 +1451,7 @@ const buildSyntheticAuditRequest = ({
   method: 'GET',
   originalUrl: path,
   headers: {
-    'user-agent': 'Inventra email action'
+    'user-agent': 'Invendex email action'
   }
 });
 
@@ -2331,7 +2331,7 @@ export const declineEmployeeSignupRequest = async (req, res, next) => {
 
 export const reviewEmployeeSignupRequestFromEmail = async (req, res, next) => {
   const defaultPrimaryActionHref = APP_WEB_URL || '';
-  const defaultPrimaryActionLabel = APP_WEB_URL ? 'Open Inventra' : '';
+  const defaultPrimaryActionLabel = APP_WEB_URL ? 'Open Invendex' : '';
 
   try {
     const token = String(req.query?.token || '').trim();
@@ -2357,7 +2357,7 @@ export const reviewEmployeeSignupRequestFromEmail = async (req, res, next) => {
         statusCode: 401,
         title: 'Email action link expired',
         message:
-          'This approval link is invalid or has expired. Open Inventra and review the signup request from the notification panel.',
+          'This approval link is invalid or has expired. Open Invendex and review the signup request from the notification panel.',
         status: 'error',
         primaryActionHref: defaultPrimaryActionHref,
         primaryActionLabel: defaultPrimaryActionLabel
@@ -2397,7 +2397,7 @@ export const reviewEmployeeSignupRequestFromEmail = async (req, res, next) => {
         statusCode: 404,
         title: 'Signup request not found',
         message:
-          'This signup request no longer exists. Open Inventra to review current requests.',
+          'This signup request no longer exists. Open Invendex to review current requests.',
         status: 'warning',
         primaryActionHref: defaultPrimaryActionHref,
         primaryActionLabel: defaultPrimaryActionLabel
@@ -2455,7 +2455,7 @@ export const reviewEmployeeSignupRequestFromEmail = async (req, res, next) => {
     return sendEmployeeSignupEmailActionPage({
       res,
       title: `Signup request ${actionLabel}`,
-      message: `${result.signupRequest?.username || 'The employee'} was ${actionLabel} successfully. You can close this tab and return to Inventra.`,
+      message: `${result.signupRequest?.username || 'The employee'} was ${actionLabel} successfully. You can close this tab and return to Invendex.`,
       status: 'success',
       metaRows: [
         {
@@ -2659,7 +2659,7 @@ export const setupTwoFactor = async (req, res, next) => {
       user.organization
     );
     const otpAuthUrl = buildOtpAuthUri({
-      issuer: TWO_FACTOR_ISSUER || 'Inventra',
+      issuer: TWO_FACTOR_ISSUER || 'Invendex',
       accountName: user.email,
       base32Secret
     });
@@ -2671,7 +2671,7 @@ export const setupTwoFactor = async (req, res, next) => {
       resourceId: user._id,
       organizationId: user.organization || null,
       meta: {
-        issuer: TWO_FACTOR_ISSUER || 'Inventra',
+        issuer: TWO_FACTOR_ISSUER || 'Invendex',
         organizationId: organization?._id || null
       }
     });
@@ -3163,13 +3163,13 @@ export const revokeSession = async (req, res, next) => {
       organizationId: user.organization || null,
       userId: user._id,
       to: user.email,
-      subject: 'Inventra session revoked',
+      subject: 'Invendex session revoked',
       headline: isCurrentSession
         ? 'Your current session was revoked'
         : 'A session was removed from your account',
       intro: isCurrentSession
-        ? 'Your active Inventra session was revoked. Sign in again if you still need access.'
-        : 'A signed-in Inventra session was removed from your account.',
+        ? 'Your active Invendex session was revoked. Sign in again if you still need access.'
+        : 'A signed-in Invendex session was removed from your account.',
       detailRows: [
         {
           label: 'Workspace',
@@ -3263,10 +3263,10 @@ export const logoutOtherSessions = async (req, res, next) => {
         organizationId: user.organization || null,
         userId: user._id,
         to: user.email,
-        subject: 'Inventra other sessions signed out',
+        subject: 'Invendex other sessions signed out',
         headline: 'Other sessions were signed out',
         intro:
-          'All other Inventra sessions for your account were removed. Your current session remains active.',
+          'All other Invendex sessions for your account were removed. Your current session remains active.',
         detailRows: [
           {
             label: 'Workspace',
@@ -3506,7 +3506,7 @@ export const register = async (req, res, next) => {
         `Hi ${normalizedEmail},`,
         '',
         `Welcome to ${organization.name}.`,
-        `Use this verification token to activate your Inventra account: ${verificationToken}`,
+        `Use this verification token to activate your Invendex account: ${verificationToken}`,
         'This token expires in 24 hours.',
         buildEmailActionHint(
           'If you did not create this account, ignore this message.'
@@ -3517,13 +3517,13 @@ export const register = async (req, res, next) => {
         organizationId: organization._id,
         userId: user._id,
         to: normalizedEmail,
-        subject: 'Verify your Inventra account',
+        subject: 'Verify your Invendex account',
         message: verificationMessage,
         html: buildAuthTokenEmailHtml({
-          title: 'Verify your Inventra account',
-          eyebrow: 'Inventra verification',
+          title: 'Verify your Invendex account',
+          eyebrow: 'Invendex verification',
           headline: 'Verify your account',
-          intro: `Hi ${normalizedEmail}, use this verification token to activate your Inventra account.`,
+          intro: `Hi ${normalizedEmail}, use this verification token to activate your Invendex account.`,
           recipientLabel: normalizedEmail,
           organizationName: organization.name,
           tokenLabel: 'Verification token',
@@ -3628,7 +3628,7 @@ export const requestEmailVerification = async (req, res, next) => {
     const verificationMessage = [
       `Hi ${normalizedEmail},`,
       '',
-      `Use this verification token to verify your Inventra account: ${verificationToken}`,
+      `Use this verification token to verify your Invendex account: ${verificationToken}`,
       'This token expires in 24 hours.',
       buildEmailActionHint('If you did not request this, ignore this message.')
     ].join('\n');
@@ -3637,13 +3637,13 @@ export const requestEmailVerification = async (req, res, next) => {
       organizationId: user.organization || null,
       userId: user._id,
       to: normalizedEmail,
-      subject: 'Inventra email verification token',
+      subject: 'Invendex email verification token',
       message: verificationMessage,
       html: buildAuthTokenEmailHtml({
-        title: 'Inventra email verification token',
-        eyebrow: 'Inventra verification',
+        title: 'Invendex email verification token',
+        eyebrow: 'Invendex verification',
         headline: 'Verify your account',
-        intro: `Hi ${normalizedEmail}, use this verification token to verify your Inventra account.`,
+        intro: `Hi ${normalizedEmail}, use this verification token to verify your Invendex account.`,
         recipientLabel: normalizedEmail,
         organizationName: organization?.name || 'your organization',
         tokenLabel: 'Verification token',
@@ -3746,7 +3746,7 @@ export const forgotPassword = async (req, res, next) => {
     const resetMessage = [
       `Hi ${normalizedEmail},`,
       '',
-      `Use this password reset token for your Inventra account: ${resetToken}`,
+      `Use this password reset token for your Invendex account: ${resetToken}`,
       'This token expires in 1 hour.',
       buildEmailActionHint('If you did not request this, ignore this message.')
     ].join('\n');
@@ -3755,13 +3755,13 @@ export const forgotPassword = async (req, res, next) => {
       organizationId: user.organization || null,
       userId: user._id,
       to: normalizedEmail,
-      subject: 'Inventra password reset token',
+      subject: 'Invendex password reset token',
       message: resetMessage,
       html: buildAuthTokenEmailHtml({
-        title: 'Inventra password reset token',
-        eyebrow: 'Inventra security',
+        title: 'Invendex password reset token',
+        eyebrow: 'Invendex security',
         headline: 'Reset your password',
-        intro: `Hi ${normalizedEmail}, use this token to reset your Inventra password.`,
+        intro: `Hi ${normalizedEmail}, use this token to reset your Invendex password.`,
         recipientLabel: normalizedEmail,
         organizationName: organization?.name || 'your organization',
         tokenLabel: 'Password reset token',
@@ -3853,10 +3853,10 @@ export const resetPassword = async (req, res, next) => {
       organizationId: user.organization || null,
       userId: user._id,
       to: normalizedEmail,
-      subject: 'Inventra password changed',
+      subject: 'Invendex password changed',
       headline: 'Your password was changed',
       intro:
-        'Your Inventra password was updated successfully and all previous sessions were signed out.',
+        'Your Invendex password was updated successfully and all previous sessions were signed out.',
       detailRows: [
         {
           label: 'Email',

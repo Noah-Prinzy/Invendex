@@ -35,7 +35,7 @@ const resolveAppAssetUrl = (assetPath = '') => {
 
 const buildOperationalEmailShell = ({
   title,
-  eyebrow = 'Inventra operations',
+  eyebrow = 'Invendex operations',
   headline,
   intro,
   detailRows = [],
@@ -50,7 +50,7 @@ const buildOperationalEmailShell = ({
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escapeHtml(title || 'Inventra')}</title>
+    <title>${escapeHtml(title || 'Invendex')}</title>
     <style>
       body {
         margin: 0;
@@ -164,10 +164,10 @@ const buildOperationalEmailShell = ({
     <div class="shell">
       <div class="card">
         <div class="brand">
-          ${logoUrl ? `<img class="logo" src="${escapeHtml(logoUrl)}" alt="Inventra logo" />` : ''}
+          ${logoUrl ? `<img class="logo" src="${escapeHtml(logoUrl)}" alt="Invendex logo" />` : ''}
           <span class="brand-badge">${escapeHtml(eyebrow)}</span>
         </div>
-        <h1>${escapeHtml(headline || title || 'Inventra')}</h1>
+        <h1>${escapeHtml(headline || title || 'Invendex')}</h1>
         <p>${escapeHtml(intro || '')}</p>
         ${
           detailRows.length
@@ -209,7 +209,7 @@ export const buildSupplierNotificationEmailHtml = ({
 }) =>
   buildOperationalEmailShell({
     title: subject,
-    eyebrow: 'Inventra supplier',
+    eyebrow: 'Invendex supplier',
     headline: subject,
     intro: message,
     detailRows: [
@@ -221,7 +221,7 @@ export const buildSupplierNotificationEmailHtml = ({
         ? { label: 'Reference', value: metadata.reference }
         : null
     ].filter(Boolean),
-    primaryActionLabel: APP_WEB_URL ? 'Open Inventra' : '',
+    primaryActionLabel: APP_WEB_URL ? 'Open Invendex' : '',
     primaryActionHref: APP_WEB_URL || '',
     supportMessage:
       'Reply directly to this email if you need to coordinate fulfillment or update the order details.'
@@ -235,8 +235,8 @@ export const buildLowStockEmailHtml = ({
   reorderLevel = 0
 }) =>
   buildOperationalEmailShell({
-    title: `Inventra low-stock alert (${organizationName})`,
-    eyebrow: 'Inventra inventory',
+    title: `Invendex low-stock alert (${organizationName})`,
+    eyebrow: 'Invendex inventory',
     headline: 'Low stock requires attention',
     intro: `${productName || 'Product'} is now at or below its reorder threshold in ${organizationName}.`,
     detailRows: [
@@ -275,7 +275,7 @@ const resolveSmtpConfig = () => {
   const user = String(process.env.SMTP_USER || '').trim();
   const pass = String(process.env.SMTP_PASS || '').trim();
   const fromEmail = String(process.env.SMTP_FROM_EMAIL || '').trim();
-  const fromName = String(process.env.SMTP_FROM_NAME || 'Inventra').trim();
+  const fromName = String(process.env.SMTP_FROM_NAME || 'Invendex').trim();
   const port = toFinitePort(process.env.SMTP_PORT, 587);
   const secure = parseBooleanEnv(process.env.SMTP_SECURE, port === 465);
   const requireTls = parseBooleanEnv(process.env.SMTP_REQUIRE_TLS, false);
@@ -377,7 +377,7 @@ export const sendEmailNotification = async ({
     text,
     html: html || undefined,
     headers: {
-      'x-inventra-notification': 'true'
+      'x-invendex-notification': 'true'
     }
   });
 
@@ -445,7 +445,7 @@ export const sendLowStockSmsNotification = async ({
   }
 
   const message = [
-    `Inventra low-stock alert (${organizationName})`,
+    `Invendex low-stock alert (${organizationName})`,
     `${productName || 'Product'} [${sku || 'N/A'}]`,
     `Stock: ${Number(currentStock || 0)} | Reorder: ${Number(reorderLevel || 0)}`
   ].join(' | ');
@@ -488,7 +488,7 @@ export const sendLowStockEmailNotification = async ({
     };
   }
 
-  const subject = `Inventra low-stock alert (${organizationName})`;
+  const subject = `Invendex low-stock alert (${organizationName})`;
   const text = [
     `Organization: ${organizationName}`,
     `Product: ${productName || 'Product'}`,
@@ -549,7 +549,7 @@ export const sendLowStockWhatsappNotification = async ({
   }
 
   const message = [
-    `Inventra low-stock alert (${organizationName})`,
+    `Invendex low-stock alert (${organizationName})`,
     `${productName || 'Product'} [${sku || 'N/A'}]`,
     `Stock: ${Number(currentStock || 0)} | Reorder: ${Number(reorderLevel || 0)}`
   ].join(' | ');

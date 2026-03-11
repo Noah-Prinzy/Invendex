@@ -53,7 +53,7 @@ const userSchema = new mongoose.Schema(
     },
     uiTheme: {
       type: String,
-      default: 'inventra-classic',
+      default: 'invendex-classic',
       trim: true
     },
     organization: {

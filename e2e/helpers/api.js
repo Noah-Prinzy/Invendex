@@ -69,7 +69,7 @@ const registerAdminWorkspace = async (api, suffix) => {
   const adminEmail = `e2e.admin.${suffix}@example.com`;
   const adminUsername = `e2eadmin${suffix}`;
   const adminPassword = 'QaAdmin123!';
-  const companyName = `Inventra E2E ${suffix}`;
+  const companyName = `Invendex E2E ${suffix}`;
 
   const registerBody = await apiJson(api, 'POST', '/auth/register', {
     data: {

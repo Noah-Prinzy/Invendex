@@ -60,7 +60,7 @@
   --shadow-lg: 0 34px 68px rgba(3, 9, 20, 0.26);
 }
 
-:root[data-theme='inventra-classic'] {
+:root[data-theme='invendex-classic'] {
   --bg-start: #0b1528;
   --bg-end: #050a14;
   --orb-a: rgba(98, 140, 255, 0.36);

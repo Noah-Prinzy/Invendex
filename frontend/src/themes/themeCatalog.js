@@ -1,9 +1,9 @@
-export const DEFAULT_THEME_ID = 'inventra-classic';
+export const DEFAULT_THEME_ID = 'invendex-classic';
 
 export const APP_THEMES = Object.freeze([
   {
-    id: 'inventra-classic',
-    label: 'Inventra Classic',
+    id: 'invendex-classic',
+    label: 'Invendex Classic',
     description: 'Navy, cyan, and crisp control surfaces.',
     swatches: ['#061224', '#1f8fda', '#aee3ff', '#edf4fd']
   },

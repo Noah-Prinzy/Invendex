@@ -142,7 +142,7 @@ const buildServerList = ({ apiBasePath = '/api/v1' }) => {
 };
 
 export const createOpenApiSpec = ({
-  title = 'Inventra API',
+  title = 'Invendex API',
   version = '1.0.0',
   apiBasePath = '/api/v1',
   authBasePath = '/api/v1/auth'
@@ -197,7 +197,7 @@ export const createOpenApiSpec = ({
       title,
       version,
       description:
-        'Auto-generated OpenAPI spec from mounted Inventra route modules.'
+        'Auto-generated OpenAPI spec from mounted Invendex route modules.'
     },
     servers: buildServerList({ apiBasePath: normalizedApiBasePath }),
     tags,

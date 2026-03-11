@@ -13,7 +13,7 @@ describe('notificationService email html builders', () => {
       reorderLevel: 9
     });
 
-    expect(html).toContain('Inventra inventory');
+    expect(html).toContain('Invendex inventory');
     expect(html).toContain('Low stock requires attention');
     expect(html).toContain('Dope Clothes');
     expect(html).toContain('Retro Jacket');
@@ -31,7 +31,7 @@ describe('notificationService email html builders', () => {
       }
     });
 
-    expect(html).toContain('Inventra supplier');
+    expect(html).toContain('Invendex supplier');
     expect(html).toContain('Purchase order ready for dispatch');
     expect(html).toContain('Acme Supply Co');
     expect(html).toContain('Dope Clothes');

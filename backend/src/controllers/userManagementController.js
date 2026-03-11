@@ -219,8 +219,8 @@ const buildEmployeeInviteEmailHtml = ({
     <div class="shell">
       <div class="card">
         <div class="brand">
-          ${logoUrl ? `<img class="logo" src="${escapeHtml(logoUrl)}" alt="Inventra logo" />` : ''}
-          <span class="brand-badge">Inventra invite</span>
+          ${logoUrl ? `<img class="logo" src="${escapeHtml(logoUrl)}" alt="Invendex logo" />` : ''}
+          <span class="brand-badge">Invendex invite</span>
         </div>
         <h1>You were invited to join ${escapeHtml(organizationName)}</h1>
         <p>Use the employee portal and enter this invite code during your first sign-in.</p>
@@ -240,7 +240,7 @@ const buildEmployeeInviteEmailHtml = ({
         </div>
         ${
           APP_WEB_URL
-            ? `<a class="button" href="${escapeHtml(APP_WEB_URL)}">Open Inventra</a>`
+            ? `<a class="button" href="${escapeHtml(APP_WEB_URL)}">Open Invendex</a>`
             : ''
         }
         <div class="support">If you were not expecting this invite, ignore this message and contact the workspace administrator.</div>
@@ -567,7 +567,7 @@ export const createOrganizationInvite = async (req, res, next) => {
       const organizationName = organization?.name || 'your organization';
       const appUrl = String(process.env.APP_WEB_URL || '').trim();
       const inviteMessage = [
-        `You have been invited to join ${organizationName} on Inventra.`,
+        `You have been invited to join ${organizationName} on Invendex.`,
         `Invite code: ${inviteCode}`,
         `Expires at: ${new Date(invite.expiresAt).toISOString()}`,
         appUrl

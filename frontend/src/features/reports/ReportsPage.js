@@ -65,7 +65,7 @@ const downloadFile = ({ filename, content, mimeType }) => {
 
 const buildReportFilename = (prefix, extension) => {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  return `inventra-${prefix}-${stamp}.${extension}`;
+  return `invendex-${prefix}-${stamp}.${extension}`;
 };
 
 const Reports = ({

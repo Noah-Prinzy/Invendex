@@ -118,7 +118,7 @@ const mountOpenApiDocs = ({ basePath, authBasePath }) => {
 
   app.get(openApiSpecPath, (req, res) => {
     const spec = createOpenApiSpec({
-      title: 'Inventra API',
+      title: 'Invendex API',
       version: '1.0.0',
       apiBasePath: basePath,
       authBasePath
@@ -134,7 +134,7 @@ const mountOpenApiDocs = ({ basePath, authBasePath }) => {
       swaggerOptions: {
         url: openApiSpecPath
       },
-      customSiteTitle: `Inventra API Docs (${basePath})`
+      customSiteTitle: `Invendex API Docs (${basePath})`
     })
   );
 };

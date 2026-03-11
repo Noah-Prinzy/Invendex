@@ -1,4 +1,4 @@
-## Inventra Realtime Client
+## Invendex Realtime Client
 
 This folder contains a lightweight Socket.IO client integration for dashboard and purchase-order live updates.
 
@@ -13,9 +13,9 @@ npm install socket.io-client
 ### Quick usage
 
 ```js
-import { useInventraRealtime } from '../hooks/realtime/useInventraRealtime';
+import { useInvendexRealtime } from '../hooks/realtime/useInvendexRealtime';
 
-useInventraRealtime({
+useInvendexRealtime({
   baseUrl: import.meta.env.VITE_API_URL,
   accessToken,
   warehouseId,

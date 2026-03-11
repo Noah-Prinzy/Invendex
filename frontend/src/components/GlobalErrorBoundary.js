@@ -25,7 +25,7 @@ class GlobalErrorBoundary extends React.Component {
       return (
         <main className="auth-layout">
           <section className="auth-card">
-            <p className="eyebrow">Inventra</p>
+            <p className="eyebrow">Invendex</p>
             <h2>Something went wrong</h2>
             <p>Please reload the app. If this continues, contact support.</p>
           </section>

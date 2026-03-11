@@ -53,7 +53,7 @@ const drawTable = (document, { columns = [], rows = [] }) => {
 };
 
 export const toPdfBuffer = ({
-  title = 'Inventra Report',
+  title = 'Invendex Report',
   subtitle = '',
   sections = []
 } = {}) =>

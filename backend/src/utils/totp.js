@@ -201,7 +201,7 @@ export const matchesRecoveryCodeHash = ({ recoveryCode, hash }) => {
 };
 
 export const buildOtpAuthUri = ({ issuer, accountName, base32Secret }) => {
-  const normalizedIssuer = String(issuer || 'Inventra').trim() || 'Inventra';
+  const normalizedIssuer = String(issuer || 'Invendex').trim() || 'Invendex';
   const normalizedAccount = String(accountName || 'user').trim() || 'user';
   const normalizedSecret = sanitizeBase32(base32Secret);
   if (!normalizedSecret) {

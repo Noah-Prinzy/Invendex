@@ -341,7 +341,7 @@ export const twoFactorRegenerateRecoveryCodesValidator = [
 ];
 
 const allowedUiThemes = [
-  'inventra-classic',
+  'invendex-classic',
   'glacier-blue',
   'emerald-shift',
   'graphite-noir',

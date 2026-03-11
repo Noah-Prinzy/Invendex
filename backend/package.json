@@ -1,8 +1,8 @@
 {
-  "name": "inventra-backend",
+  "name": "invendex-backend",
   "version": "1.0.0",
   "type": "module",
-  "description": "Inventra backend API",
+  "description": "Invendex backend API",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",

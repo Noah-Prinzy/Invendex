@@ -153,7 +153,7 @@ describe('employee signup email action links', () => {
       type: BACKGROUND_JOB_TYPES.EMAIL_NOTIFICATION,
       'payload.notificationType': 'EMPLOYEE_SIGNUP_APPROVED'
     }).lean();
-    expect(approvalEmailJob?.payload?.html).toContain('Inventra access');
+    expect(approvalEmailJob?.payload?.html).toContain('Invendex access');
     expect(approvalEmailJob?.payload?.html).toContain(
       'Your workspace access is ready'
     );
@@ -223,7 +223,7 @@ describe('employee signup email action links', () => {
       type: BACKGROUND_JOB_TYPES.EMAIL_NOTIFICATION,
       'payload.notificationType': 'EMPLOYEE_SIGNUP_DECLINED'
     }).lean();
-    expect(declineEmailJob?.payload?.html).toContain('Inventra access');
+    expect(declineEmailJob?.payload?.html).toContain('Invendex access');
     expect(declineEmailJob?.payload?.html).toContain(
       'workspace access request was declined'
     );

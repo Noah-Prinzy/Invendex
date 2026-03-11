@@ -71,7 +71,7 @@ const buildAdminSignupRequestEmailHtml = ({
     .join('');
 
   const appLinkMarkup = APP_WEB_URL
-    ? `<a class="link-secondary" href="${escapeHtml(APP_WEB_URL)}">Open Inventra</a>`
+    ? `<a class="link-secondary" href="${escapeHtml(APP_WEB_URL)}">Open Invendex</a>`
     : '';
 
   return `<!doctype html>
@@ -79,7 +79,7 @@ const buildAdminSignupRequestEmailHtml = ({
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escapeHtml(title || 'Inventra')}</title>
+    <title>${escapeHtml(title || 'Invendex')}</title>
     <style>
       body {
         margin: 0;
@@ -198,7 +198,7 @@ const buildAdminSignupRequestEmailHtml = ({
   <body>
     <div class="shell">
       <div class="card">
-        <span class="eyebrow">Inventra admin review</span>
+        <span class="eyebrow">Invendex admin review</span>
         <h1>${escapeHtml(title)}</h1>
         <p>${escapeHtml(message)}</p>
         <div class="details">
@@ -213,7 +213,7 @@ const buildAdminSignupRequestEmailHtml = ({
           ${appLinkMarkup}
         </div>
         <div class="footnote">
-          These links are signed and time-limited. If one no longer works, open Inventra and review the request from the notification panel.
+          These links are signed and time-limited. If one no longer works, open Invendex and review the request from the notification panel.
         </div>
       </div>
     </div>
@@ -232,7 +232,7 @@ const buildEventCopy = ({
 
   if (eventType === 'employee_signup_request') {
     return {
-      subject: `Inventra employee signup request (${workspace})`,
+      subject: `Invendex employee signup request (${workspace})`,
       title: 'Employee signup request',
       message: `${identity} requested access to ${workspace}.`
     };
@@ -240,14 +240,14 @@ const buildEventCopy = ({
 
   if (eventType === 'employee_signout') {
     return {
-      subject: `Inventra employee sign out (${workspace})`,
+      subject: `Invendex employee sign out (${workspace})`,
       title: 'Employee signed out',
       message: `${identity} signed out of ${workspace}.`
     };
   }
 
   return {
-    subject: `Inventra employee sign in (${workspace})`,
+    subject: `Invendex employee sign in (${workspace})`,
     title: 'Employee signed in',
     message: `${identity} signed in to ${workspace}.`
   };

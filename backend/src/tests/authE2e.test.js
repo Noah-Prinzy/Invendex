@@ -464,7 +464,7 @@ describe('auth e2e', () => {
     const [inviteEmailJob] = await waitForEmailJobsByTypeToSettle({
       notificationType: 'EMPLOYEE_INVITE'
     });
-    expect(inviteEmailJob?.payload?.html).toContain('Inventra invite');
+    expect(inviteEmailJob?.payload?.html).toContain('Invendex invite');
     expect(inviteEmailJob?.payload?.html).toContain(
       createInviteResponse.body?.data?.inviteCode
     );

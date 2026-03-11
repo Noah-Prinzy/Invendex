@@ -1,6 +1,6 @@
-# Inventra
+# Invendex
 
-Inventra is a multi-tenant inventory and purchasing platform with:
+Invendex is a multi-tenant inventory and purchasing platform with:
 
 - warehouse-aware inventory,
 - serial/batch tracking,

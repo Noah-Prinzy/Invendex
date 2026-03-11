@@ -1,4 +1,4 @@
-const CACHE_NAME = 'inventra-shell-v7';
+const CACHE_NAME = 'invendex-shell-v7';
 const OFFLINE_URLS = [
   '/',
   '/index.html',

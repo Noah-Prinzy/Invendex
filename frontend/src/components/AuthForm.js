@@ -195,7 +195,7 @@ const AuthForm = ({
   const heroTitle = isTwoFactorChallengeActive
     ? 'Complete verification to access your workspace.'
     : isAdminPortal
-      ? 'Operate Inventra with full employer-level control.'
+      ? 'Operate Invendex with full employer-level control.'
       : isEmployeeSignUp
         ? 'Request employee access to your company workspace.'
         : 'Continue with fast employee operations sign-in.';

@@ -1223,7 +1223,7 @@ const Products = ({
     });
 
     downloadTextFile({
-      filename: 'inventra-bulk-import-errors.csv',
+      filename: 'invendex-bulk-import-errors.csv',
       content: `${lines.join('\n')}\n`,
       mimeType: 'text/csv;charset=utf-8'
     });
@@ -1244,7 +1244,7 @@ const Products = ({
     ].join(',');
 
     downloadTextFile({
-      filename: 'inventra-products-template.csv',
+      filename: 'invendex-products-template.csv',
       content: `${headerRow}\n${exampleRow}\n`,
       mimeType: 'text/csv;charset=utf-8'
     });

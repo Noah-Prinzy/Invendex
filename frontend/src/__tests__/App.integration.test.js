@@ -1,7 +1,7 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import App from '../App.js';
 import useAuth from '../hooks/auth/useAuth.js';
-import { useInventraRealtime } from '../hooks/realtime/useInventraRealtime.js';
+import { useInvendexRealtime } from '../hooks/realtime/useInvendexRealtime.js';
 import { useOfflineSync } from '../hooks/offline/useOfflineSync.js';
 import { renderWithProviders } from '../test/renderWithProviders.js';
 import {
@@ -38,9 +38,9 @@ jest.mock('../hooks/auth/useAuth.js', () => ({
   default: jest.fn()
 }));
 
-jest.mock('../hooks/realtime/useInventraRealtime.js', () => ({
+jest.mock('../hooks/realtime/useInvendexRealtime.js', () => ({
   __esModule: true,
-  useInventraRealtime: jest.fn()
+  useInvendexRealtime: jest.fn()
 }));
 
 jest.mock('../hooks/offline/useOfflineSync.js', () => ({
@@ -114,18 +114,18 @@ const buildAuthState = (overrides) => ({
 });
 
 const getLatestRealtimeConfig = () => {
-  const callCount = useInventraRealtime.mock.calls.length;
+  const callCount = useInvendexRealtime.mock.calls.length;
   if (!callCount) return null;
-  return useInventraRealtime.mock.calls[callCount - 1][0];
+  return useInvendexRealtime.mock.calls[callCount - 1][0];
 };
 
-const AUTH_INTRO_COMPLETED_STORAGE_KEY = 'Inventra:auth_intro_completed:v1';
+const AUTH_INTRO_COMPLETED_STORAGE_KEY = 'Invendex:auth_intro_completed:v1';
 
 describe('App integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     window.localStorage.clear();
-    useInventraRealtime.mockImplementation(() => ({}));
+    useInvendexRealtime.mockImplementation(() => ({}));
     useOfflineSync.mockImplementation(() => {});
     getPurchaseOrdersRequest.mockResolvedValue([]);
     getWarehousesRequest.mockResolvedValue([]);
@@ -340,13 +340,13 @@ describe('App integration', () => {
       target: { value: 'owner.ops' }
     });
     fireEvent.change(screen.getByLabelText('Email'), {
-      target: { value: 'owner@Inventra.com' }
+      target: { value: 'owner@Invendex.com' }
     });
     fireEvent.change(screen.getByLabelText('Mobile Number'), {
       target: { value: '+256700000001' }
     });
     fireEvent.change(screen.getByLabelText('Company Name'), {
-      target: { value: 'Inventra Ops' }
+      target: { value: 'Invendex Ops' }
     });
     fireEvent.change(screen.getByLabelText('Password'), {
       target: { value: 'StrongPass123' }
@@ -362,11 +362,11 @@ describe('App integration', () => {
       expect(signup).toHaveBeenCalledWith(
         expect.objectContaining({
           username: 'owner.ops',
-          email: 'owner@Inventra.com',
+          email: 'owner@Invendex.com',
           mobileNumber: '+256700000001',
           password: 'StrongPass123',
           confirmPassword: 'StrongPass123',
-          organizationName: 'Inventra Ops'
+          organizationName: 'Invendex Ops'
         })
       );
     });
@@ -387,13 +387,13 @@ describe('App integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Employee sign up' }));
 
     fireEvent.change(screen.getByLabelText('Company Name'), {
-      target: { value: 'Inventra Ops' }
+      target: { value: 'Invendex Ops' }
     });
     fireEvent.change(screen.getByLabelText('Username'), {
       target: { value: 'ops.staff' }
     });
     fireEvent.change(screen.getByLabelText('Email'), {
-      target: { value: 'staff@Inventra.com' }
+      target: { value: 'staff@Invendex.com' }
     });
     fireEvent.change(screen.getByLabelText('Mobile Number'), {
       target: { value: '+256700000002' }
@@ -411,9 +411,9 @@ describe('App integration', () => {
     await waitFor(() => {
       expect(employeeSignup).toHaveBeenCalledWith(
         expect.objectContaining({
-          companyName: 'Inventra Ops',
+          companyName: 'Invendex Ops',
           username: 'ops.staff',
-          email: 'staff@Inventra.com',
+          email: 'staff@Invendex.com',
           mobileNumber: '+256700000002',
           password: 'StaffPass123!',
           confirmPassword: 'StaffPass123!'
@@ -427,7 +427,7 @@ describe('App integration', () => {
       buildAuthState({
         user: {
           _id: 'user-1',
-          email: 'manager@Inventra.com',
+          email: 'manager@Invendex.com',
           role: 'admin',
           organization: 'org-1'
         },
@@ -490,7 +490,7 @@ describe('App integration', () => {
       buildAuthState({
         user: {
           _id: 'user-2',
-          email: 'owner@Inventra.com',
+          email: 'owner@Invendex.com',
           role: 'admin',
           organization: 'org-1'
         },

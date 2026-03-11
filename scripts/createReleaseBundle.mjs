@@ -3,7 +3,7 @@ import path from 'node:path';
 
 const ROOT_DIR = process.cwd();
 const RELEASE_ROOT = path.join(ROOT_DIR, 'release');
-const OUTPUT_DIR = path.join(RELEASE_ROOT, `inventra-${Date.now()}`);
+const OUTPUT_DIR = path.join(RELEASE_ROOT, `invendex-${Date.now()}`);
 
 const EXCLUDED = new Set([
   '.git',

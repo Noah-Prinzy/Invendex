@@ -169,7 +169,7 @@ const buildPoStatusSummaryExport = async ({
 
   if (normalizedFormat === 'pdf') {
     const buffer = await toPdfBuffer({
-      title: 'Inventra PO Status Summary',
+      title: 'Invendex PO Status Summary',
       subtitle: `Generated on ${new Date().toLocaleString()}`,
       sections: [
         {
@@ -286,7 +286,7 @@ const buildFullSummaryExport = async ({
     }));
 
     const buffer = await toPdfBuffer({
-      title: 'Inventra Full Summary Report',
+      title: 'Invendex Full Summary Report',
       subtitle: `Generated on ${new Date().toLocaleString()}`,
       sections: [
         {

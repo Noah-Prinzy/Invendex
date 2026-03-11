@@ -4,7 +4,7 @@ import Button from '../ui/Button.js';
 const STORY_SECTIONS = Object.freeze([
   {
     eyebrow: 'Welcome',
-    title: 'Welcome to Inventra',
+    title: 'Welcome to Invendex',
     description:
       'A modern inventory operations platform for teams that need realtime control, secure collaboration, and confident purchasing decisions.'
   },
@@ -174,11 +174,11 @@ const AuthIntroLanding = ({ description = '', onGetStarted = () => {} }) => {
         <div className="auth-landing-stage-grid" />
         <img
           src="/logo600.png"
-          alt="Inventra logo"
+          alt="Invendex logo"
           className="auth-landing-stage-logo"
           loading="eager"
         />
-        <h1 className="auth-landing-stage-title">Inventra</h1>
+        <h1 className="auth-landing-stage-title">Invendex</h1>
         <div className="auth-landing-stage-pills" aria-hidden="true">
           <span>Inventory Intelligence</span>
           <span>Warehouse Control</span>

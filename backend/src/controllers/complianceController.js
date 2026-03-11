@@ -200,7 +200,7 @@ export const exportOrganizationData = async (req, res, next) => {
 
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename=inventra-org-export-${Date.now()}.json`
+      `attachment; filename=invendex-org-export-${Date.now()}.json`
     );
     return res.status(200).json({
       success: true,

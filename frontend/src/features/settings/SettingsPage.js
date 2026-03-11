@@ -64,7 +64,7 @@ const SETTINGS_PAGES = [
   {
     id: 'theme',
     title: 'Theme Studio',
-    description: 'Pick and preview your Inventra visual theme.',
+    description: 'Pick and preview your Invendex visual theme.',
     scope: 'Personal'
   },
   {

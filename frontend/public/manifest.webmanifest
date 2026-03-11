@@ -1,7 +1,7 @@
 {
-  "name": "Inventra",
-  "short_name": "Inventra",
-  "description": "Inventra inventory, purchasing, and finance platform.",
+  "name": "Invendex",
+  "short_name": "Invendex",
+  "description": "Invendex inventory, purchasing, and finance platform.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

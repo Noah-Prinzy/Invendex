@@ -105,7 +105,7 @@ describe('adminAuthAlertService', () => {
         organizationId: 'org_123',
         createdBy: 'user_123',
         to: 'admin.one@example.com',
-        subject: 'Inventra employee signup request (Dope Clothes)',
+        subject: 'Invendex employee signup request (Dope Clothes)',
         notificationType: 'EMPLOYEE_SIGNUP_REQUEST',
         html: expect.stringContaining('Approve request'),
         text: expect.stringContaining(

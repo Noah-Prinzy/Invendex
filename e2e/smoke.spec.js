@@ -157,7 +157,7 @@ const getNotificationItem = (dialog, title, detail) =>
     .filter({ hasText: detail })
     .first();
 
-test.describe('Inventra end-to-end smoke', () => {
+test.describe('Invendex end-to-end smoke', () => {
   test('admin warehouse selector scopes product stock', async ({ page }) => {
     const suffix = String(Date.now()).slice(-6);
     const scenario = await seedWorkspaceScenario({ suffix });
