@@ -1,23 +1,14 @@
 import { jest } from '@jest/globals';
 
 const mockFind = jest.fn();
-const mockQueueEmailNotification = jest.fn();
 const mockSendBulkSms = jest.fn();
 const mockSendBulkWhatsApp = jest.fn();
-const originalJwtAccessSecret = process.env.JWT_ACCESS_SECRET;
 
 await jest.unstable_mockModule('../models/User.js', () => ({
   default: {
     find: mockFind
   }
 }));
-
-await jest.unstable_mockModule(
-  '../services/notifications/emailJobService.js',
-  () => ({
-    queueEmailNotification: mockQueueEmailNotification
-  })
-);
 
 await jest.unstable_mockModule(
   '../services/notifications/smsService.js',
@@ -40,9 +31,6 @@ const mockAdminLookup = (users) => {
 describe('adminAuthAlertService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    process.env.JWT_ACCESS_SECRET =
-      originalJwtAccessSecret || 'test_access_secret';
-    mockQueueEmailNotification.mockResolvedValue({ queued: true });
     mockSendBulkSms.mockResolvedValue({
       count: 0,
       deliveredCount: 0,
@@ -55,11 +43,7 @@ describe('adminAuthAlertService', () => {
     });
   });
 
-  afterAll(() => {
-    process.env.JWT_ACCESS_SECRET = originalJwtAccessSecret;
-  });
-
-  it('sends deduped email and WhatsApp alerts for employee signup requests', async () => {
+  it('sends deduped WhatsApp alerts for employee signup requests', async () => {
     mockAdminLookup([
       {
         _id: '65f000000000000000000001',
@@ -98,37 +82,12 @@ describe('adminAuthAlertService', () => {
       },
       isActive: true
     });
-    expect(mockQueueEmailNotification).toHaveBeenCalledTimes(2);
-    expect(mockQueueEmailNotification).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        organizationId: 'org_123',
-        createdBy: 'user_123',
-        to: 'admin.one@example.com',
-        subject: 'Invendex employee signup request (Dope Clothes)',
-        notificationType: 'EMPLOYEE_SIGNUP_REQUEST',
-        html: expect.stringContaining('Approve request'),
-        text: expect.stringContaining(
-          '/auth/employee/signup-requests/review-email?token='
-        )
-      })
-    );
-    expect(mockQueueEmailNotification).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        to: 'owner@example.com'
-      })
-    );
     expect(mockSendBulkSms).not.toHaveBeenCalled();
     expect(mockSendBulkWhatsApp).toHaveBeenCalledWith({
       recipients: ['+256700001111', '+256700002222'],
       message: expect.stringContaining('Employee signup request')
     });
     expect(result.queued).toBe(true);
-    expect(result.emailRecipients).toEqual([
-      'admin.one@example.com',
-      'owner@example.com'
-    ]);
     expect(result.mobileRecipients).toEqual(['+256700001111', '+256700002222']);
   });
 
@@ -144,7 +103,6 @@ describe('adminAuthAlertService', () => {
     });
 
     expect(mockFind).not.toHaveBeenCalled();
-    expect(mockQueueEmailNotification).not.toHaveBeenCalled();
     expect(mockSendBulkSms).not.toHaveBeenCalled();
     expect(mockSendBulkWhatsApp).not.toHaveBeenCalled();
     expect(result).toEqual(
@@ -176,7 +134,6 @@ describe('adminAuthAlertService', () => {
       })
     );
 
-    expect(mockQueueEmailNotification).not.toHaveBeenCalled();
     expect(mockSendBulkSms).not.toHaveBeenCalled();
     expect(mockSendBulkWhatsApp).not.toHaveBeenCalled();
   });

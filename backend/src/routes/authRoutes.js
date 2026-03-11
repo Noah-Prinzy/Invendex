@@ -7,7 +7,6 @@ import {
   requestEmployeeSignup,
   approveEmployeeSignupRequest,
   declineEmployeeSignupRequest,
-  reviewEmployeeSignupRequestFromEmail,
   getMe,
   updateMePreferences,
   refreshToken,
@@ -77,10 +76,6 @@ router.post(
   employeeSignupRequestValidator,
   validateRequest,
   requestEmployeeSignup
-);
-router.get(
-  '/employee/signup-requests/review-email',
-  reviewEmployeeSignupRequestFromEmail
 );
 router.post(
   '/employee/signup-requests/:id/approve',

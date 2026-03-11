@@ -4,7 +4,6 @@ import ReorderAlert from '../models/ReorderAlert.js';
 import SupplierProduct from '../models/SupplierProduct.js';
 import { getAverageDailyDemandPerSku } from './inventoryMetricsService.js';
 import {
-  sendLowStockEmailNotification,
   sendLowStockSmsNotification,
   sendLowStockWhatsappNotification
 } from './notifications/notificationService.js';
@@ -177,19 +176,6 @@ export const runReorderEngine = async ({
         warehouseId: String(inventoryRow.warehouse || '')
       }
     });
-
-    sendLowStockEmailNotification({
-      organizationName:
-        notificationRecipients?.organizationName || 'Organization',
-      sku: product.sku,
-      productName: product.name,
-      currentStock,
-      reorderLevel,
-      recipients:
-        notificationRecipients?.emailEnabled === true
-          ? notificationRecipients?.emailRecipients || []
-          : []
-    }).catch(() => {});
 
     // Non-blocking operational notification.
     sendLowStockSmsNotification({

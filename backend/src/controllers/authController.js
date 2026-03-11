@@ -39,7 +39,6 @@ import {
   normalizeRecoveryCodeInput,
   verifyTotp
 } from '../utils/totp.js';
-import { verifyEmployeeSignupEmailActionToken } from '../utils/employeeSignupEmailActions.js';
 
 const MAX_SESSIONS = 5;
 const SESSION_ID_PREFIX = 'sess';
@@ -71,9 +70,6 @@ const TWO_FACTOR_ISSUER = String(process.env.AUTH_2FA_ISSUER || 'Invendex')
   .slice(0, 80);
 const TWO_FACTOR_RECOVERY_CODES_COUNT = 10;
 const APP_WEB_URL = String(process.env.APP_WEB_URL || '').trim();
-const PUBLIC_API_BASE_URL = String(
-  process.env.PUBLIC_API_BASE_URL || ''
-).trim();
 const USERNAME_REGEX = /^[a-zA-Z0-9._-]{3,32}$/;
 
 const buildEmailActionHint = (fallbackMessage = '') => {
@@ -637,17 +633,6 @@ const buildSecurityAlertEmailHtml = ({
 </html>`;
 };
 
-const resolvePublicApiBaseUrl = (req = null) => {
-  if (PUBLIC_API_BASE_URL) {
-    return PUBLIC_API_BASE_URL.replace(/\/+$/, '');
-  }
-
-  const protocol = String(req?.protocol || '').trim();
-  const host = String(req?.get?.('host') || req?.headers?.host || '').trim();
-  if (!protocol || !host) return '';
-  return `${protocol}://${host}`;
-};
-
 const escapeHtml = (value) =>
   String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -655,190 +640,6 @@ const escapeHtml = (value) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-
-const buildEmailActionPage = ({
-  title,
-  message,
-  status = 'info',
-  metaRows = [],
-  primaryActionHref = '',
-  primaryActionLabel = '',
-  secondaryActionHref = '',
-  secondaryActionLabel = '',
-  footerNote = ''
-}) => `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escapeHtml(title || 'Invendex')}</title>
-    <style>
-      body {
-        margin: 0;
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        background:
-          radial-gradient(circle at top, rgba(68, 154, 255, 0.22), transparent 42%),
-          linear-gradient(180deg, #07111f 0%, #0d1727 52%, #111c2f 100%);
-        color: #eff7ff;
-        font-family: "Segoe UI", sans-serif;
-      }
-      .panel {
-        width: min(92vw, 640px);
-        padding: 2.2rem;
-        border-radius: 28px;
-        border: 1px solid rgba(174, 227, 255, 0.18);
-        background: rgba(7, 17, 31, 0.86);
-        box-shadow: 0 32px 90px rgba(0, 0, 0, 0.34);
-      }
-      .eyebrow {
-        display: inline-flex;
-        padding: 0.32rem 0.72rem;
-        border-radius: 999px;
-        background: rgba(174, 227, 255, 0.12);
-        color: #aee3ff;
-        font-size: 0.78rem;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-      }
-      .panel h1 {
-        margin: 1rem 0 0.75rem;
-        font-size: clamp(1.8rem, 3vw, 2.4rem);
-      }
-      .panel p {
-        margin: 0;
-        color: rgba(239, 247, 255, 0.82);
-        line-height: 1.6;
-      }
-      .meta {
-        margin-top: 1.5rem;
-        padding: 1rem 1.1rem;
-        border-radius: 18px;
-        border: 1px solid rgba(174, 227, 255, 0.1);
-        background: rgba(174, 227, 255, 0.06);
-      }
-      .meta-row {
-        display: flex;
-        justify-content: space-between;
-        gap: 1rem;
-        padding: 0.62rem 0;
-        border-bottom: 1px solid rgba(174, 227, 255, 0.08);
-      }
-      .meta-row:last-child {
-        border-bottom: none;
-        padding-bottom: 0;
-      }
-      .meta-label {
-        color: rgba(239, 247, 255, 0.56);
-      }
-      .actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.85rem;
-        margin-top: 1.6rem;
-      }
-      .button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 48px;
-        padding: 0 1rem;
-        border-radius: 14px;
-        font-weight: 700;
-        text-decoration: none;
-      }
-      .button-primary {
-        color: #04111f !important;
-        background: linear-gradient(135deg, #aee3ff 0%, #63b6ff 100%);
-      }
-      .button-secondary {
-        color: #eff7ff !important;
-        background: rgba(174, 227, 255, 0.08);
-        border: 1px solid rgba(174, 227, 255, 0.14);
-      }
-      .footer-note {
-        margin-top: 1.2rem;
-        font-size: 0.9rem;
-        color: rgba(239, 247, 255, 0.58);
-      }
-      .panel a {
-        color: #aee3ff;
-      }
-      .panel[data-status="success"] .eyebrow {
-        background: rgba(118, 255, 191, 0.12);
-        color: #76ffbf;
-      }
-      .panel[data-status="warning"] .eyebrow {
-        background: rgba(255, 206, 120, 0.14);
-        color: #ffce78;
-      }
-      .panel[data-status="error"] .eyebrow {
-        background: rgba(255, 131, 131, 0.14);
-        color: #ff8383;
-      }
-      @media (max-width: 640px) {
-        .panel {
-          padding: 1.5rem;
-        }
-        .meta-row {
-          flex-direction: column;
-          gap: 0.35rem;
-        }
-        .actions {
-          flex-direction: column;
-        }
-        .button {
-          width: 100%;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <main class="panel" data-status="${escapeHtml(status || 'info')}">
-      <span class="eyebrow">Invendex</span>
-      <h1>${escapeHtml(title || 'Action processed')}</h1>
-      <p>${escapeHtml(message || '')}</p>
-      ${
-        Array.isArray(metaRows) && metaRows.length
-          ? `<section class="meta">
-              ${metaRows
-                .map(
-                  ({ label, value }) => `
-                    <div class="meta-row">
-                      <span class="meta-label">${escapeHtml(label)}</span>
-                      <strong>${escapeHtml(value)}</strong>
-                    </div>
-                  `
-                )
-                .join('')}
-            </section>`
-          : ''
-      }
-      ${
-        primaryActionHref || secondaryActionHref
-          ? `<div class="actions">
-              ${
-                primaryActionHref && primaryActionLabel
-                  ? `<a class="button button-primary" href="${escapeHtml(primaryActionHref)}">${escapeHtml(primaryActionLabel)}</a>`
-                  : ''
-              }
-              ${
-                secondaryActionHref && secondaryActionLabel
-                  ? `<a class="button button-secondary" href="${escapeHtml(secondaryActionHref)}">${escapeHtml(secondaryActionLabel)}</a>`
-                  : ''
-              }
-            </div>`
-          : ''
-      }
-      ${
-        footerNote
-          ? `<div class="footer-note">${escapeHtml(footerNote)}</div>`
-          : ''
-      }
-    </main>
-  </body>
-</html>`;
 
 const getTwoFactorChallengeSecret = () => {
   const explicitSecret = String(
@@ -1655,33 +1456,6 @@ const reviewEmployeeSignupRequestInternal = async ({
   };
 };
 
-const sendEmployeeSignupEmailActionPage = ({
-  res,
-  statusCode = 200,
-  title,
-  message,
-  status = 'info',
-  metaRows = [],
-  primaryActionHref = '',
-  primaryActionLabel = '',
-  secondaryActionHref = '',
-  secondaryActionLabel = '',
-  footerNote = ''
-}) =>
-  res.status(statusCode).type('html').send(
-    buildEmailActionPage({
-      title,
-      message,
-      status,
-      metaRows,
-      primaryActionHref,
-      primaryActionLabel,
-      secondaryActionHref,
-      secondaryActionLabel,
-      footerNote
-    })
-  );
-
 const resolveOrganizationByName = async (companyName) => {
   const normalizedCompanyName = normalizeOrganizationNameInput(companyName);
   if (!normalizedCompanyName) return null;
@@ -2237,8 +2011,6 @@ export const requestEmployeeSignup = async (req, res, next) => {
       organizationId: organization._id,
       actorUserId: null,
       eventType: 'employee_signup_request',
-      signupRequestId: signupRequest._id,
-      publicApiBaseUrl: resolvePublicApiBaseUrl(req),
       organizationName: organization.name,
       employeeEmail: normalizedEmail,
       employeeUsername: normalizedUsername,
@@ -2325,176 +2097,6 @@ export const declineEmployeeSignupRequest = async (req, res, next) => {
       'Employee signup declined'
     );
   } catch (error) {
-    return next(error);
-  }
-};
-
-export const reviewEmployeeSignupRequestFromEmail = async (req, res, next) => {
-  const defaultPrimaryActionHref = APP_WEB_URL || '';
-  const defaultPrimaryActionLabel = APP_WEB_URL ? 'Open Invendex' : '';
-
-  try {
-    const token = String(req.query?.token || '').trim();
-
-    if (!token) {
-      return sendEmployeeSignupEmailActionPage({
-        res,
-        statusCode: 400,
-        title: 'Email action link missing',
-        message: 'This review link is invalid or incomplete.',
-        status: 'error',
-        primaryActionHref: defaultPrimaryActionHref,
-        primaryActionLabel: defaultPrimaryActionLabel
-      });
-    }
-
-    let tokenPayload;
-    try {
-      tokenPayload = verifyEmployeeSignupEmailActionToken(token);
-    } catch {
-      return sendEmployeeSignupEmailActionPage({
-        res,
-        statusCode: 401,
-        title: 'Email action link expired',
-        message:
-          'This approval link is invalid or has expired. Open Invendex and review the signup request from the notification panel.',
-        status: 'error',
-        primaryActionHref: defaultPrimaryActionHref,
-        primaryActionLabel: defaultPrimaryActionLabel
-      });
-    }
-
-    const reviewer = await User.findOne({
-      _id: tokenPayload.reviewerUserId,
-      organization: tokenPayload.organizationId,
-      role: { $in: Array.from(ADMIN_ROLES) },
-      isActive: true
-    })
-      .select('_id email username organization role')
-      .lean();
-
-    if (!reviewer) {
-      return sendEmployeeSignupEmailActionPage({
-        res,
-        statusCode: 403,
-        title: 'Admin access no longer valid',
-        message:
-          'This review link belongs to an account that no longer has admin access in this workspace.',
-        status: 'error',
-        primaryActionHref: defaultPrimaryActionHref,
-        primaryActionLabel: defaultPrimaryActionLabel
-      });
-    }
-
-    const existingSignupRequest = await EmployeeSignupRequest.findOne({
-      _id: tokenPayload.signupRequestId,
-      organization: tokenPayload.organizationId
-    }).lean();
-
-    if (!existingSignupRequest) {
-      return sendEmployeeSignupEmailActionPage({
-        res,
-        statusCode: 404,
-        title: 'Signup request not found',
-        message:
-          'This signup request no longer exists. Open Invendex to review current requests.',
-        status: 'warning',
-        primaryActionHref: defaultPrimaryActionHref,
-        primaryActionLabel: defaultPrimaryActionLabel
-      });
-    }
-
-    if (existingSignupRequest.status !== 'PENDING') {
-      return sendEmployeeSignupEmailActionPage({
-        res,
-        title: 'Signup request already reviewed',
-        message: `${existingSignupRequest.username || 'This account'} was already ${String(
-          existingSignupRequest.status || 'processed'
-        ).toLowerCase()}. No further action was applied.`,
-        status: 'warning',
-        metaRows: [
-          {
-            label: 'Employee email',
-            value: existingSignupRequest.email || 'n/a'
-          },
-          {
-            label: 'Username',
-            value: existingSignupRequest.username || 'n/a'
-          },
-          {
-            label: 'Current status',
-            value: existingSignupRequest.status || 'n/a'
-          }
-        ],
-        primaryActionHref: defaultPrimaryActionHref,
-        primaryActionLabel: defaultPrimaryActionLabel
-      });
-    }
-
-    const result = await reviewEmployeeSignupRequestInternal({
-      organizationId: tokenPayload.organizationId,
-      requestId: tokenPayload.signupRequestId,
-      decision: tokenPayload.action,
-      reviewedByUserId: reviewer._id,
-      reason:
-        tokenPayload.action === 'decline'
-          ? 'Declined from signed email review link'
-          : '',
-      auditRequest: buildSyntheticAuditRequest({
-        reviewedByUserId: reviewer._id,
-        organizationId: tokenPayload.organizationId,
-        path: `/auth/employee/signup-requests/review-email?token=${encodeURIComponent(
-          token
-        )}`
-      })
-    });
-
-    const actionLabel =
-      tokenPayload.action === 'approve' ? 'approved' : 'declined';
-
-    return sendEmployeeSignupEmailActionPage({
-      res,
-      title: `Signup request ${actionLabel}`,
-      message: `${result.signupRequest?.username || 'The employee'} was ${actionLabel} successfully. You can close this tab and return to Invendex.`,
-      status: 'success',
-      metaRows: [
-        {
-          label: 'Workspace',
-          value: result.organization?.name || reviewer.organization || 'n/a'
-        },
-        {
-          label: 'Employee email',
-          value: result.signupRequest?.email || 'n/a'
-        },
-        {
-          label: 'Username',
-          value: result.signupRequest?.username || 'n/a'
-        },
-        {
-          label: 'Reviewed by',
-          value: reviewer.username || reviewer.email || 'Admin'
-        }
-      ],
-      primaryActionHref: defaultPrimaryActionHref,
-      primaryActionLabel: defaultPrimaryActionLabel,
-      footerNote:
-        tokenPayload.action === 'approve'
-          ? 'The employee can now sign in with their company name, username, and password.'
-          : 'No account was created for this employee request.'
-    });
-  } catch (error) {
-    if (error instanceof AppError) {
-      return sendEmployeeSignupEmailActionPage({
-        res,
-        statusCode: error.statusCode || 400,
-        title: 'Unable to complete review',
-        message: error.message,
-        status: 'error',
-        primaryActionHref: defaultPrimaryActionHref,
-        primaryActionLabel: defaultPrimaryActionLabel
-      });
-    }
-
     return next(error);
   }
 };

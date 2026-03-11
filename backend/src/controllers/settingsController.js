@@ -53,7 +53,7 @@ const buildSettingsResponse = ({ organization, settings }) => ({
   organizationCode: organization?.code || null,
   companyProfile: settings.companyProfile || {},
   notifications: {
-    ...(settings.notifications || {}),
+    quietHours: settings.notifications?.quietHours || {},
     lowStockSmsEnabled: Boolean(organization?.smsLowStockEnabled),
     lowStockRecipients: Array.isArray(organization?.smsLowStockRecipients)
       ? organization.smsLowStockRecipients

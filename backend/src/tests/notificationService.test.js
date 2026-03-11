@@ -1,25 +1,6 @@
-import {
-  buildLowStockEmailHtml,
-  buildSupplierNotificationEmailHtml
-} from '../services/notifications/notificationService.js';
+import { buildSupplierNotificationEmailHtml } from '../services/notifications/notificationService.js';
 
 describe('notificationService email html builders', () => {
-  it('builds branded low-stock alert html', () => {
-    const html = buildLowStockEmailHtml({
-      organizationName: 'Dope Clothes',
-      sku: 'SKU-100',
-      productName: 'Retro Jacket',
-      currentStock: 3,
-      reorderLevel: 9
-    });
-
-    expect(html).toContain('Invendex inventory');
-    expect(html).toContain('Low stock requires attention');
-    expect(html).toContain('Dope Clothes');
-    expect(html).toContain('Retro Jacket');
-    expect(html).toContain('SKU-100');
-  });
-
   it('builds branded supplier notification html', () => {
     const html = buildSupplierNotificationEmailHtml({
       supplierName: 'Acme Supply Co',

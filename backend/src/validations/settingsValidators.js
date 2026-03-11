@@ -98,7 +98,6 @@ export const patchSettingsValidator = [
     ),
   optionalFloat('companyProfile.vatRateDefault', 0, 100),
 
-  optionalBoolean('notifications.lowStockEmailEnabled'),
   optionalBoolean('notifications.lowStockSmsEnabled'),
   body('notifications.lowStockRecipients')
     .optional()

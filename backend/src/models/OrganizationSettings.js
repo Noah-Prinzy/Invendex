@@ -63,10 +63,6 @@ const organizationSettingsSchema = new mongoose.Schema(
       }
     },
     notifications: {
-      lowStockEmailEnabled: {
-        type: Boolean,
-        default: false
-      },
       lowStockSmsEnabled: {
         type: Boolean,
         default: false

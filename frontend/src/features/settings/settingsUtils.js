@@ -41,7 +41,6 @@ export const getDefaultSettings = () => ({
     vatRateDefault: 18
   },
   notifications: {
-    lowStockEmailEnabled: false,
     lowStockSmsEnabled: false,
     lowStockRecipients: [],
     lowStockSmsRecipients: [],
@@ -196,7 +195,6 @@ export const mapFormToApiPayload = (form) => ({
     vatRateDefault: Number(form.companyProfile?.vatRateDefault || 0)
   },
   notifications: {
-    lowStockEmailEnabled: Boolean(form.notifications?.lowStockEmailEnabled),
     lowStockSmsEnabled: Boolean(form.notifications?.lowStockSmsEnabled),
     lowStockRecipients: normalizeRecipients(
       form.notifications?.lowStockRecipients

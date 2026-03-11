@@ -227,31 +227,6 @@ export const buildSupplierNotificationEmailHtml = ({
       'Reply directly to this email if you need to coordinate fulfillment or update the order details.'
   });
 
-export const buildLowStockEmailHtml = ({
-  organizationName = 'Organization',
-  sku = '',
-  productName = '',
-  currentStock = 0,
-  reorderLevel = 0
-}) =>
-  buildOperationalEmailShell({
-    title: `Invendex low-stock alert (${organizationName})`,
-    eyebrow: 'Invendex inventory',
-    headline: 'Low stock requires attention',
-    intro: `${productName || 'Product'} is now at or below its reorder threshold in ${organizationName}.`,
-    detailRows: [
-      { label: 'Workspace', value: organizationName || 'Organization' },
-      { label: 'Product', value: productName || 'Product' },
-      { label: 'SKU', value: sku || 'N/A' },
-      { label: 'Current stock', value: String(Number(currentStock || 0)) },
-      { label: 'Reorder level', value: String(Number(reorderLevel || 0)) }
-    ],
-    primaryActionLabel: APP_WEB_URL ? 'Review inventory' : '',
-    primaryActionHref: APP_WEB_URL || '',
-    supportMessage:
-      'Use the inventory dashboard to review the affected warehouse, generate a purchase order, or acknowledge the alert.'
-  });
-
 const parseBooleanEnv = (value, fallback = false) => {
   if (value === undefined || value === null || value === '') {
     return fallback;
@@ -463,66 +438,6 @@ export const sendLowStockSmsNotification = async ({
   };
 };
 
-export const sendLowStockEmailNotification = async ({
-  organizationName = 'Organization',
-  sku,
-  productName,
-  currentStock,
-  reorderLevel,
-  recipients = []
-}) => {
-  const targetRecipients = Array.from(
-    new Set(
-      (Array.isArray(recipients) ? recipients : [])
-        .map((entry) => String(entry || '').trim())
-        .filter(Boolean)
-    )
-  );
-
-  if (!targetRecipients.length) {
-    return {
-      success: false,
-      channel: 'email',
-      skipped: true,
-      reason: 'No low-stock email recipients configured'
-    };
-  }
-
-  const subject = `Invendex low-stock alert (${organizationName})`;
-  const text = [
-    `Organization: ${organizationName}`,
-    `Product: ${productName || 'Product'}`,
-    `SKU: ${sku || 'N/A'}`,
-    `Current stock: ${Number(currentStock || 0)}`,
-    `Reorder level: ${Number(reorderLevel || 0)}`
-  ].join('\n');
-
-  const outcome = await sendEmailNotification({
-    to: targetRecipients.join(', '),
-    subject,
-    text,
-    html: buildLowStockEmailHtml({
-      organizationName,
-      sku,
-      productName,
-      currentStock,
-      reorderLevel
-    }),
-    metadata: {
-      organizationName,
-      sku,
-      productName,
-      currentStock: Number(currentStock || 0),
-      reorderLevel: Number(reorderLevel || 0)
-    }
-  });
-
-  return {
-    ...outcome,
-    recipients: targetRecipients
-  };
-};
-
 export const sendLowStockWhatsappNotification = async ({
   organizationName = 'Organization',
   sku,
@@ -570,7 +485,6 @@ export const sendLowStockWhatsappNotification = async ({
 export default {
   sendEmailNotification,
   sendSupplierNotification,
-  sendLowStockEmailNotification,
   sendLowStockSmsNotification,
   sendLowStockWhatsappNotification
 };

@@ -169,7 +169,7 @@ export const NotificationRulesSection = ({
       <section className="settings-contact-card">
         <div className="settings-contact-head">
           <div>
-            <p className="settings-contact-label">Email delivery</p>
+            <p className="settings-contact-label">Account email</p>
             <p className="settings-contact-value">
               {String(currentUserEmail || '').trim() || 'No email connected'}
             </p>
@@ -181,7 +181,7 @@ export const NotificationRulesSection = ({
           </span>
         </div>
         <p className="event-sub">
-          Your sign-up email is used automatically for email alerts.
+          Your sign-up email stays attached to your account for sign-in and account security flows.
         </p>
       </section>
 
@@ -233,21 +233,6 @@ export const NotificationRulesSection = ({
     </div>
 
     <div className="settings-grid">
-      <label className="settings-toggle">
-        <input
-          type="checkbox"
-          checked={Boolean(form.notifications.lowStockEmailEnabled)}
-          onChange={(event) =>
-            setNestedField(
-              'notifications',
-              'lowStockEmailEnabled',
-              event.target.checked
-            )
-          }
-          disabled={isDisabled(canManageSettings, isSaving)}
-        />
-        <span>Low-stock email alerts</span>
-      </label>
       <label className="settings-toggle">
         <input
           type="checkbox"
