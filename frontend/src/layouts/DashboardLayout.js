@@ -31,57 +31,63 @@ const DashboardLayout = ({
   return (
     <main className="app-layout">
       <header className="app-header">
-        <div className="brand">
-          <div
-            className="brand-company-frame"
-            data-tutorial-id="header-brand"
-          >
-            <h1 className="brand-company-name" title={brandTitle}>
-              {brandTitle}
-            </h1>
+        <div className="app-header-main">
+          <div className="brand">
+            <div
+              className="brand-company-frame"
+              data-tutorial-id="header-brand"
+            >
+              <h1 className="brand-company-name" title={brandTitle}>
+                {brandTitle}
+              </h1>
+            </div>
+          </div>
+          <div className="header-actions">
+            <p
+              className={`section-note status-note header-action-item header-queue-indicator ${
+                isOnline ? 'online' : 'offline'
+              }`}
+              aria-live="polite"
+            >
+              {isOnline ? statusOnlineLabel : statusOfflineLabel} | {queueLabel}{' '}
+              {offlineQueueSize}
+            </p>
+            <div
+              className="header-action-item header-notification"
+              data-tutorial-id="header-notifications"
+            >
+              {notificationsNode}
+            </div>
+            <div
+              className="header-action-item header-warehouse-selector"
+              data-tutorial-id="header-warehouse"
+            >
+              <Select
+                id="warehouseId"
+                className="warehouse-filter-select"
+                value={warehouseId}
+                onChange={(event) => onWarehouseChange(event.target.value)}
+                options={warehouseOptions}
+                disabled={warehouseDisabled}
+                aria-label={warehouseLabel || warehousePlaceholder}
+              />
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              className="header-signout-btn"
+              onClick={onLogout}
+            >
+              {signOutLabel}
+            </Button>
           </div>
         </div>
-        <div className="header-actions">
-          <p
-            className={`section-note status-note header-action-item header-queue-indicator ${
-              isOnline ? 'online' : 'offline'
-            }`}
-            aria-live="polite"
-          >
-            {isOnline ? statusOnlineLabel : statusOfflineLabel} | {queueLabel}{' '}
-            {offlineQueueSize}
-          </p>
-          <div
-            className="header-action-item header-notification"
-            data-tutorial-id="header-notifications"
-          >
-            {notificationsNode}
+        {tabBarNode ? (
+          <div className="app-header-nav">
+            {tabBarNode}
           </div>
-          <div
-            className="header-action-item header-warehouse-selector"
-            data-tutorial-id="header-warehouse"
-          >
-            <Select
-              id="warehouseId"
-              className="warehouse-filter-select"
-              value={warehouseId}
-              onChange={(event) => onWarehouseChange(event.target.value)}
-              options={warehouseOptions}
-              disabled={warehouseDisabled}
-              aria-label={warehouseLabel || warehousePlaceholder}
-            />
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            className="header-signout-btn"
-            onClick={onLogout}
-          >
-            {signOutLabel}
-          </Button>
-        </div>
+        ) : null}
       </header>
-      {tabBarNode}
       <section className="app-body">{children}</section>
     </main>
   );

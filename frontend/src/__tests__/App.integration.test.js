@@ -124,7 +124,7 @@ const AUTH_INTRO_COMPLETED_STORAGE_KEY = 'Invendex:auth_intro_completed:v1';
 const advancePastIntroLanding = () => {
   fireEvent.click(screen.getByRole('button', { name: 'Intro landing screen' }));
   fireEvent.click(screen.getByRole('button', { name: 'Tap to Continue' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Get started' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 };
 
 describe('App integration', () => {

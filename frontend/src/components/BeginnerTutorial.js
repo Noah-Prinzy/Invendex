@@ -33,7 +33,7 @@ const SCROLL_LOCK_KEYS = new Set([
 
 const resolveSpotlightRect = (selector) => {
   if (typeof window === 'undefined') return getFallbackSpotlight();
-  if (!selector) return getFallbackSpotlight();
+  if (!selector) return null;
 
   const target = document.querySelector(selector);
   if (!target) return getFallbackSpotlight();
@@ -106,6 +106,7 @@ const BeginnerTutorial = ({
     typeof window === 'undefined' ? null : getFallbackSpotlight()
   );
   const step = steps[currentIndex] || null;
+  const shouldSpotlight = Boolean(String(step?.selector || '').trim());
 
   useEffect(() => {
     if (typeof window === 'undefined' || !step) return undefined;
@@ -117,7 +118,9 @@ const BeginnerTutorial = ({
 
     const syncTarget = () => {
       if (cancelled) return;
-      const target = step.selector ? document.querySelector(step.selector) : null;
+      const target = shouldSpotlight
+        ? document.querySelector(step.selector)
+        : null;
       if (
         target &&
         !hasScrolledToTarget &&
@@ -155,7 +158,7 @@ const BeginnerTutorial = ({
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('scroll', handleResize, true);
     };
-  }, [step]);
+  }, [shouldSpotlight, step]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined' || !step) {
@@ -183,14 +186,23 @@ const BeginnerTutorial = ({
     };
   }, [step]);
 
-  const popoverStyle = useMemo(
-    () => resolvePopoverStyle(spotlightRect || getFallbackSpotlight()),
-    [spotlightRect]
-  );
+  const popoverStyle = useMemo(() => {
+    if (!shouldSpotlight) {
+      return {
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: 'min(440px, calc(100vw - 32px))',
+        maxHeight: 'calc(100vh - 32px)'
+      };
+    }
+
+    return resolvePopoverStyle(spotlightRect || getFallbackSpotlight());
+  }, [shouldSpotlight, spotlightRect]);
   const stepAnimationKey = String(step?.id || currentIndex || 'tutorial-step');
   const showSkipAction = step?.showSkipAction === true;
 
-  if (!step || !spotlightRect) return null;
+  if (!step) return null;
 
   const isLastStep = currentIndex >= steps.length - 1;
   const overlay = (
@@ -201,17 +213,19 @@ const BeginnerTutorial = ({
         onClick={onNext}
         aria-label="Continue tutorial"
       />
-      <div
-        key={`${stepAnimationKey}-spotlight`}
-        className="tutorial-spotlight"
-        style={{
-          top: `${Math.round(spotlightRect.top)}px`,
-          left: `${Math.round(spotlightRect.left)}px`,
-          width: `${Math.round(spotlightRect.width)}px`,
-          height: `${Math.round(spotlightRect.height)}px`
-        }}
-        aria-hidden="true"
-      />
+      {shouldSpotlight && spotlightRect ? (
+        <div
+          key={`${stepAnimationKey}-spotlight`}
+          className="tutorial-spotlight"
+          style={{
+            top: `${Math.round(spotlightRect.top)}px`,
+            left: `${Math.round(spotlightRect.left)}px`,
+            width: `${Math.round(spotlightRect.width)}px`,
+            height: `${Math.round(spotlightRect.height)}px`
+          }}
+          aria-hidden="true"
+        />
+      ) : null}
       <article
         key={`${stepAnimationKey}-popover`}
         className="tutorial-popover"
