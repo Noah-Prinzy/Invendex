@@ -4,7 +4,7 @@ const SettingsLayout = ({
   actions = null,
   children
 }) => (
-  <section className="panel settings-panel">
+  <section className="panel settings-panel" data-tutorial-id="settings-root">
     <header className="panel-head panel-head-row">
       <div>
         <h2>{title}</h2>

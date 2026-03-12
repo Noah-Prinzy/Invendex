@@ -32,7 +32,10 @@ const DashboardLayout = ({
     <main className="app-layout">
       <header className="app-header">
         <div className="brand">
-          <div className="brand-company-frame">
+          <div
+            className="brand-company-frame"
+            data-tutorial-id="header-brand"
+          >
             <h1 className="brand-company-name" title={brandTitle}>
               {brandTitle}
             </h1>
@@ -48,10 +51,16 @@ const DashboardLayout = ({
             {isOnline ? statusOnlineLabel : statusOfflineLabel} | {queueLabel}{' '}
             {offlineQueueSize}
           </p>
-          <div className="header-action-item header-notification">
+          <div
+            className="header-action-item header-notification"
+            data-tutorial-id="header-notifications"
+          >
             {notificationsNode}
           </div>
-          <div className="header-action-item header-warehouse-selector">
+          <div
+            className="header-action-item header-warehouse-selector"
+            data-tutorial-id="header-warehouse"
+          >
             <Select
               id="warehouseId"
               className="warehouse-filter-select"

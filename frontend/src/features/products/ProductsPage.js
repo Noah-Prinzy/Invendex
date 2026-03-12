@@ -16,6 +16,7 @@ import {
   softDeleteProductRequest
 } from '../../api/client.js';
 import { createIdempotencyKey } from '../../api/idempotency.js';
+import { SectionHint } from '../../components/PageGuide.js';
 import useOrganizationCurrency from '../../hooks/finance/useOrganizationCurrency.js';
 import { readCachedData, writeCachedData } from '../../offline/dataCache.js';
 import Modal from '../../ui/Modal.js';
@@ -1596,7 +1597,7 @@ const Products = ({
         </button>
       </header>
 
-      <div className="metric-grid">
+      <div className="metric-grid" data-tutorial-id="products-metrics">
         <article className="metric-card metric-card-products-total">
           <p className="metric-label">Total products</p>
           <p className="metric-value">{stats.total}</p>
@@ -1633,8 +1634,12 @@ const Products = ({
         <p className="section-note">{managementNotice}</p>
       ) : null}
 
-      <article className="data-card">
+      <article className="data-card" data-tutorial-id="products-adjustment">
         <h3>Manual stock adjustment</h3>
+        <SectionHint>
+          Choose the product, reason, and amount, then the system applies the
+          change to the warehouse currently selected in the header.
+        </SectionHint>
         <form className="control-row" onSubmit={handleAdjustStockSubmit}>
           <label className="control-field">
             <span>Product</span>
@@ -1701,8 +1706,13 @@ const Products = ({
       </article>
 
       {canManageProducts ? (
-        <article className="data-card">
+        <article className="data-card" data-tutorial-id="products-create">
           <h3>Add product</h3>
+          <SectionHint>
+            Add a new item once, then manage stock per warehouse from the
+            selector above. SKU prefixes are optional shortcuts for cleaner
+            auto-generated codes.
+          </SectionHint>
           <form className="control-row" onSubmit={handleCreateProductSubmit}>
             <label className="control-field">
               <span>Name</span>

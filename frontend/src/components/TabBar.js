@@ -1,7 +1,7 @@
 import Button from '../ui/Button.js';
 
 const TabBar = ({ tabs, activeTab, onChange }) => (
-  <nav className="tabbar" aria-label="Primary">
+  <nav className="tabbar" aria-label="Primary" data-tutorial-id="app-tabbar">
     {tabs.map((tab) => (
       <Button
         type="button"

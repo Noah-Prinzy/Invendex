@@ -16,6 +16,7 @@ import {
   getReportSpendBySupplierRequest,
   getReportSpendSummaryRequest
 } from '../../api/client.js';
+import { SectionHint } from '../../components/PageGuide.js';
 import useOrganizationCurrency from '../../hooks/finance/useOrganizationCurrency.js';
 
 const SPEND_PAGE_SIZE = 8;
@@ -849,7 +850,7 @@ const Reports = ({
         </div>
       </header>
 
-      <div className="metric-grid">
+      <div className="metric-grid" data-tutorial-id="reports-metrics">
         <article className="metric-card">
           <p className="metric-label">Total spend</p>
           <p className="metric-value">
@@ -910,8 +911,12 @@ const Reports = ({
       ) : null}
 
       <div className="data-grid">
-        <article className="data-card">
+        <article className="data-card" data-tutorial-id="reports-summary">
           <h3>PO Status Summary</h3>
+          <SectionHint>
+            This block shows where purchase orders are sitting in the workflow so
+            you can spot delays before they affect stock.
+          </SectionHint>
           {statusSummary ? (
             <>
               <div className="control-row compact">
@@ -944,6 +949,10 @@ const Reports = ({
 
         <article className="data-card">
           <h3>Spend by Supplier</h3>
+          <SectionHint>
+            Use the search and sort controls here to compare how much you are
+            spending with each supplier in the selected scope.
+          </SectionHint>
           {spendBySupplier.length ? (
             <>
               <div className="control-row">

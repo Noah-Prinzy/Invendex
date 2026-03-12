@@ -1,7 +1,7 @@
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(178px, 1fr));
-  gap: 0.7rem;
+  gap: 0.94rem;
 }
 
 .metric-card {
@@ -11,7 +11,7 @@
   background:
     linear-gradient(180deg, var(--surface-1) 0%, var(--surface-2) 100%);
   box-shadow: var(--shadow-sm);
-  padding: 0.84rem 0.9rem;
+  padding: 1rem 1.02rem;
   position: relative;
   overflow: hidden;
   transition:
@@ -90,7 +90,7 @@
   clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
   background: linear-gradient(180deg, var(--surface-1) 0%, var(--surface-2) 100%);
   box-shadow: var(--shadow-sm);
-  padding: 0.84rem 0.9rem;
+  padding: 1rem 1.04rem;
   position: relative;
   overflow: hidden;
   transition:
@@ -532,8 +532,8 @@
 .control-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.7rem;
+  gap: 0.78rem;
+  margin-bottom: 0.94rem;
 }
 
 .control-row .btn-primary,
@@ -542,12 +542,12 @@
 }
 
 .control-row.compact {
-  margin-bottom: 0.52rem;
+  margin-bottom: 0.72rem;
 }
 
 .control-field {
   display: grid;
-  gap: 0.22rem;
+  gap: 0.32rem;
   min-width: 158px;
   flex: 1 1 192px;
 }
@@ -564,7 +564,7 @@
 .data-grid {
   display: grid;
   grid-template-columns: 1.4fr 1fr;
-  gap: 0.74rem;
+  gap: 0.98rem;
 }
 
 .table-wrap {
@@ -573,6 +573,7 @@
   background: var(--surface-1);
   overflow-x: auto;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.46);
+  margin-top: 0.42rem;
 }
 
 .data-table {

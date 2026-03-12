@@ -5,6 +5,7 @@ import {
   receivePurchaseOrderRequest
 } from '../../api/client.js';
 import { createIdempotencyKey } from '../../api/idempotency.js';
+import { SectionHint } from '../../components/PageGuide.js';
 
 const formatWhen = (iso) => {
   if (!iso) return 'n/a';
@@ -133,7 +134,10 @@ const PurchaseOrders = ({
         </button>
       </header>
 
-      <div className="metric-grid">
+      <div
+        className="metric-grid"
+        data-tutorial-id="purchase-orders-metrics"
+      >
         <article className="metric-card">
           <p className="metric-label">Created</p>
           <p className="metric-value">{createdCount}</p>
@@ -164,8 +168,15 @@ const PurchaseOrders = ({
       {actionError ? <p className="form-error">{actionError}</p> : null}
       {actionNotice ? <p className="section-note">{actionNotice}</p> : null}
 
-      <article className="data-card">
+      <article
+        className="data-card"
+        data-tutorial-id="purchase-orders-manage"
+      >
         <h3>Manage purchase orders</h3>
+        <SectionHint>
+          Review supplier, warehouse, and status before receiving an order. A
+          received order updates stock for its linked warehouse only.
+        </SectionHint>
         {purchaseOrders.length ? (
           <div className="table-wrap">
             <table className="data-table">
@@ -231,6 +242,10 @@ const PurchaseOrders = ({
       <div className="event-grid one-col">
         <article className="event-card">
           <h3>Latest PO timeline</h3>
+          <SectionHint>
+            Use this stream as a quick audit trail for what changed most
+            recently in purchasing.
+          </SectionHint>
           <ul className="event-list">
             {poEvents.length ? (
               poEvents.slice(0, 10).map((event) => (

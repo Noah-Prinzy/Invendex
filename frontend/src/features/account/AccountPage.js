@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { SectionHint } from '../../components/PageGuide.js';
 
 const valueOrDash = (value) => {
   const normalized = String(value || '').trim();
@@ -358,8 +359,15 @@ const Account = ({
         </article>
       </div>
 
-      <article className="data-card account-profile-card">
+      <article
+        className="data-card account-profile-card"
+        data-tutorial-id="account-profile"
+      >
         <h3>Profile details</h3>
+        <SectionHint>
+          This block simply confirms who you are, which workspace you belong to,
+          and which identifiers support support and audit requests.
+        </SectionHint>
         <div className="account-kv-grid">
           <div className="account-kv-item">
             <p className="account-kv-label">Email</p>
@@ -409,6 +417,10 @@ const Account = ({
             </button>
           </div>
         </div>
+        <SectionHint>
+          Review the device list below whenever you suspect another browser or
+          device should no longer stay signed in.
+        </SectionHint>
 
         {sessionsError ? <p className="form-error">{sessionsError}</p> : null}
         {sessionsNotice ? (
@@ -461,7 +473,10 @@ const Account = ({
         </div>
       </article>
 
-      <article className="data-card account-profile-card">
+      <article
+        className="data-card account-profile-card"
+        data-tutorial-id="account-security"
+      >
         <div className="panel-head panel-head-row">
           <div>
             <h3>Two-factor authentication</h3>
@@ -480,6 +495,10 @@ const Account = ({
             </button>
           </div>
         </div>
+        <SectionHint>
+          Start with your current password, generate setup details, then verify
+          the authenticator code to complete activation.
+        </SectionHint>
 
         <div className="obs-grid settings-inline-grid">
           <div className="obs-item">
@@ -609,6 +628,10 @@ const Account = ({
             </p>
           </div>
         </div>
+        <SectionHint>
+          Use these actions carefully. Export is safe, but deactivation actions
+          affect access and may remove your workspace if you are the owner.
+        </SectionHint>
 
         <div className="obs-actions">
           <button

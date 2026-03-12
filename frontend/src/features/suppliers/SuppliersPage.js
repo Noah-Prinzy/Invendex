@@ -4,6 +4,7 @@ import {
   getSupplierRankingsRequest,
   getSuppliersRequest
 } from '../../api/client.js';
+import { SectionHint } from '../../components/PageGuide.js';
 
 const DIRECTORY_PAGE_SIZE = 8;
 const RANKING_PAGE_SIZE = 6;
@@ -207,8 +208,12 @@ const Suppliers = ({ accessToken, userRole = null }) => {
       {errorMessage ? <p className="form-error">{errorMessage}</p> : null}
 
       <div className="data-grid">
-        <article className="data-card">
+        <article className="data-card" data-tutorial-id="suppliers-directory">
           <h3>Supplier Directory</h3>
+          <SectionHint>
+            This table is your contact and status reference for suppliers in the
+            organization.
+          </SectionHint>
           <div className="control-row">
             <label className="control-field">
               <span>Search</span>
@@ -333,6 +338,10 @@ const Suppliers = ({ accessToken, userRole = null }) => {
 
         <article className="data-card">
           <h3>Supplier Ranking</h3>
+          <SectionHint>
+            Higher-ranked suppliers are generally more reliable based on the
+            scoring model behind the scenes.
+          </SectionHint>
           {filteredRankings.length ? (
             <ul className="rank-list">
               {paginatedRankings.map((row) => (

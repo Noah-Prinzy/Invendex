@@ -12,6 +12,7 @@ import {
   updateUserRoleRequest,
   updateUserStatusRequest
 } from '../../api/client.js';
+import { SectionHint } from '../../components/PageGuide.js';
 
 const CAN_MANAGE_ROLES = new Set(['owner', 'admin']);
 const MUTABLE_ROLES = ['staff', 'manager', 'admin'];
@@ -551,6 +552,10 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
         <h3>
           Employee productivity ({Number(productivity?.days || 14)} day window)
         </h3>
+        <SectionHint>
+          This section helps you see contribution and accuracy trends across the
+          team before changing roles or access.
+        </SectionHint>
         {productivityRows.length ? (
           <div className="table-wrap">
             <table className="data-table">
@@ -593,8 +598,12 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
         )}
       </article>
 
-      <article className="data-card">
+      <article className="data-card" data-tutorial-id="users-manage">
         <h3>Organization users</h3>
+        <SectionHint>
+          Use this table to manage who can enter the workspace and what role each
+          person should have.
+        </SectionHint>
 
         <div className="control-row">
           <label className="control-field">
@@ -686,12 +695,16 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
         )}
       </article>
 
-      <article className="data-card">
+      <article className="data-card" data-tutorial-id="users-permissions">
         <h3>Role permission matrix</h3>
         <p className="event-sub">
           Configure organization-wide permissions for staff, manager, and admin.
           Owner always retains full permissions.
         </p>
+        <SectionHint>
+          Change role permissions only when you want the same rule to apply to
+          every user in that role.
+        </SectionHint>
 
         {permissionCatalog.length ? (
           <div className="table-wrap">

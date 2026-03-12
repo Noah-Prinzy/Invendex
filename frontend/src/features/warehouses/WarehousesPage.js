@@ -8,6 +8,7 @@ import {
   restoreWarehouseRequest,
   updateWarehouseRequest
 } from '../../api/client.js';
+import { SectionHint } from '../../components/PageGuide.js';
 
 const MANAGE_WAREHOUSE_ROLES = new Set(['owner', 'admin']);
 const WAREHOUSES_QUERY_STALE_TIME_MS = 30 * 1000;
@@ -426,8 +427,12 @@ const Warehouses = ({
       {notice ? <p className="section-note">{notice}</p> : null}
       {displayError ? <p className="form-error">{displayError}</p> : null}
 
-      <article className="data-card">
+      <article className="data-card" data-tutorial-id="warehouses-create">
         <h3>Create warehouse</h3>
+        <SectionHint>
+          Create a location once, then the rest of the app can filter stock and
+          reports by that warehouse automatically.
+        </SectionHint>
         <form className="control-row" onSubmit={handleCreateWarehouse}>
           <label className="control-field">
             <span>Name</span>
@@ -541,8 +546,12 @@ const Warehouses = ({
         </div>
       </article>
 
-      <article className="data-card">
+      <article className="data-card" data-tutorial-id="warehouses-directory">
         <h3>Warehouse directory</h3>
+        <SectionHint>
+          Use the directory to review live status, assigned manager, and whether
+          a warehouse should stay active, be edited, or be archived.
+        </SectionHint>
         {warehouses.length ? (
           <div className="table-wrap">
             <table className="data-table">

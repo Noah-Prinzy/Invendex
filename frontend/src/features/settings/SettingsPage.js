@@ -208,7 +208,9 @@ const Settings = ({
   userRole = null,
   currentUser = null,
   themeId = null,
+  isTutorialRunning = false,
   onThemeChange = () => {},
+  onReplayTutorial = () => {},
   onUpdateUserPreferences = async () => ({ success: false })
 }) => {
   const queryClient = useQueryClient();
@@ -1028,6 +1030,14 @@ const Settings = ({
 
   const settingsHeaderActions = (
     <>
+      <button
+        type="button"
+        className="btn-ghost aligned-action-btn"
+        onClick={onReplayTutorial}
+        disabled={isTutorialRunning}
+      >
+        {isTutorialRunning ? 'Tutorial running...' : 'Replay tutorial'}
+      </button>
       {!isHubView ? (
         <button
           type="button"

@@ -15,6 +15,7 @@ import {
   getWmsBinInventoryRequest,
   getWmsBinMovementsRequest
 } from '../../api/client.js';
+import { SectionHint } from '../../components/PageGuide.js';
 import useOrganizationCurrency from '../../hooks/finance/useOrganizationCurrency.js';
 import { readCachedData, writeCachedData } from '../../offline/dataCache.js';
 
@@ -498,7 +499,7 @@ const Dashboard = ({
           </div>
         </header>
 
-        <div className="metric-grid">
+        <div className="metric-grid" data-tutorial-id="dashboard-metrics">
           {metrics.map((metric) => (
             <article key={metric.label} className="metric-card">
               <p className="metric-label">{metric.label}</p>
@@ -519,6 +520,10 @@ const Dashboard = ({
         <div className="data-grid">
           <article className="data-card">
             <h3>Top Selling Items</h3>
+            <SectionHint>
+              Start here if you want to see what is leaving the shelf fastest in
+              the selected warehouse scope.
+            </SectionHint>
             {intelligence.topSelling.length ? (
               <div className="table-wrap">
                 <table className="data-table">
@@ -547,6 +552,10 @@ const Dashboard = ({
 
           <article className="data-card">
             <h3>Fast Turnover SKUs</h3>
+            <SectionHint>
+              These items sell and replenish quickly, so they are useful for
+              spotting strong movers and healthy stock velocity.
+            </SectionHint>
             {intelligence.turnoverSkus.length ? (
               <ul className="rank-list">
                 {intelligence.turnoverSkus.slice(0, 8).map((row) => (
@@ -566,6 +575,10 @@ const Dashboard = ({
 
           <article className="data-card">
             <h3>Slow Moving SKUs</h3>
+            <SectionHint>
+              Use this list to find items that are sitting longer than expected
+              and may need markdowns, promotions, or smaller reorder quantities.
+            </SectionHint>
             {intelligence.slowMovingSkus.length ? (
               <ul className="rank-list">
                 {intelligence.slowMovingSkus.slice(0, 8).map((row) => (
@@ -1105,7 +1118,7 @@ const Dashboard = ({
           </article>
         </div>
 
-        <div className="event-grid">
+        <div className="event-grid" data-tutorial-id="dashboard-streams">
           <article className="event-card">
             <h3>Inventory stream</h3>
             <ul className="event-list">

@@ -508,4 +508,36 @@ describe('App integration', () => {
       expect(screen.getByText('Inventory Controls')).toBeInTheDocument();
     });
   });
+
+  it('replays the beginner tutorial from settings', async () => {
+    window.history.replaceState({}, '', '/?tab=settings');
+
+    useAuth.mockReturnValue(
+      buildAuthState({
+        user: {
+          _id: 'user-3',
+          email: 'owner@Invendex.com',
+          role: 'admin',
+          organization: 'org-1'
+        },
+        accessToken: 'token-3',
+        isAuthenticated: true
+      })
+    );
+
+    renderWithProviders(<App />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { name: 'Settings' })
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Replay tutorial' }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('This header tells you whose inventory you are managing')
+      ).toBeInTheDocument();
+    });
+  });
 });

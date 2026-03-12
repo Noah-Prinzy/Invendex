@@ -9,6 +9,7 @@ import {
   scanInventoryStocktakeImageRequest,
   submitInventoryStocktakeCountsRequest
 } from '../../api/client.js';
+import { SectionHint } from '../../components/PageGuide.js';
 import { readCachedData, writeCachedData } from '../../offline/dataCache.js';
 import Modal from '../../ui/Modal.js';
 
@@ -797,8 +798,12 @@ const StocktakesPage = ({
         </button>
       </header>
 
-      <article className="data-card">
+      <article className="data-card" data-tutorial-id="stocktakes-create">
         <h3>Create stocktake session</h3>
+        <SectionHint>
+          Create a new session whenever a team is about to physically count items
+          in a warehouse.
+        </SectionHint>
         <form className="control-row" onSubmit={handleCreateSession}>
           <label className="control-field">
             <span>Warehouse</span>
@@ -856,8 +861,12 @@ const StocktakesPage = ({
         {createNotice ? <p className="section-note">{createNotice}</p> : null}
       </article>
 
-      <article className="data-card">
+      <article className="data-card" data-tutorial-id="stocktakes-session">
         <h3>Session list</h3>
+        <SectionHint>
+          Use filters here to find the exact count session you want to continue or
+          review.
+        </SectionHint>
         <div className="control-row compact">
           <label className="control-field">
             <span>Warehouse</span>
@@ -957,6 +966,10 @@ const StocktakesPage = ({
 
       <article className="data-card">
         <h3>Session details</h3>
+        <SectionHint>
+          Once you select a session, this section becomes the working area for
+          counted quantities and approvals.
+        </SectionHint>
         {selectedSessionQuery.isLoading ? (
           <p className="muted">Loading session...</p>
         ) : null}

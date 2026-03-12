@@ -11,6 +11,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import AuthForm from './components/AuthForm.js';
 import AuthIntroLanding from './components/AuthIntroLanding.js';
+import BeginnerTutorial from './components/BeginnerTutorial.js';
 import NotificationBell from './components/NotificationBell.js';
 import TabBar from './components/TabBar.js';
 import useAuth from './hooks/auth/useAuth.js';
@@ -48,6 +49,7 @@ const ADMIN_ROLES = new Set(['owner', 'admin']);
 const TAB_QUERY_KEY = 'tab';
 const SETTINGS_PAGE_QUERY_KEY = 'settingsPage';
 const AUTH_INTRO_COMPLETED_STORAGE_KEY = 'Invendex:auth_intro_completed:v1';
+const TUTORIAL_COMPLETED_STORAGE_KEY_PREFIX = 'Invendex:tutorial_completed:';
 const sanitizeBaseUrl = (value) =>
   String(value || '')
     .trim()
@@ -72,6 +74,275 @@ const persistAuthIntroCompleted = () => {
     // Ignore storage errors and fallback to in-memory behavior.
   }
 };
+
+const buildTutorialStorageKey = (userId) =>
+  `${TUTORIAL_COMPLETED_STORAGE_KEY_PREFIX}${String(userId || '').trim()}`;
+
+const readTutorialCompleted = (userId) => {
+  if (typeof window === 'undefined') return false;
+  const storageKey = buildTutorialStorageKey(userId);
+  if (!storageKey || storageKey.endsWith(':')) return false;
+  try {
+    return window.localStorage.getItem(storageKey) === '1';
+  } catch {
+    return false;
+  }
+};
+
+const persistTutorialCompleted = (userId) => {
+  if (typeof window === 'undefined') return;
+  const storageKey = buildTutorialStorageKey(userId);
+  if (!storageKey || storageKey.endsWith(':')) return;
+  try {
+    window.localStorage.setItem(storageKey, '1');
+  } catch {
+    // Ignore storage failures.
+  }
+};
+
+const clearTutorialCompleted = (userId) => {
+  if (typeof window === 'undefined') return;
+  const storageKey = buildTutorialStorageKey(userId);
+  if (!storageKey || storageKey.endsWith(':')) return;
+  try {
+    window.localStorage.removeItem(storageKey);
+  } catch {
+    // Ignore storage failures.
+  }
+};
+
+const isTutorialDisabledByEnvironment = () => {
+  if (process.env.NODE_ENV === 'test') return true;
+  if (typeof navigator !== 'undefined' && navigator.webdriver) return true;
+  return false;
+};
+
+const TUTORIAL_STEPS = Object.freeze([
+  {
+    id: 'header-brand',
+    tab: 'dashboard',
+    selector: '[data-tutorial-id="header-brand"]',
+    title: 'This header tells you whose inventory you are managing',
+    description:
+      'Always check the company title first, especially if you work in more than one workspace.',
+    tips: [
+      {
+        label: 'Why it matters',
+        text: 'It confirms you are editing the correct company before making stock or settings changes.'
+      }
+    ]
+  },
+  {
+    id: 'header-warehouse',
+    tab: 'dashboard',
+    selector: '[data-tutorial-id="header-warehouse"]',
+    title: 'Use the warehouse selector to change your working scope',
+    description:
+      'When you choose one warehouse, the app narrows stock, reports, and alerts to that location. Choose All Warehouses to see the combined view.',
+    tips: [
+      {
+        label: 'Daily habit',
+        text: 'Set this before adjusting stock or reading reports so you do not mix locations by mistake.'
+      }
+    ]
+  },
+  {
+    id: 'header-notifications',
+    tab: 'dashboard',
+    selector: '[data-tutorial-id="header-notifications"]',
+    title: 'Notifications show important actions that need attention',
+    description:
+      'Open this panel to review signup requests, warehouse alerts, and other updates without leaving your current page.',
+    tips: [
+      {
+        label: 'Best use',
+        text: 'Treat this as your quick inbox for items that need acknowledgement or action.'
+      }
+    ]
+  },
+  {
+    id: 'app-tabbar',
+    tab: 'dashboard',
+    selector: '[data-tutorial-id="app-tabbar"]',
+    title: 'These tabs divide the app by task',
+    description:
+      'Use the tabs to move between daily operations like products, purchasing, reports, account security, and settings.',
+    tips: [
+      {
+        label: 'Simple rule',
+        text: 'If you are changing stock, start with Products. If you are reviewing performance, go to Dashboard or Reports.'
+      }
+    ]
+  },
+  {
+    id: 'dashboard-metrics',
+    tab: 'dashboard',
+    selector: '[data-tutorial-id="dashboard-metrics"]',
+    title: 'The dashboard starts with the most important numbers',
+    description:
+      'These cards give a quick read on what is moving, what is risky, and how healthy the selected warehouse or company is.',
+    tips: [
+      {
+        label: 'Look here first',
+        text: 'Use these cards before opening tables so you can tell where attention is needed immediately.'
+      }
+    ]
+  },
+  {
+    id: 'dashboard-streams',
+    tab: 'dashboard',
+    selector: '[data-tutorial-id="dashboard-streams"]',
+    title: 'Live streams summarise recent activity in plain language',
+    description:
+      'This area helps you follow inventory, finance, and sign-in events without reading raw technical logs.',
+    tips: [
+      {
+        label: 'What to watch',
+        text: 'Use it to confirm that important changes really happened and when they happened.'
+      }
+    ]
+  },
+  {
+    id: 'products-adjustment',
+    tab: 'products',
+    selector: '[data-tutorial-id="products-adjustment"]',
+    title: 'Use manual stock adjustment for exceptions and corrections',
+    description:
+      'Choose a product, reason, and amount to fix stock in the warehouse currently selected in the header.',
+    tips: [
+      {
+        label: 'Important',
+        text: 'Reason and amount direction must match. For example, expired stock uses a negative amount.'
+      }
+    ]
+  },
+  {
+    id: 'products-create',
+    tab: 'products',
+    selector: '[data-tutorial-id="products-create"]',
+    title: 'Add new products here',
+    description:
+      'Create a product once, then manage its stock warehouse by warehouse. SKU can be typed manually or generated automatically.',
+    tips: [
+      {
+        label: 'Keep it simple',
+        text: 'Start with name, price, and category. Add prefixes only if you want cleaner generated SKU codes.'
+      }
+    ]
+  },
+  {
+    id: 'purchase-orders-manage',
+    tab: 'purchaseOrders',
+    selector: '[data-tutorial-id="purchase-orders-manage"]',
+    title: 'Purchase orders track incoming stock from suppliers',
+    description:
+      'Use this page to review supplier orders and receive them only after goods arrive physically.',
+    tips: [
+      {
+        label: 'Receiving',
+        text: 'Receiving a purchase order updates stock for its linked warehouse.'
+      }
+    ]
+  },
+  {
+    id: 'stocktakes-create',
+    tab: 'stocktakes',
+    selector: '[data-tutorial-id="stocktakes-create"]',
+    title: 'Stocktakes help you compare expected stock against real counts',
+    description:
+      'Create a count session, enter quantities from the floor, then review and approve the variance.',
+    tips: [
+      {
+        label: 'Workflow',
+        text: 'Create, count, review, then approve. Approval is the step that applies the difference.'
+      }
+    ]
+  },
+  {
+    id: 'warehouses-create',
+    tab: 'warehouses',
+    selector: '[data-tutorial-id="warehouses-create"]',
+    title: 'Warehouses separate your locations cleanly',
+    description:
+      'Create each store or warehouse here so products, reports, and stock activity can be scoped correctly.',
+    tips: [
+      {
+        label: 'Naming',
+        text: 'Use clear names and codes so staff can pick the right location quickly.'
+      }
+    ]
+  },
+  {
+    id: 'suppliers-directory',
+    tab: 'suppliers',
+    selector: '[data-tutorial-id="suppliers-directory"]',
+    title: 'Suppliers combines contact records with supplier performance',
+    description:
+      'Use this page to search supplier details and compare which suppliers are strongest for future purchasing.',
+    tips: [
+      {
+        label: 'Decision aid',
+        text: 'Search the directory on the left, then compare ranking signals before placing a new order.'
+      }
+    ]
+  },
+  {
+    id: 'reports-metrics',
+    tab: 'reports',
+    selector: '[data-tutorial-id="reports-metrics"]',
+    title: 'Reports is where you check money, valuation, and summary outcomes',
+    description:
+      'This page changes with the selected warehouse, so you can analyse one location or the entire company.',
+    tips: [
+      {
+        label: 'Practical use',
+        text: 'Read the top cards first, then download reports only after the scope looks right.'
+      }
+    ]
+  },
+  {
+    id: 'users-manage',
+    tab: 'users',
+    selector: '[data-tutorial-id="users-manage"]',
+    title: 'User management controls who can access the workspace',
+    description:
+      'Use this area to activate, deactivate, or reassign roles for people in the organization.',
+    tips: [
+      {
+        label: 'Be careful',
+        text: 'Role changes affect what a user can see and do immediately.'
+      }
+    ]
+  },
+  {
+    id: 'account-security',
+    tab: 'account',
+    selector: '[data-tutorial-id="account-security"]',
+    title: 'Your account page handles sessions, security, and personal controls',
+    description:
+      'This is where you review active devices, enable two-factor authentication, and manage sensitive account actions.',
+    tips: [
+      {
+        label: 'Recommended',
+        text: 'Enable two-factor authentication before you begin daily use on real business data.'
+      }
+    ]
+  },
+  {
+    id: 'settings-root',
+    tab: 'settings',
+    selector: '[data-tutorial-id="settings-root"]',
+    title: 'Settings defines how the workspace behaves',
+    description:
+      'Use settings for company profile, currency defaults, notification rules, security policy, and platform behavior.',
+    tips: [
+      {
+        label: 'Start points',
+        text: 'New teams usually begin with company profile, finance defaults, and notification rules.'
+      }
+    ]
+  }
+]);
 
 const getRealtimeBaseUrl = () => {
   const envBase = sanitizeBaseUrl(
@@ -256,6 +527,7 @@ const App = () => {
     useAppActions();
   const { tabs, activeTab, setActiveTab } = useTabs(user?.role || null);
   const hasResolvedInitialTabRef = useRef(false);
+  const tutorialUserKeyRef = useRef('');
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
@@ -268,6 +540,7 @@ const App = () => {
   const [showAuthPortal, setShowAuthPortal] = useState(() =>
     readAuthIntroCompleted()
   );
+  const [tutorialStepIndex, setTutorialStepIndex] = useState(-1);
   const wasAuthenticatedRef = useRef(false);
 
   const realtimeBaseUrl = useMemo(() => getRealtimeBaseUrl(), []);
@@ -368,6 +641,13 @@ const App = () => {
     warehousesQuery.refetch();
   }, [warehousesQuery]);
 
+  const tutorialSteps = useMemo(() => {
+    const visibleTabKeys = new Set(tabs.map((tab) => tab.key));
+    return TUTORIAL_STEPS.filter(
+      (step) => !step.tab || visibleTabKeys.has(String(step.tab))
+    );
+  }, [tabs]);
+
   useEffect(() => {
     if (!activeWarehouseId) return;
     const exists = warehouseOptions.some(
@@ -378,6 +658,77 @@ const App = () => {
       setActiveWarehouseId('');
     }
   }, [activeWarehouseId, setActiveWarehouseId, warehouseOptions]);
+
+  useEffect(() => {
+    const userId = String(user?._id || '').trim();
+    const storageKey = userId ? buildTutorialStorageKey(userId) : '';
+
+    if (
+      isTutorialDisabledByEnvironment() ||
+      !isAuthenticated ||
+      !storageKey ||
+      !tutorialSteps.length
+    ) {
+      tutorialUserKeyRef.current = storageKey;
+      setTutorialStepIndex(-1);
+      return;
+    }
+
+    if (tutorialUserKeyRef.current === storageKey) {
+      return;
+    }
+
+    tutorialUserKeyRef.current = storageKey;
+    if (readTutorialCompleted(userId)) {
+      setTutorialStepIndex(-1);
+      return;
+    }
+
+    setActiveTab('dashboard');
+    setTutorialStepIndex(0);
+  }, [isAuthenticated, setActiveTab, tutorialSteps.length, user?._id]);
+
+  useEffect(() => {
+    if (tutorialStepIndex < 0) return;
+    const step = tutorialSteps[tutorialStepIndex];
+    if (!step?.tab) return;
+    if (String(activeTab || '') === String(step.tab)) return;
+    setActiveTab(step.tab);
+  }, [activeTab, setActiveTab, tutorialStepIndex, tutorialSteps]);
+
+  const handleFinishTutorial = useCallback(() => {
+    const userId = String(user?._id || '').trim();
+    if (userId) {
+      persistTutorialCompleted(userId);
+    }
+    setTutorialStepIndex(-1);
+  }, [user?._id]);
+
+  const handleNextTutorialStep = useCallback(() => {
+    setTutorialStepIndex((current) => {
+      if (current < 0) return current;
+      if (current >= tutorialSteps.length - 1) {
+        const userId = String(user?._id || '').trim();
+        if (userId) {
+          persistTutorialCompleted(userId);
+        }
+        return -1;
+      }
+      return current + 1;
+    });
+  }, [tutorialSteps.length, user?._id]);
+
+  const handlePreviousTutorialStep = useCallback(() => {
+    setTutorialStepIndex((current) => Math.max(0, current - 1));
+  }, []);
+
+  const handleReplayTutorial = useCallback(() => {
+    const userId = String(user?._id || '').trim();
+    if (!tutorialSteps.length || !userId) return;
+    clearTutorialCompleted(userId);
+    setActiveTab('dashboard');
+    setTutorialStepIndex(0);
+  }, [setActiveTab, tutorialSteps.length, user?._id]);
 
   const refreshNotifications = useCallback(async () => {
     if (!accessToken || !isAuthenticated) return;
@@ -888,7 +1239,9 @@ const App = () => {
           userRole={role}
           currentUser={user}
           themeId={themeId}
+          isTutorialRunning={tutorialStepIndex >= 0}
           onThemeChange={handleThemeChange}
+          onReplayTutorial={handleReplayTutorial}
           onUpdateUserPreferences={updatePreferences}
         />
       );
@@ -905,7 +1258,9 @@ const App = () => {
     authEvents,
     scopedPoEvents,
     themeId,
+    tutorialStepIndex,
     handleThemeChange,
+    handleReplayTutorial,
     getTwoFactorStatus,
     setupTwoFactor,
     enableTwoFactor,
@@ -1018,6 +1373,15 @@ const App = () => {
           >
             {page}
           </Suspense>
+          {tutorialStepIndex >= 0 ? (
+            <BeginnerTutorial
+              steps={tutorialSteps}
+              currentIndex={tutorialStepIndex}
+              onNext={handleNextTutorialStep}
+              onPrevious={handlePreviousTutorialStep}
+              onSkip={handleFinishTutorial}
+            />
+          ) : null}
         </DashboardLayout>
       </RequireOrganization>
     </RequireAuth>
