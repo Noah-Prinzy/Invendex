@@ -19,18 +19,30 @@ const getNotificationDialog = (page) => page.getByRole('dialog');
 
 const openPortalSelection = async (page) => {
   await page.goto('/');
-  const getStartedButton = page.getByRole('button', { name: 'Get started' });
+  const landingStage = page.locator('.auth-landing-stage-interactive');
+  const tapToContinueButton = page.getByRole('button', {
+    name: 'Tap to Continue',
+    exact: true
+  });
+  const continueButton = page.getByRole('button', {
+    name: 'Continue',
+    exact: true
+  });
   const employerPortalButton = page.getByRole('button', {
     name: 'Employer Portal'
   });
 
-  await Promise.race([
-    employerPortalButton.waitFor({ state: 'visible', timeout: 15_000 }),
-    getStartedButton.waitFor({ state: 'visible', timeout: 15_000 })
-  ]);
+  if (await landingStage.isVisible().catch(() => false)) {
+    await landingStage.click();
+    await expect(tapToContinueButton).toBeVisible({ timeout: 15_000 });
+    await tapToContinueButton.click();
+  }
 
-  if (await getStartedButton.isVisible().catch(() => false)) {
-    await getStartedButton.click();
+  if (
+    !(await employerPortalButton.isVisible().catch(() => false)) &&
+    (await continueButton.isVisible().catch(() => false))
+  ) {
+    await continueButton.click();
   }
 
   await expect(employerPortalButton).toBeVisible({ timeout: 15_000 });
