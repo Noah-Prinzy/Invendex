@@ -45,6 +45,7 @@ describe('Users page', () => {
     getUsersRequest.mockResolvedValueOnce([
       {
         _id: 'u-1',
+        username: 'admin.one',
         email: 'admin@example.com',
         role: 'admin',
         isActive: true,
@@ -52,6 +53,7 @@ describe('Users page', () => {
       },
       {
         _id: 'u-2',
+        username: 'staff.one',
         email: 'staff@example.com',
         role: 'staff',
         isActive: true,
@@ -61,6 +63,7 @@ describe('Users page', () => {
     getOnlineUsersRequest.mockResolvedValueOnce([
       {
         userId: 'u-1',
+        username: 'admin.one',
         email: 'admin@example.com',
         role: 'admin',
         sessions: 1,
@@ -92,6 +95,7 @@ describe('Users page', () => {
       rows: [
         {
           userId: 'u-1',
+          username: 'admin.one',
           email: 'admin@example.com',
           role: 'admin',
           activityScore: 12.5,
@@ -120,6 +124,7 @@ describe('Users page', () => {
 
     updateUserStatusRequest.mockResolvedValueOnce({
       _id: 'u-2',
+      username: 'staff.one',
       email: 'staff@example.com',
       role: 'staff',
       isActive: false,
@@ -127,6 +132,7 @@ describe('Users page', () => {
     });
     updateUserRoleRequest.mockResolvedValueOnce({
       _id: 'u-2',
+      username: 'staff.one',
       email: 'staff@example.com',
       role: 'manager',
       isActive: true,
@@ -146,7 +152,7 @@ describe('Users page', () => {
       <Users accessToken="token" userRole="admin" currentUserId="u-1" />
     );
 
-    const staffRows = await screen.findAllByText('staff@example.com');
+    const staffRows = await screen.findAllByText('staff.one');
     expect(staffRows.length).toBeGreaterThan(0);
 
     const deactivateButtons = screen.getAllByRole('button', {

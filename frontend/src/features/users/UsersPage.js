@@ -38,8 +38,20 @@ const normalizeUsersPayload = (payload) => ({
             admin: [],
             owner: []
           }
-        }
+          }
 });
+
+const emailToUsernameFallback = (value) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+  return normalized.includes('@') ? normalized.split('@')[0] : normalized;
+};
+
+const resolveUserDisplayName = (user, fallback = 'User') =>
+  String(user?.username || '').trim() ||
+  String(user?.name || '').trim() ||
+  emailToUsernameFallback(user?.email) ||
+  fallback;
 
 const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
   const [inviteEmail, setInviteEmail] = useState('');
@@ -561,7 +573,7 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Email</th>
+                  <th>Username</th>
                   <th>Role</th>
                   <th>Activity score</th>
                   <th>Movements</th>
@@ -574,8 +586,8 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
               </thead>
               <tbody>
                 {productivityRows.map((row) => (
-                  <tr key={String(row.userId || row.email)}>
-                    <td>{row.email || '-'}</td>
+                  <tr key={String(row.userId || row.username || row.email)}>
+                    <td>{resolveUserDisplayName(row, '-')}</td>
                     <td>{row.role || '-'}</td>
                     <td>{Number(row.activityScore || 0).toFixed(2)}</td>
                     <td>{Number(row.movementCount || 0)}</td>
@@ -624,7 +636,7 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Email</th>
+                  <th>Username</th>
                   <th>Role</th>
                   <th>Verified</th>
                   <th>Status</th>
@@ -652,7 +664,7 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
                     pendingRoleUserIds.has(String(user._id || ''));
                   return (
                     <tr key={user._id}>
-                      <td>{user.email}</td>
+                      <td>{resolveUserDisplayName(user)}</td>
                       <td>{user.role}</td>
                       <td>{user.isVerified ? 'Yes' : 'No'}</td>
                       <td>{isActive ? 'Active' : 'Inactive'}</td>
@@ -758,7 +770,7 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Email</th>
+                  <th>Username</th>
                   <th>Role</th>
                   <th>Sessions</th>
                   <th>Last seen</th>
@@ -767,7 +779,7 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
               <tbody>
                 {onlineUsers.map((user) => (
                   <tr key={user.userId}>
-                    <td>{user.email || '-'}</td>
+                    <td>{resolveUserDisplayName(user, '-')}</td>
                     <td>{user.role || '-'}</td>
                     <td>{Number(user.sessions || 0)}</td>
                     <td>

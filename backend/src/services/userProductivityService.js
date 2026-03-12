@@ -257,6 +257,7 @@ export const getEmployeeProductivitySummary = async ({
 
     return {
       userId,
+      username: user.username || null,
       email: user.email,
       role: user.role,
       isActive: user.isActive !== false,

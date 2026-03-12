@@ -27,6 +27,17 @@ const createDefaultWarehouseForm = () => ({
 });
 
 const normalizeText = (value) => String(value || '').trim();
+const emailToUsernameFallback = (value) => {
+  const normalized = normalizeText(value);
+  if (!normalized) return '';
+  return normalized.includes('@') ? normalized.split('@')[0] : normalized;
+};
+
+const resolveUserDisplayName = (user, fallback = 'User') =>
+  normalizeText(user?.username) ||
+  normalizeText(user?.name) ||
+  emailToUsernameFallback(user?.email) ||
+  fallback;
 
 const toUserDateTime = (value) => {
   if (!value) return '-';
@@ -119,8 +130,8 @@ const Warehouses = ({
     const activeUsers = users
       .filter((user) => user?.isActive !== false)
       .sort((a, b) =>
-        String(a?.email || '').localeCompare(
-          String(b?.email || ''),
+        resolveUserDisplayName(a).localeCompare(
+          resolveUserDisplayName(b),
           undefined,
           {
             sensitivity: 'base'
@@ -132,7 +143,7 @@ const Warehouses = ({
       { value: '', label: 'Unassigned' },
       ...activeUsers.map((user) => ({
         value: String(user?._id || ''),
-        label: `${String(user?.email || 'User')} (${String(user?.role || 'staff')})`
+        label: `${resolveUserDisplayName(user)} (${String(user?.role || 'staff')})`
       }))
     ];
   }, [usersQuery.data]);
@@ -585,7 +596,7 @@ const Warehouses = ({
                             ? 'Inactive'
                             : 'Active'}
                       </td>
-                      <td>{warehouse.manager?.email || '-'}</td>
+                      <td>{resolveUserDisplayName(warehouse.manager, '-')}</td>
                       <td>{toUserDateTime(warehouse.updatedAt)}</td>
                       <td>
                         <div className="action-row">

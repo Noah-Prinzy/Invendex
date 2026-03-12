@@ -51,7 +51,7 @@ export const getAuditLogs = async (req, res, next) => {
 
     const [logs, total] = await Promise.all([
       AuditLog.find(query)
-        .populate('user', 'name email role')
+        .populate('user', 'name username email role')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(Number(limit)),
@@ -80,7 +80,7 @@ export const getAuditLogById = async (req, res, next) => {
     const log = await AuditLog.findOne({
       _id: req.params.id,
       organization: req.organizationId
-    }).populate('user', 'name email role');
+    }).populate('user', 'name username email role');
 
     if (!log) {
       throw new AppError('Audit log not found', 404);

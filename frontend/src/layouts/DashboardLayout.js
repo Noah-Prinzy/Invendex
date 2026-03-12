@@ -62,15 +62,17 @@ const DashboardLayout = ({
               className="header-action-item header-warehouse-selector"
               data-tutorial-id="header-warehouse"
             >
-              <Select
-                id="warehouseId"
-                className="warehouse-filter-select"
-                value={warehouseId}
-                onChange={(event) => onWarehouseChange(event.target.value)}
-                options={warehouseOptions}
-                disabled={warehouseDisabled}
-                aria-label={warehouseLabel || warehousePlaceholder}
-              />
+              <div className="warehouse-filter-shell">
+                <Select
+                  id="warehouseId"
+                  className="warehouse-filter-select"
+                  value={warehouseId}
+                  onChange={(event) => onWarehouseChange(event.target.value)}
+                  options={warehouseOptions}
+                  disabled={warehouseDisabled}
+                  aria-label={warehouseLabel || warehousePlaceholder}
+                />
+              </div>
             </div>
             <Button
               type="button"

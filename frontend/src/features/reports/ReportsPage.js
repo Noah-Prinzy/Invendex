@@ -31,6 +31,20 @@ const formatDateTime = (value) => {
   return date.toLocaleString();
 };
 
+const emailToUsernameFallback = (value) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+  return normalized.includes('@') ? normalized.split('@')[0] : normalized;
+};
+
+const resolveUserDisplayName = (user, fallback = 'system') =>
+  String(
+    user?.username ||
+      user?.name ||
+      emailToUsernameFallback(user?.email) ||
+      fallback
+  ).trim() || fallback;
+
 const sanitizeCsvCell = (value) => {
   let normalized = String(value ?? '');
   if (/^[=+\-@]/.test(normalized)) {
@@ -510,13 +524,13 @@ const Reports = ({
 
   const handleDownloadAuditCsv = () => {
     const csv = toCsv(
-      ['createdAt', 'action', 'entity', 'success', 'userEmail', 'path', 'ip'],
+      ['createdAt', 'action', 'entity', 'success', 'username', 'path', 'ip'],
       auditRows.map((row) => [
         row.createdAt || '',
         row.action || '',
         row.entity || '',
         String(Boolean(row.success)),
-        row.user?.email || '',
+        resolveUserDisplayName(row.user, ''),
         row.path || '',
         row.ip || ''
       ])
@@ -1225,7 +1239,7 @@ const Reports = ({
                         <td>{formatDateTime(row.createdAt)}</td>
                         <td>{row.action || '-'}</td>
                         <td>{row.entity || '-'}</td>
-                        <td>{row.user?.email || row.user?.name || 'system'}</td>
+                        <td>{resolveUserDisplayName(row.user)}</td>
                         <td>{row.success ? 'Success' : 'Failed'}</td>
                       </tr>
                     ))}

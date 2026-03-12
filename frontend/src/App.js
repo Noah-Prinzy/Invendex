@@ -50,6 +50,20 @@ const TAB_QUERY_KEY = 'tab';
 const SETTINGS_PAGE_QUERY_KEY = 'settingsPage';
 const AUTH_INTRO_COMPLETED_STORAGE_KEY = 'Invendex:auth_intro_completed:v1';
 const TUTORIAL_COMPLETED_STORAGE_KEY_PREFIX = 'Invendex:tutorial_completed:';
+const emailToUsernameFallback = (value) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+  return normalized.includes('@') ? normalized.split('@')[0] : normalized;
+};
+
+const resolveUserIdentityLabel = (identity = {}, fallback = 'employee') =>
+  String(
+    identity?.username ||
+      identity?.name ||
+      emailToUsernameFallback(identity?.email) ||
+      fallback
+  ).trim() || fallback;
+
 const sanitizeBaseUrl = (value) =>
   String(value || '')
     .trim()
@@ -443,13 +457,13 @@ const buildPurchaseOrderEvent = (payload, kind) => {
 
 const buildAuthEvent = (payload) => {
   const data = payload?.data || {};
-  const email = data.email || 'employee';
+  const username = resolveUserIdentityLabel(data);
 
   return {
     id: `auth:employee:${payload?.entityId || 'n/a'}:${payload?.occurredAt || Date.now()}`,
     occurredAt: payload?.occurredAt || new Date().toISOString(),
     title: 'Employee signed in',
-    subtitle: `${email} joined ${data.organizationName || 'organization'}`,
+    subtitle: `${username} joined ${data.organizationName || 'organization'}`,
     raw: payload
   };
 };

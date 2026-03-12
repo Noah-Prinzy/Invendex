@@ -46,6 +46,7 @@ const addOnlineUserSession = ({ organizationId, socketId, user }) => {
   const userId = String(user.id);
   const existing = organizationMap.get(userId) || {
     userId,
+    username: user.username || null,
     email: user.email || null,
     role: user.role || null,
     socketIds: new Set(),
@@ -87,13 +88,18 @@ export const getOnlineUsersByOrganization = (organizationId) => {
   return Array.from(organizationMap.values())
     .map((user) => ({
       userId: user.userId,
+      username: user.username || null,
       email: user.email,
       role: user.role,
       sessions: user.socketIds.size,
       connectedAt: user.connectedAt,
       lastSeenAt: user.lastSeenAt
     }))
-    .sort((a, b) => String(a.email || '').localeCompare(String(b.email || '')));
+    .sort((a, b) =>
+      String(a.username || a.email || '').localeCompare(
+        String(b.username || b.email || '')
+      )
+    );
 };
 
 export const initSocketServer = async (httpServer, { enabled = null } = {}) => {
@@ -131,7 +137,7 @@ export const initSocketServer = async (httpServer, { enabled = null } = {}) => {
       }
 
       const user = await User.findById(decoded.id).select(
-        '_id email role organization'
+        '_id username email role organization'
       );
       if (!user) {
         return next(new Error('Realtime auth failed: user not found'));
@@ -147,6 +153,7 @@ export const initSocketServer = async (httpServer, { enabled = null } = {}) => {
         id: user._id.toString(),
         organizationId: user.organization.toString(),
         role: user.role,
+        username: user.username || null,
         email: user.email
       };
 
