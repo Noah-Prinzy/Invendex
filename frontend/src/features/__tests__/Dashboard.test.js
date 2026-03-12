@@ -2,6 +2,9 @@ import { screen, waitFor } from '@testing-library/react';
 import Dashboard from '../dashboard/DashboardPage.js';
 import { renderWithProviders } from '../../test/renderWithProviders.js';
 import {
+  getProductsHealthScoreRequest,
+  getProductsLowStockSummaryRequest,
+  getProductsRequest,
   getWmsBinMovementsRequest,
   getWmsBinInventoryRequest,
   getAiDemandAnomaliesRequest,
@@ -18,6 +21,9 @@ import {
 } from '../../api/client.js';
 
 jest.mock('../../api/client.js', () => ({
+  getProductsHealthScoreRequest: jest.fn(),
+  getProductsLowStockSummaryRequest: jest.fn(),
+  getProductsRequest: jest.fn(),
   getWmsBinMovementsRequest: jest.fn(),
   getWmsBinInventoryRequest: jest.fn(),
   getAiDemandAnomaliesRequest: jest.fn(),
@@ -36,6 +42,20 @@ jest.mock('../../api/client.js', () => ({
 describe('Dashboard page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    getProductsRequest.mockResolvedValue([
+      {
+        _id: 'p1',
+        sku: 'SKU-001',
+        name: 'Widget One',
+        stock: 12,
+        price: 10
+      }
+    ]);
+    getProductsLowStockSummaryRequest.mockResolvedValue([{ sku: 'SKU-001' }]);
+    getProductsHealthScoreRequest.mockResolvedValue({
+      score: 91,
+      band: 'EXCELLENT'
+    });
     getDashboardTopSellingItemsRequest.mockResolvedValue([
       {
         productId: 'p1',
@@ -230,6 +250,12 @@ describe('Dashboard page', () => {
     expect(await screen.findByText('Widget One')).toBeInTheDocument();
     const supplierHits = await screen.findAllByText('Acme Supplies');
     expect(supplierHits.length).toBeGreaterThan(0);
+    expect(screen.getByText('Products in scope')).toBeInTheDocument();
+    expect(screen.getByText('Inventory health')).toBeInTheDocument();
+    expect(screen.getByText('Dead stock value')).toBeInTheDocument();
+    expect(screen.getAllByText('1').length).toBeGreaterThan(0);
+    expect(screen.getByText('91.0 / 100')).toBeInTheDocument();
+    expect(screen.getByText('EXCELLENT')).toBeInTheDocument();
     expect(screen.getByText('Stock Aging Buckets')).toBeInTheDocument();
     expect(screen.getByText('Dead Stock (90d)')).toBeInTheDocument();
     expect(screen.getByText('AI Inventory Advisor')).toBeInTheDocument();
@@ -242,6 +268,17 @@ describe('Dashboard page', () => {
       accessToken: 'token',
       days: 30,
       limit: 8,
+      warehouseId: 'WH-1'
+    });
+    expect(getProductsRequest).toHaveBeenCalledWith('token', {
+      warehouseId: 'WH-1'
+    });
+    expect(getProductsLowStockSummaryRequest).toHaveBeenCalledWith({
+      accessToken: 'token',
+      warehouseId: 'WH-1'
+    });
+    expect(getProductsHealthScoreRequest).toHaveBeenCalledWith({
+      accessToken: 'token',
       warehouseId: 'WH-1'
     });
     expect(getAiSupplierReliabilityRequest).toHaveBeenCalledWith({

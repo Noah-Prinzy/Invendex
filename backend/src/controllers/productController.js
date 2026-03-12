@@ -2,6 +2,7 @@ import Product from '../models/Product.js';
 import Inventory from '../models/Inventory.js';
 import ReorderAlert from '../models/ReorderAlert.js';
 import OrganizationSettings from '../models/OrganizationSettings.js';
+import Warehouse from '../models/Warehouse.js';
 import { successResponse } from '../utils/response.js';
 import { AppError } from '../errors/AppError.js';
 import { logAudit } from '../utils/auditLogger.js';
@@ -139,6 +140,14 @@ const normalizeUomConfig = (value) => {
 };
 
 const getLastStockMovementDate = (product) => {
+  const warehouseMovementValue = product?.warehouseLastMovementAt;
+  if (warehouseMovementValue) {
+    const warehouseScopedMovement = new Date(warehouseMovementValue);
+    if (!Number.isNaN(warehouseScopedMovement.getTime())) {
+      return warehouseScopedMovement;
+    }
+  }
+
   const history = Array.isArray(product?.stockHistory)
     ? product.stockHistory
     : [];
@@ -164,14 +173,19 @@ const toObjectIdOrNull = (value) => {
   return new mongoose.Types.ObjectId(normalized);
 };
 
-const buildWarehouseScopedStockMap = async ({
+const buildWarehouseScopedInventorySnapshot = async ({
   organizationId,
   warehouseId,
   productIds = []
 }) => {
   const warehouseObjectId = toObjectIdOrNull(warehouseId);
   if (!warehouseObjectId) {
-    return new Map();
+    return {
+      inventoryRows: [],
+      stockMap: new Map(),
+      inventoryByProductId: new Map(),
+      scopedProductIds: new Set()
+    };
   }
 
   const match = {
@@ -180,44 +194,101 @@ const buildWarehouseScopedStockMap = async ({
   };
 
   if (Array.isArray(productIds) && productIds.length) {
-    match.product = {
-      $in: productIds
-        .map((productId) => toObjectIdOrNull(productId))
-        .filter(Boolean)
-    };
-  }
+    const normalizedProductIds = productIds
+      .map((productId) => toObjectIdOrNull(productId))
+      .filter(Boolean);
 
-  const rows = await Inventory.find(match)
-    .select('product quantityOnHand')
-    .lean();
-
-  return new Map(
-    rows.map((row) => [
-      String(row.product || ''),
-      Number(row.quantityOnHand || 0)
-    ])
-  );
-};
-
-const applyWarehouseScopedStockToProducts = (products = [], stockMap = null) =>
-  products.map((product) => {
-    if (!stockMap) {
+    if (!normalizedProductIds.length) {
       return {
-        ...product,
-        stock: Number(product?.stock || 0)
+        inventoryRows: [],
+        stockMap: new Map(),
+        inventoryByProductId: new Map(),
+        scopedProductIds: new Set()
       };
     }
 
-    const productId = String(product?._id || product?.id || '').trim();
-    const stock = stockMap?.has(productId)
-      ? Number(stockMap.get(productId) || 0)
-      : 0;
+    match.product = { $in: normalizedProductIds };
+  }
 
-    return {
-      ...product,
-      stock
-    };
-  });
+  const inventoryRows = await Inventory.find(match)
+    .select('product quantityOnHand quantityReserved lastMovementAt warehouse')
+    .lean();
+
+  const inventoryByProductId = new Map(
+    inventoryRows.map((row) => [String(row.product || ''), row])
+  );
+
+  return {
+    inventoryRows,
+    stockMap: new Map(
+      inventoryRows.map((row) => [
+        String(row.product || ''),
+        Number(row.quantityOnHand || 0)
+      ])
+    ),
+    inventoryByProductId,
+    scopedProductIds: new Set(
+      inventoryRows.map((row) => String(row.product || ''))
+    )
+  };
+};
+
+const applyWarehouseScopedStockToProducts = (
+  products = [],
+  inventorySnapshot = null
+) =>
+  products
+    .filter((product) => {
+      if (!inventorySnapshot) return true;
+      const productId = String(product?._id || product?.id || '').trim();
+      return inventorySnapshot.scopedProductIds.has(productId);
+    })
+    .map((product) => {
+      if (!inventorySnapshot) {
+        return {
+          ...product,
+          stock: Number(product?.stock || 0)
+        };
+      }
+
+      const productId = String(product?._id || product?.id || '').trim();
+      const inventoryRow = inventorySnapshot.inventoryByProductId.get(productId);
+      const stock = inventorySnapshot.stockMap.has(productId)
+        ? Number(inventorySnapshot.stockMap.get(productId) || 0)
+        : 0;
+
+      return {
+        ...product,
+        stock,
+        quantityReserved: Number(inventoryRow?.quantityReserved || 0),
+        warehouseLastMovementAt: inventoryRow?.lastMovementAt || null,
+        inventoryWarehouse: inventoryRow?.warehouse || null
+      };
+    });
+
+const ensureWarehouseBelongsToOrganization = async ({
+  organizationId,
+  warehouseId
+}) => {
+  const warehouseObjectId = toObjectIdOrNull(warehouseId);
+  if (!warehouseObjectId) {
+    throw new AppError('warehouseId must be a valid ID', 400);
+  }
+
+  const warehouse = await Warehouse.findOne({
+    _id: warehouseObjectId,
+    organization: organizationId,
+    isArchived: { $ne: true }
+  })
+    .select('_id code name isActive')
+    .lean();
+
+  if (!warehouse) {
+    throw new AppError('Warehouse not found in organization', 404);
+  }
+
+  return warehouse;
+};
 
 const assertParentProductIfProvided = async ({
   organizationId,
@@ -311,14 +382,14 @@ export const getProducts = async (req, res, next) => {
       return successResponse(res, products, 'Products fetched');
     }
 
-    const stockMap = await buildWarehouseScopedStockMap({
+    const inventorySnapshot = await buildWarehouseScopedInventorySnapshot({
       organizationId: req.organizationId,
       warehouseId,
       productIds: products.map((product) => product._id)
     });
     const scopedProducts = applyWarehouseScopedStockToProducts(
       products.map((product) => product.toObject()),
-      stockMap
+      inventorySnapshot
     );
     return successResponse(res, scopedProducts, 'Products fetched');
   } catch (err) {
@@ -425,6 +496,13 @@ export const createProduct = async (req, res, next) => {
     }
 
     const data = pickProductFields(req.body);
+    const warehouseId = String(req.body?.warehouseId || '').trim();
+    const targetWarehouse = warehouseId
+      ? await ensureWarehouseBelongsToOrganization({
+          organizationId: req.organizationId,
+          warehouseId
+        })
+      : null;
     data.barcode = normalizeBarcode(data.barcode);
     data.barcodeType = normalizeBarcodeType(data.barcodeType);
     data.variantAttributes = normalizeVariantAttributes(data.variantAttributes);
@@ -464,6 +542,19 @@ export const createProduct = async (req, res, next) => {
       ...data,
       organization: req.organizationId
     });
+
+    if (targetWarehouse) {
+      await Inventory.create({
+        organization: req.organizationId,
+        product: product._id,
+        warehouse: targetWarehouse._id,
+        quantityOnHand: 0,
+        quantityReserved: 0,
+        reorderPoint: Number(product.lowStockThreshold || 0),
+        reorderQuantity: 0,
+        lastMovementAt: null
+      });
+    }
 
     logAudit({
       req,
@@ -807,7 +898,7 @@ export const getLowStockProducts = async (req, res, next) => {
         isActive: true
       }).lean();
 
-      const stockMap = await buildWarehouseScopedStockMap({
+      const inventorySnapshot = await buildWarehouseScopedInventorySnapshot({
         organizationId: req.organizationId,
         warehouseId,
         productIds: products.map((product) => product._id)
@@ -815,7 +906,7 @@ export const getLowStockProducts = async (req, res, next) => {
 
       const scopedProducts = applyWarehouseScopedStockToProducts(
         products,
-        stockMap
+        inventorySnapshot
       ).filter(
         (product) =>
           Number(product.stock || 0) <= Number(product.lowStockThreshold || 0)
@@ -847,15 +938,20 @@ export const getLowStockSummary = async (req, res, next) => {
         .select('sku lowStockThreshold')
         .lean();
 
-      const stockMap = await buildWarehouseScopedStockMap({
+      const inventorySnapshot = await buildWarehouseScopedInventorySnapshot({
         organizationId: req.organizationId,
         warehouseId,
         productIds: products.map((product) => product._id)
       });
 
       const summary = products
+        .filter((product) =>
+          inventorySnapshot.scopedProductIds.has(String(product._id || ''))
+        )
         .map((product) => {
-          const stock = Number(stockMap.get(String(product._id)) || 0);
+          const stock = Number(
+            inventorySnapshot.stockMap.get(String(product._id)) || 0
+          );
           return {
             sku: product.sku,
             stock,
@@ -900,8 +996,8 @@ export const getInventoryHealthOverview = async (req, res, next) => {
     }).lean();
 
     const warehouseId = String(req.query?.warehouseId || '').trim();
-    const stockMap = warehouseId
-      ? await buildWarehouseScopedStockMap({
+    const inventorySnapshot = warehouseId
+      ? await buildWarehouseScopedInventorySnapshot({
           organizationId: req.organizationId,
           warehouseId,
           productIds: products.map((product) => product._id)
@@ -910,7 +1006,7 @@ export const getInventoryHealthOverview = async (req, res, next) => {
 
     const overview = applyWarehouseScopedStockToProducts(
       products,
-      stockMap
+      inventorySnapshot
     ).map((p) => ({
       sku: p.sku,
       stock: p.stock,
@@ -953,8 +1049,8 @@ export const getInventoryHealthScore = async (req, res, next) => {
       })
     ]);
 
-    const stockMap = warehouseId
-      ? await buildWarehouseScopedStockMap({
+    const inventorySnapshot = warehouseId
+      ? await buildWarehouseScopedInventorySnapshot({
           organizationId: req.organizationId,
           warehouseId,
           productIds: products.map((product) => product._id)
@@ -962,7 +1058,7 @@ export const getInventoryHealthScore = async (req, res, next) => {
       : null;
     const scopedProducts = applyWarehouseScopedStockToProducts(
       products,
-      stockMap
+      inventorySnapshot
     );
 
     const deadStockDays = Math.max(

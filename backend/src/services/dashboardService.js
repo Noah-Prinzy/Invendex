@@ -421,13 +421,15 @@ export const getDeadStockIntelligence = async ({
 
 const getSalesMomentumByProduct = async ({
   organizationId,
-  windowDays = 30
+  windowDays = 30,
+  warehouseId = null
 }) => {
   const normalizedWindow = normalizeDays(windowDays);
   const recentStart = getSinceDate(normalizedWindow);
   const previousStart = getSinceDate(normalizedWindow * 2);
+  const warehouseObjectId = warehouseId ? toObjectId(warehouseId) : null;
 
-  const rows = await Order.aggregate([
+  const pipeline = [
     {
       $match: {
         organization: new mongoose.Types.ObjectId(organizationId),
@@ -436,7 +438,21 @@ const getSalesMomentumByProduct = async ({
         createdAt: { $gte: previousStart }
       }
     },
-    { $unwind: '$products' },
+    { $unwind: '$products' }
+  ];
+
+  if (warehouseObjectId) {
+    pipeline.push({
+      $match: {
+        $or: [
+          { 'products.warehouse': warehouseObjectId },
+          { warehouse: warehouseObjectId }
+        ]
+      }
+    });
+  }
+
+  pipeline.push(
     {
       $group: {
         _id: '$products.product',
@@ -465,7 +481,9 @@ const getSalesMomentumByProduct = async ({
         }
       }
     }
-  ]);
+  );
+
+  const rows = await Order.aggregate(pipeline);
 
   const map = new Map();
   for (const row of rows) {
@@ -516,11 +534,13 @@ export const getInventoryAdvisorRecommendations = async ({
       getSlowMovingSkus({
         organizationId,
         days: Math.max(normalizedDays, 60),
-        limit: 400
+        limit: 400,
+        warehouseId
       }),
       getSalesMomentumByProduct({
         organizationId,
-        windowDays: normalizedDays
+        windowDays: normalizedDays,
+        warehouseId
       }),
       getDeadStockItems({
         organizationId,

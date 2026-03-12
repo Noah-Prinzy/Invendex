@@ -20,6 +20,16 @@ const getFallbackSpotlight = () => {
 };
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+const SCROLL_LOCK_KEYS = new Set([
+  ' ',
+  'Spacebar',
+  'PageUp',
+  'PageDown',
+  'Home',
+  'End',
+  'ArrowUp',
+  'ArrowDown'
+]);
 
 const resolveSpotlightRect = (selector) => {
   if (typeof window === 'undefined') return getFallbackSpotlight();
@@ -47,24 +57,41 @@ const resolvePopoverStyle = (rect) => {
     return {
       top: '18vh',
       left: '50%',
-      transform: 'translateX(-50%)'
+      transform: 'translateX(-50%)',
+      maxHeight: 'calc(100vh - 32px)'
     };
   }
 
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
-  const popoverWidth = Math.min(380, viewportWidth - 32);
-  const preferredTop = rect.top + rect.height + 18;
-  const canPlaceBelow = preferredTop + 280 < viewportHeight;
-  const top = canPlaceBelow
-    ? preferredTop
-    : Math.max(20, rect.top - 300);
+  const horizontalPadding = 16;
+  const verticalPadding = 16;
+  const gap = 18;
+  const popoverWidth = Math.min(400, viewportWidth - horizontalPadding * 2);
+  const belowTop = rect.top + rect.height + gap;
+  const belowSpace = viewportHeight - belowTop - verticalPadding;
+  const aboveSpace = rect.top - gap - verticalPadding;
   const centeredLeft = rect.left + rect.width / 2 - popoverWidth / 2;
+  const left = Math.round(
+    clamp(centeredLeft, horizontalPadding, viewportWidth - popoverWidth - horizontalPadding)
+  );
+
+  if (belowSpace >= 220 || belowSpace >= aboveSpace) {
+    return {
+      top: `${Math.round(Math.max(verticalPadding, belowTop))}px`,
+      left: `${left}px`,
+      width: `${Math.round(popoverWidth)}px`,
+      maxHeight: `${Math.round(
+        Math.max(220, viewportHeight - Math.max(verticalPadding, belowTop) - verticalPadding)
+      )}px`
+    };
+  }
 
   return {
-    top: `${Math.round(top)}px`,
-    left: `${Math.round(clamp(centeredLeft, 16, viewportWidth - popoverWidth - 16))}px`,
-    width: `${Math.round(popoverWidth)}px`
+    top: `${verticalPadding}px`,
+    left: `${left}px`,
+    width: `${Math.round(popoverWidth)}px`,
+    maxHeight: `${Math.round(Math.max(220, aboveSpace))}px`
   };
 };
 
@@ -130,11 +157,38 @@ const BeginnerTutorial = ({
     };
   }, [step]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined' || !step) {
+      return undefined;
+    }
+
+    const { body, documentElement } = document;
+    const previousBodyOverflow = body.style.overflow;
+    const previousHtmlOverflow = documentElement.style.overflow;
+
+    body.style.overflow = 'hidden';
+    documentElement.style.overflow = 'hidden';
+
+    const preventScrollKeys = (event) => {
+      if (!SCROLL_LOCK_KEYS.has(event.key)) return;
+      event.preventDefault();
+    };
+
+    window.addEventListener('keydown', preventScrollKeys, { passive: false });
+
+    return () => {
+      body.style.overflow = previousBodyOverflow;
+      documentElement.style.overflow = previousHtmlOverflow;
+      window.removeEventListener('keydown', preventScrollKeys);
+    };
+  }, [step]);
+
   const popoverStyle = useMemo(
     () => resolvePopoverStyle(spotlightRect || getFallbackSpotlight()),
     [spotlightRect]
   );
   const stepAnimationKey = String(step?.id || currentIndex || 'tutorial-step');
+  const showSkipAction = step?.showSkipAction === true;
 
   if (!step || !spotlightRect) return null;
 
@@ -163,46 +217,54 @@ const BeginnerTutorial = ({
         className="tutorial-popover"
         style={popoverStyle}
         onClick={(event) => event.stopPropagation()}
+        onWheel={(event) => event.stopPropagation()}
+        onTouchMove={(event) => event.stopPropagation()}
       >
-        <p className="tutorial-progress">
-          Step {currentIndex + 1} of {steps.length}
-        </p>
-        <h3>{step.title}</h3>
-        <p className="tutorial-description">{step.description}</p>
-        {Array.isArray(step.tips) && step.tips.length ? (
-          <div className="tutorial-tip-list">
-            {step.tips.map((tip, index) => (
-              <article
-                key={`${String(tip?.label || 'tip')}-${index}`}
-                className="tutorial-tip-card"
+        <div className="tutorial-popover-inner">
+          <p className="tutorial-progress">
+            Step {currentIndex + 1} of {steps.length}
+          </p>
+          <h3>{step.title}</h3>
+          <p className="tutorial-description">{step.description}</p>
+          {Array.isArray(step.tips) && step.tips.length ? (
+            <div className="tutorial-tip-list">
+              {step.tips.map((tip, index) => (
+                <article
+                  key={`${String(tip?.label || 'tip')}-${index}`}
+                  className="tutorial-tip-card"
+                >
+                  <p className="tutorial-tip-label">
+                    {tip?.label || `Tip ${index + 1}`}
+                  </p>
+                  <p className="tutorial-tip-text">{tip?.text || ''}</p>
+                </article>
+              ))}
+            </div>
+          ) : null}
+          <p className="tutorial-footnote">
+            Click anywhere outside this box to continue.
+          </p>
+          <div className="tutorial-actions">
+            {showSkipAction ? (
+              <button type="button" className="btn-ghost" onClick={onSkip}>
+                Skip tutorial
+              </button>
+            ) : (
+              <span aria-hidden="true" />
+            )}
+            <div className="tutorial-actions-right">
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={onPrevious}
+                disabled={currentIndex === 0}
               >
-                <p className="tutorial-tip-label">
-                  {tip?.label || `Tip ${index + 1}`}
-                </p>
-                <p className="tutorial-tip-text">{tip?.text || ''}</p>
-              </article>
-            ))}
-          </div>
-        ) : null}
-        <p className="tutorial-footnote">
-          Click anywhere outside this box to continue.
-        </p>
-        <div className="tutorial-actions">
-          <button type="button" className="btn-ghost" onClick={onSkip}>
-            Skip tutorial
-          </button>
-          <div className="tutorial-actions-right">
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={onPrevious}
-              disabled={currentIndex === 0}
-            >
-              Previous
-            </button>
-            <button type="button" className="btn-primary" onClick={onNext}>
-              {isLastStep ? 'Finish' : 'Next'}
-            </button>
+                Previous
+              </button>
+              <button type="button" className="btn-primary" onClick={onNext}>
+                {isLastStep ? 'Finish' : 'Next'}
+              </button>
+            </div>
           </div>
         </div>
       </article>

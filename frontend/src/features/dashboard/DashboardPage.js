@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
+  getProductsHealthScoreRequest,
+  getProductsLowStockSummaryRequest,
+  getProductsRequest,
   getAiDemandAnomaliesRequest,
   getAiSupplierReliabilityRequest,
   getDashboardDeadStockRequest,
@@ -93,6 +96,9 @@ const Dashboard = ({
           stockAgingBuckets,
           supplierRanking,
           deadStock,
+          products,
+          lowStockSummary,
+          healthScore,
           inventoryAdvisor,
           deadStockRescue,
           digitalTwin
@@ -129,6 +135,17 @@ const Dashboard = ({
             days: 90,
             warehouseId: warehouseId || null,
             limit: 20
+          }),
+          getProductsRequest(accessToken, {
+            warehouseId: warehouseId || null
+          }),
+          getProductsLowStockSummaryRequest({
+            accessToken,
+            warehouseId: warehouseId || null
+          }),
+          getProductsHealthScoreRequest({
+            accessToken,
+            warehouseId: warehouseId || null
           }),
           getDashboardInventoryAdvisorRequest({
             accessToken,
@@ -202,6 +219,14 @@ const Dashboard = ({
             deadStock && typeof deadStock === 'object'
               ? deadStock
               : { items: [], count: 0, totalValue: 0, thresholdDays: 90 },
+          products: Array.isArray(products) ? products : [],
+          lowStockSummary: Array.isArray(lowStockSummary)
+            ? lowStockSummary
+            : [],
+          healthScore:
+            healthScore && typeof healthScore === 'object'
+              ? healthScore
+              : null,
           inventoryAdvisor:
             inventoryAdvisor && typeof inventoryAdvisor === 'object'
               ? inventoryAdvisor
@@ -246,6 +271,9 @@ const Dashboard = ({
     stockAgingBuckets: { summary: {} },
     supplierRanking: [],
     deadStock: { items: [], count: 0, totalValue: 0, thresholdDays: 90 },
+    products: [],
+    lowStockSummary: [],
+    healthScore: null,
     inventoryAdvisor: { recommendations: [], totals: {} },
     deadStockRescue: { actions: [], totals: {} },
     digitalTwin: { totals: {}, warehouses: [] },
@@ -257,6 +285,19 @@ const Dashboard = ({
   const deadStockRows = Array.isArray(intelligence.deadStock?.items)
     ? intelligence.deadStock.items
     : [];
+  const scopedProducts = Array.isArray(intelligence.products)
+    ? intelligence.products
+    : [];
+  const scopedLowStockSummary = Array.isArray(intelligence.lowStockSummary)
+    ? intelligence.lowStockSummary
+    : [];
+  const scopedHealthScore =
+    intelligence.healthScore && typeof intelligence.healthScore === 'object'
+      ? intelligence.healthScore
+      : null;
+  const scopedOnHandUnits =
+    Number(intelligence.digitalTwin?.totals?.unitsBinned || 0) +
+    Number(intelligence.digitalTwin?.totals?.unitsUnbinned || 0);
 
   const agingSummaryRows = useMemo(() => {
     const summary = intelligence.stockAgingBuckets?.summary || {};
@@ -276,15 +317,36 @@ const Dashboard = ({
 
   const metrics = [
     { label: 'Inventory events', value: String(inventoryEvents.length) },
-    { label: 'Finance events', value: String(financeEvents.length) },
-    { label: 'Auth events', value: String(authEvents.length) },
     {
       label: 'Selected warehouse',
       value: activeWarehouseLabel || 'All warehouses'
     },
     {
-      label: 'Top selling SKUs',
-      value: String(intelligence.topSelling.length)
+      label: 'Products in scope',
+      value: String(scopedProducts.length)
+    },
+    {
+      label: 'Units on hand',
+      value: String(Math.round(scopedOnHandUnits))
+    },
+    {
+      label: 'Low-stock SKUs',
+      value: String(scopedLowStockSummary.length)
+    },
+    {
+      label: 'Inventory health',
+      value: scopedHealthScore
+        ? `${Number(scopedHealthScore.score || 0).toFixed(1)} / 100`
+        : '-',
+      caption: scopedHealthScore?.band || 'No score available'
+    },
+    {
+      label: 'Dead stock items',
+      value: String(Number(intelligence.deadStock?.count || deadStockRows.length))
+    },
+    {
+      label: 'Dead stock value',
+      value: formatFromBaseAmount(intelligence.deadStock?.totalValue || 0)
     },
     {
       label: 'Fast turnover SKUs',
@@ -294,18 +356,9 @@ const Dashboard = ({
       label: 'Slow moving SKUs',
       value: String(intelligence.slowMovingSkus.length)
     },
-    { label: 'Dead stock items', value: String(deadStockRows.length) },
     {
-      label: 'Advisor recommendations',
-      value: String(
-        Array.isArray(intelligence.inventoryAdvisor?.recommendations)
-          ? intelligence.inventoryAdvisor.recommendations.length
-          : 0
-      )
-    },
-    {
-      label: 'Digital twin bins',
-      value: String(Number(intelligence.digitalTwin?.totals?.bins || 0))
+      label: 'Supplier signals',
+      value: String(intelligence.supplierRanking.length)
     },
     {
       label: 'AI demand anomalies',
@@ -504,6 +557,9 @@ const Dashboard = ({
             <article key={metric.label} className="metric-card">
               <p className="metric-label">{metric.label}</p>
               <p className="metric-value">{metric.value}</p>
+              {metric.caption ? (
+                <p className="event-sub">{metric.caption}</p>
+              ) : null}
             </article>
           ))}
         </div>

@@ -122,13 +122,18 @@ const TUTORIAL_STEPS = Object.freeze([
     id: 'header-brand',
     tab: 'dashboard',
     selector: '[data-tutorial-id="header-brand"]',
-    title: 'This header tells you whose inventory you are managing',
+    showSkipAction: true,
+    title: 'Welcome to Invendex',
     description:
-      'Always check the company title first, especially if you work in more than one workspace.',
+      'Invendex helps you manage stock, warehouses, purchasing, and daily inventory decisions from one workspace. This short tutorial will show you where the core controls live so you can start using the app without guessing.',
     tips: [
       {
-        label: 'Why it matters',
-        text: 'It confirms you are editing the correct company before making stock or settings changes.'
+        label: 'What happens next',
+        text: 'We will start on the dashboard, then move through the main sections you will use most often.'
+      },
+      {
+        label: 'Good starting habit',
+        text: 'Follow the highlighted areas in order. Each step explains what the section is for and how to use it safely.'
       }
     ]
   },

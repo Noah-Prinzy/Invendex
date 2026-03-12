@@ -121,6 +121,12 @@ const getLatestRealtimeConfig = () => {
 
 const AUTH_INTRO_COMPLETED_STORAGE_KEY = 'Invendex:auth_intro_completed:v1';
 
+const advancePastIntroLanding = () => {
+  fireEvent.click(screen.getByRole('button', { name: 'Intro landing screen' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Tap to Continue' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Get started' }));
+};
+
 describe('App integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -253,7 +259,7 @@ describe('App integration', () => {
 
     renderWithProviders(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Get started' }));
+    advancePastIntroLanding();
     fireEvent.click(screen.getByRole('button', { name: 'Employer Portal' }));
 
     fireEvent.change(screen.getByLabelText('Username'), {
@@ -297,7 +303,7 @@ describe('App integration', () => {
 
     renderWithProviders(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Get started' }));
+    advancePastIntroLanding();
     fireEvent.click(screen.getByRole('button', { name: 'Employee Portal' }));
 
     fireEvent.change(screen.getByLabelText('Company Name'), {
@@ -332,7 +338,7 @@ describe('App integration', () => {
 
     renderWithProviders(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Get started' }));
+    advancePastIntroLanding();
     fireEvent.click(screen.getByRole('button', { name: 'Employer Portal' }));
     fireEvent.click(screen.getByRole('button', { name: 'Admin sign up' }));
 
@@ -382,7 +388,7 @@ describe('App integration', () => {
 
     renderWithProviders(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Get started' }));
+    advancePastIntroLanding();
     fireEvent.click(screen.getByRole('button', { name: 'Employee Portal' }));
     fireEvent.click(screen.getByRole('button', { name: 'Employee sign up' }));
 
@@ -535,8 +541,9 @@ describe('App integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Replay tutorial' }));
 
     await waitFor(() => {
+      expect(screen.getByText('Welcome to Invendex')).toBeInTheDocument();
       expect(
-        screen.getByText('This header tells you whose inventory you are managing')
+        screen.getByRole('button', { name: 'Skip tutorial' })
       ).toBeInTheDocument();
     });
   });

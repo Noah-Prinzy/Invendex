@@ -3,46 +3,41 @@ import Button from '../ui/Button.js';
 
 const STORY_SECTIONS = Object.freeze([
   {
-    eyebrow: 'Welcome',
+    eyebrow: 'Start Here',
     title: 'Welcome to Invendex',
     description:
-      'A modern inventory operations platform for teams that need realtime control, secure collaboration, and confident purchasing decisions.'
+      'See stock clearly, keep teams aligned, and run daily inventory work from one focused workspace.',
+    visualKey: 'overview'
   },
   {
-    eyebrow: 'Realtime Operations',
-    title: 'Run inventory with live operational visibility.',
+    eyebrow: 'Watch Operations',
+    title: 'See what each warehouse is doing now.',
     description:
-      'Monitor stock movement, purchase order events, and warehouse activity in one command layer designed for fast, reliable execution.'
+      'Track stock movement, purchase updates, and warehouse activity in one live control layer built for fast decisions.',
+    visualKey: 'operations'
   },
   {
-    eyebrow: 'Decision Signals',
-    title: 'Move from stock tracking to business control.',
+    eyebrow: 'Spot Issues Early',
+    title: 'Know what needs attention next.',
     description:
-      'Use intelligent reporting, dead-stock insights, and supplier analytics to improve cash flow, reduce stockouts, and guide purchasing decisions.'
+      'Spot low stock, dead stock, and supplier issues early so you can act before they slow the business down.',
+    visualKey: 'signals'
   },
   {
-    eyebrow: 'Role Aligned Access',
-    title: 'Coordinate admins, managers, and staff securely.',
+    eyebrow: 'Work By Role',
+    title: 'Give each person the right level of control.',
     description:
-      'Enforce role-based workflows, approvals, and audit-ready actions so teams collaborate safely without losing operational speed.'
+      'Admins lead the operation, managers coordinate work, and staff handle daily tasks with clear permission boundaries.',
+    visualKey: 'roles'
   }
 ]);
 
-const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-
-const buildDefaultStoryMetrics = (count) =>
-  Array.from({ length: count }, () => ({
-    visibility: 0,
-    phase: 1
-  }));
-
 const AuthIntroLanding = ({ description = '', onGetStarted = () => {} }) => {
+  const [hasRevealedContinuePrompt, setHasRevealedContinuePrompt] =
+    useState(false);
+  const [showStoryScreen, setShowStoryScreen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [storyMetrics, setStoryMetrics] = useState(() =>
-    buildDefaultStoryMetrics(STORY_SECTIONS.length)
-  );
   const sectionRefs = useRef([]);
-  const animationFrameRef = useRef(null);
 
   const introSections = useMemo(() => {
     const sectionDescription = String(description || '').trim();
@@ -59,210 +54,192 @@ const AuthIntroLanding = ({ description = '', onGetStarted = () => {} }) => {
   }, [description]);
 
   useEffect(() => {
-    const measureStoryProgress = () => {
-      if (!sectionRefs.current.length) return;
+    if (!showStoryScreen) return undefined;
+    if (typeof window === 'undefined' || !('IntersectionObserver' in window)) {
+      return undefined;
+    }
 
-      const viewportHeight = Math.max(window.innerHeight || 0, 1);
-      const viewportCenter = viewportHeight / 2;
-      // Start fade-in before the card enters viewport and keep a small
-      // center "stick" zone where clarity is locked at max.
-      const entryRange = viewportHeight * 0.82;
-      const stickWindow = viewportHeight * 0.11;
+    const observer = new window.IntersectionObserver(
+      (entries) => {
+        const visibleEntries = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((left, right) => right.intersectionRatio - left.intersectionRatio);
 
-      let nextActiveIndex = 0;
-      let closestDistance = Number.POSITIVE_INFINITY;
+        if (!visibleEntries.length) return;
 
-      const nextMetrics = introSections.map((_, index) => {
-        const element = sectionRefs.current[index];
-        if (!element) {
-          return {
-            visibility: 0,
-            phase: 1
-          };
-        }
-        const bounds = element.getBoundingClientRect();
-        const centerOffset = bounds.top + bounds.height / 2 - viewportCenter;
-        const absOffset = Math.abs(centerOffset);
-        const isInStickZone = absOffset <= stickWindow;
-        const phase = isInStickZone
-          ? 0
-          : clamp(centerOffset / entryRange, -1.2, 1.2);
-        const distanceRatio = isInStickZone
-          ? 0
-          : clamp((absOffset - stickWindow) / (entryRange - stickWindow), 0, 1);
-        const visibility = isInStickZone ? 1 : clamp(1 - distanceRatio, 0, 1);
+        const nextIndex = Number(
+          visibleEntries[0].target.getAttribute('data-story-index') || 0
+        );
+        setActiveIndex((current) => (current === nextIndex ? current : nextIndex));
+      },
+      {
+        threshold: [0.25, 0.4, 0.55, 0.72],
+        rootMargin: '-12% 0px -18% 0px'
+      }
+    );
 
-        if (absOffset < closestDistance) {
-          closestDistance = absOffset;
-          nextActiveIndex = index;
-        }
-
-        return {
-          visibility: Number(visibility.toFixed(4)),
-          phase: Number(phase.toFixed(4))
-        };
-      });
-
-      setStoryMetrics((current) => {
-        let changed = current.length !== nextMetrics.length;
-        if (!changed) {
-          for (let index = 0; index < nextMetrics.length; index += 1) {
-            const nextMetric = nextMetrics[index] || {
-              visibility: 0,
-              phase: 1
-            };
-            const currentMetric = current[index] || {
-              visibility: 0,
-              phase: 1
-            };
-            if (
-              Math.abs(nextMetric.visibility - currentMetric.visibility) >
-                0.01 ||
-              Math.abs(nextMetric.phase - currentMetric.phase) > 0.01
-            ) {
-              changed = true;
-              break;
-            }
-          }
-        }
-        return changed ? nextMetrics : current;
-      });
-
-      setActiveIndex((current) =>
-        current === nextActiveIndex ? current : nextActiveIndex
-      );
-    };
-
-    const requestMeasure = () => {
-      if (animationFrameRef.current != null) return;
-      animationFrameRef.current = window.requestAnimationFrame(() => {
-        animationFrameRef.current = null;
-        measureStoryProgress();
-      });
-    };
-
-    const handleScroll = () => {
-      requestMeasure();
-    };
-
-    requestMeasure();
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('resize', requestMeasure);
+    sectionRefs.current.forEach((element) => {
+      if (element) observer.observe(element);
+    });
 
     return () => {
-      window.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('resize', requestMeasure);
-      if (animationFrameRef.current != null) {
-        window.cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = null;
-      }
+      observer.disconnect();
     };
-  }, [introSections]);
+  }, [introSections.length, showStoryScreen]);
 
   useEffect(() => {
-    setStoryMetrics((current) => {
-      if (current.length === introSections.length) return current;
-      return buildDefaultStoryMetrics(introSections.length);
-    });
-  }, [introSections.length]);
+    if (
+      !showStoryScreen ||
+      typeof window === 'undefined' ||
+      process.env.NODE_ENV === 'test'
+    ) {
+      return;
+    }
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [showStoryScreen]);
+
+  const handleRevealContinuePrompt = () => {
+    if (hasRevealedContinuePrompt) return;
+    setHasRevealedContinuePrompt(true);
+  };
+
+  const handleContinueToStory = (event) => {
+    event.stopPropagation();
+    setActiveIndex(0);
+    setShowStoryScreen(true);
+  };
 
   return (
     <main className="auth-landing-experience">
-      <section className="auth-landing-stage">
-        <div className="auth-landing-stage-orb auth-landing-stage-orb-a" />
-        <div className="auth-landing-stage-orb auth-landing-stage-orb-b" />
-        <div className="auth-landing-stage-grid" />
-        <img
-          src="/logo600.png"
-          alt="Invendex logo"
-          className="auth-landing-stage-logo"
-          loading="eager"
-        />
-        <h1 className="auth-landing-stage-title">Invendex</h1>
-        <div className="auth-landing-stage-pills" aria-hidden="true">
-          <span>Inventory Intelligence</span>
-          <span>Warehouse Control</span>
-          <span>Finance Visibility</span>
-        </div>
-        <p className="auth-landing-stage-hint">Scroll to explore</p>
-      </section>
-
-      <section className="auth-landing-story-rail">
-        {introSections.map((section, index) => {
-          const alignmentClass =
-            index % 2 === 0 ? 'story-align-right' : 'story-align-left';
-          const isFirstStoryStep = index === 0;
-          const isDecisionSignalsStep = index === 2;
-          const isActive = index === activeIndex;
-          const metric = storyMetrics[index] || {
-            visibility: 0,
-            phase: 1
-          };
-          const progressClass =
-            index < activeIndex
-              ? 'story-past'
-              : index > activeIndex
-                ? 'story-future'
-                : '';
-
-          return (
-            <div
-              key={section.title}
-              className={`auth-story-step-wrap ${isFirstStoryStep ? 'story-gap-after-stage' : ''} ${isDecisionSignalsStep ? 'story-gap-before-decision' : ''}`}
-              ref={(element) => {
-                sectionRefs.current[index] = element;
-              }}
-            >
-              <article
-                className={`auth-story-step ${alignmentClass} ${progressClass} ${isActive ? 'story-active' : ''}`}
-                data-index={index}
-                style={{
-                  '--story-visibility': String(metric.visibility),
-                  '--story-phase': String(metric.phase)
-                }}
-              >
-                <div className="auth-story-card">
-                  <p className="eyebrow">{section.eyebrow}</p>
-                  <h2>{section.title}</h2>
-                  <p>{section.description}</p>
-                  <div className="auth-story-meta" aria-hidden="true">
-                    <span className="story-meta-chip">Live events</span>
-                    <span className="story-meta-chip">Tenant safe</span>
-                    <span className="story-meta-chip">Audit ready</span>
-                  </div>
-                </div>
-                <div className="auth-story-art" aria-hidden="true">
-                  <span className="shape-grid" />
-                  <span className="shape-square" />
-                  <span className="shape-circle" />
-                  <span className="shape-triangle" />
-                </div>
-              </article>
-            </div>
-          );
-        })}
-
-        <section className="auth-landing-cta-zone">
-          <div className="auth-landing-cta-core">
-            <div className="auth-landing-cta-art" aria-hidden="true">
-              <span className="pulse pulse-a" />
-              <span className="pulse pulse-b" />
-              <span className="pulse pulse-c" />
-            </div>
-            <Button
-              type="button"
-              variant="primary"
-              className="auth-landing-get-started-btn"
-              onClick={onGetStarted}
-            >
-              Get started
-            </Button>
+      {!showStoryScreen ? (
+        <section
+          className="auth-landing-stage auth-landing-stage-interactive"
+          role="button"
+          tabIndex={0}
+          aria-label="Intro landing screen"
+          onClick={handleRevealContinuePrompt}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              handleRevealContinuePrompt();
+            }
+          }}
+        >
+          <div className="auth-landing-stage-orb auth-landing-stage-orb-a" />
+          <div className="auth-landing-stage-orb auth-landing-stage-orb-b" />
+          <div className="auth-landing-stage-grid" />
+          <img
+            src="/logo600.png"
+            alt="Invendex logo"
+            className="auth-landing-stage-logo"
+            loading="eager"
+          />
+          <h1 className="auth-landing-stage-title">Invendex</h1>
+          <div className="auth-landing-stage-pills" aria-hidden="true">
+            <span>Inventory Intelligence</span>
+            <span>Warehouse Control</span>
+            <span>Finance Visibility</span>
           </div>
-          <p className="auth-landing-cta-note">
-            Continue to sign in or create your workspace account.
-          </p>
+          <button
+            type="button"
+            className={`auth-landing-stage-continue ${
+              hasRevealedContinuePrompt ? 'is-visible' : ''
+            }`}
+            onClick={handleContinueToStory}
+          >
+            Tap to Continue
+          </button>
         </section>
-      </section>
+      ) : (
+        <section className="auth-storyscape" aria-label="Invendex introduction">
+          <div className="auth-storyscape-bg" aria-hidden="true">
+            <span className="storyscape-grid" />
+            <span className="storyscape-wave wave-a" />
+            <span className="storyscape-wave wave-b" />
+            <span className="storyscape-wave wave-c" />
+            <span className="storyscape-glow glow-a" />
+            <span className="storyscape-glow glow-b" />
+            <span className="storyscape-dots" />
+          </div>
+          <div className="auth-storyscape-inner">
+            {introSections.map((section, index) => {
+              const alignmentClass =
+                index % 2 === 0 ? 'story-align-right' : 'story-align-left';
+              const isActive = index === activeIndex;
+              const stepNumber = String(index + 1).padStart(2, '0');
+
+              return (
+                <section
+                  key={section.title}
+                  className={`auth-storyscape-section ${alignmentClass} ${
+                    isActive ? 'is-active' : ''
+                  }`}
+                  data-story-index={index}
+                  ref={(element) => {
+                    sectionRefs.current[index] = element;
+                  }}
+                >
+                  <div className="auth-storyscape-rail" aria-hidden="true">
+                    <span className="auth-storyscape-node" />
+                    {index < introSections.length - 1 ? (
+                      <span className="auth-storyscape-line" />
+                    ) : null}
+                  </div>
+                  <article
+                    className={`auth-storyscape-panel panel-${section.visualKey}`}
+                  >
+                    <div className="auth-storyscape-copy" data-step={stepNumber}>
+                      <p className="eyebrow">{section.eyebrow}</p>
+                      <p className="auth-storyscape-step">{stepNumber}</p>
+                      <h2>{section.title}</h2>
+                      <p>{section.description}</p>
+                      <div className="auth-storyscape-meta" aria-hidden="true">
+                        <span className="story-meta-chip">Live control</span>
+                        <span className="story-meta-chip">Audit ready</span>
+                      </div>
+                    </div>
+                    <div
+                      className={`auth-storyscape-visual visual-${section.visualKey}`}
+                      aria-hidden="true"
+                    >
+                      <span className="visual-grid" />
+                      <span className="visual-panel" />
+                      <span className="visual-ring" />
+                      <span className="visual-marker" />
+                      <span className="visual-beacon" />
+                      <span className="visual-slab visual-slab-a" />
+                      <span className="visual-slab visual-slab-b" />
+                      <span className="visual-pillar pillar-a" />
+                      <span className="visual-pillar pillar-b" />
+                    </div>
+                  </article>
+                </section>
+              );
+            })}
+
+            <section className="auth-storyscape-cta">
+              <div className="auth-storyscape-cta-shell">
+                <div className="auth-storyscape-cta-art" aria-hidden="true">
+                  <span className="pulse pulse-a" />
+                  <span className="pulse pulse-b" />
+                  <span className="pulse pulse-c" />
+                </div>
+                <Button
+                  type="button"
+                  variant="primary"
+                  className="auth-storyscape-get-started-btn"
+                  onClick={onGetStarted}
+                >
+                  Continue
+                </Button>
+              </div>
+              <p className="auth-storyscape-cta-note">
+                Sign in or create your workspace account.
+              </p>
+            </section>
+          </div>
+        </section>
+      )}
     </main>
   );
 };

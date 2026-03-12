@@ -1,10 +1,12 @@
 import mongoose from 'mongoose';
 import request from 'supertest';
 import app from '../app.js';
+import Inventory from '../models/Inventory.js';
 import Product from '../models/Product.js';
 import Organization from '../models/Organization.js';
 import OrganizationSettings from '../models/OrganizationSettings.js';
 import ReorderAlert from '../models/ReorderAlert.js';
+import Warehouse from '../models/Warehouse.js';
 import { getTestDbUri } from './testDbUri.js';
 
 const TEST_ORG_ID = new mongoose.Types.ObjectId('000000000000000000000001');
@@ -20,9 +22,11 @@ describe('product label + inventory health score API', () => {
 
   beforeEach(async () => {
     await Promise.all([
+      Inventory.deleteMany({}),
       Product.deleteMany({}),
       ReorderAlert.deleteMany({}),
       OrganizationSettings.deleteMany({}),
+      Warehouse.deleteMany({}),
       Organization.deleteMany({})
     ]);
 
@@ -141,5 +145,132 @@ describe('product label + inventory health score API', () => {
     expect(['EXCELLENT', 'GOOD', 'WARNING', 'CRITICAL']).toContain(
       String(response.body?.data?.band || '')
     );
+  });
+
+  it('filters products by selected warehouse inventory membership', async () => {
+    const organization = await Organization.findById(TEST_ORG_ID);
+    const [warehouseA, warehouseB] = await Warehouse.create([
+      {
+        organization: organization._id,
+        name: 'Warehouse A',
+        code: 'WH-A'
+      },
+      {
+        organization: organization._id,
+        name: 'Warehouse B',
+        code: 'WH-B'
+      }
+    ]);
+
+    const [productA, productB] = await Product.create([
+      {
+        organization: TEST_ORG_ID,
+        name: 'Warehouse A Product',
+        sku: 'WHA-001',
+        price: 20,
+        stock: 12,
+        lowStockThreshold: 2
+      },
+      {
+        organization: TEST_ORG_ID,
+        name: 'Warehouse B Product',
+        sku: 'WHB-001',
+        price: 30,
+        stock: 7,
+        lowStockThreshold: 2
+      }
+    ]);
+
+    await Inventory.create([
+      {
+        organization: TEST_ORG_ID,
+        product: productA._id,
+        warehouse: warehouseA._id,
+        quantityOnHand: 12,
+        quantityReserved: 0
+      },
+      {
+        organization: TEST_ORG_ID,
+        product: productB._id,
+        warehouse: warehouseB._id,
+        quantityOnHand: 7,
+        quantityReserved: 0
+      }
+    ]);
+
+    const response = await request(app)
+      .get('/api/products')
+      .query({ warehouseId: String(warehouseA._id) });
+
+    expect(response.status).toBe(200);
+    expect(response.body?.success).toBe(true);
+    expect(Array.isArray(response.body?.data)).toBe(true);
+    expect(response.body.data).toHaveLength(1);
+    expect(response.body.data[0]?.sku).toBe('WHA-001');
+    expect(Number(response.body.data[0]?.stock || 0)).toBe(12);
+  });
+
+  it('scopes inventory health score to the selected warehouse only', async () => {
+    const organization = await Organization.findById(TEST_ORG_ID);
+    const [warehouseA, warehouseB] = await Warehouse.create([
+      {
+        organization: organization._id,
+        name: 'Health Warehouse A',
+        code: 'HEALTH-A'
+      },
+      {
+        organization: organization._id,
+        name: 'Health Warehouse B',
+        code: 'HEALTH-B'
+      }
+    ]);
+
+    const [productA, productB] = await Product.create([
+      {
+        organization: TEST_ORG_ID,
+        name: 'Scoped Product A',
+        sku: 'SCOPE-A',
+        price: 12,
+        stock: 10,
+        lowStockThreshold: 2
+      },
+      {
+        organization: TEST_ORG_ID,
+        name: 'Scoped Product B',
+        sku: 'SCOPE-B',
+        price: 12,
+        stock: 0,
+        lowStockThreshold: 2
+      }
+    ]);
+
+    await Inventory.create([
+      {
+        organization: TEST_ORG_ID,
+        product: productA._id,
+        warehouse: warehouseA._id,
+        quantityOnHand: 10,
+        quantityReserved: 0,
+        lastMovementAt: new Date()
+      },
+      {
+        organization: TEST_ORG_ID,
+        product: productB._id,
+        warehouse: warehouseB._id,
+        quantityOnHand: 0,
+        quantityReserved: 0,
+        lastMovementAt: new Date()
+      }
+    ]);
+
+    const response = await request(app)
+      .get('/api/products/inventory/health-score')
+      .query({ warehouseId: String(warehouseA._id) });
+
+    expect(response.status).toBe(200);
+    expect(response.body?.success).toBe(true);
+    expect(response.body?.data?.totals?.products).toBe(1);
+    expect(response.body?.data?.totals?.lowStock).toBe(0);
+    expect(response.body?.data?.totals?.stockouts).toBe(0);
   });
 });

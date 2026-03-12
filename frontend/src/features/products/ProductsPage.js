@@ -1378,10 +1378,18 @@ const Products = ({
       return;
     }
 
+    if (!normalizedWarehouseId) {
+      setManagementNotice(
+        'Select a specific warehouse in the header before adding a product so the product is scoped correctly.'
+      );
+      return;
+    }
+
     await createProductMutation.mutateAsync({
       name,
       sku,
       skuPrefix,
+      warehouseId: normalizedWarehouseId,
       barcode,
       barcodeType,
       price,

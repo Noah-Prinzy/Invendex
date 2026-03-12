@@ -17,7 +17,7 @@
     "loadingSessionDescription": "Validating your access token and organization context.",
     "loadingSessionBody": "Please wait while we restore your session.",
     "authIntroTitle": "Modern inventory control for fast-moving operations.",
-    "authIntroDescription": "Coordinate purchasing, stock movement, and finance signals from one workspace with live event visibility and tenant-safe controls.",
+    "authIntroDescription": "Track stock movement, purchase updates, and warehouse activity in one live control layer built for fast decisions.",
     "warehouseLabel": "Warehouse",
     "warehousePlaceholder": "Select warehouse",
     "warehouseAllOption": "All warehouses",
