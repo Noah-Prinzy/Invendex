@@ -32,7 +32,11 @@ const STORY_SECTIONS = Object.freeze([
   }
 ]);
 
-const AuthIntroLanding = ({ description = '', onGetStarted = () => {} }) => {
+const AuthIntroLanding = ({
+  description = '',
+  onGetStarted = () => {},
+  skipStoryScreen = false
+}) => {
   const [hasRevealedContinuePrompt, setHasRevealedContinuePrompt] =
     useState(false);
   const [showStoryScreen, setShowStoryScreen] = useState(false);
@@ -105,6 +109,10 @@ const AuthIntroLanding = ({ description = '', onGetStarted = () => {} }) => {
 
   const handleContinueToStory = (event) => {
     event.stopPropagation();
+    if (skipStoryScreen) {
+      onGetStarted();
+      return;
+    }
     setActiveIndex(0);
     setShowStoryScreen(true);
   };

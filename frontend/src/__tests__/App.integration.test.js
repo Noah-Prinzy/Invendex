@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import App from '../App.js';
 import useAuth from '../hooks/auth/useAuth.js';
@@ -278,19 +279,79 @@ describe('App integration', () => {
     );
   });
 
-  it('skips intro when auth intro was already completed on this browser', () => {
+  it('keeps the first intro page and skips only the second intro page when already completed', () => {
     useAuth.mockReturnValue(buildAuthState({}));
     window.localStorage.setItem(AUTH_INTRO_COMPLETED_STORAGE_KEY, '1');
 
     renderWithProviders(<App />);
 
-    expect(screen.queryByRole('button', { name: 'Get started' })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Intro landing screen' })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Employer Portal' })
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Intro landing screen' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tap to Continue' }));
+
     expect(
       screen.getByRole('button', { name: 'Employer Portal' })
     ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Employee Portal' })
     ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
+  });
+
+  it('goes straight to the portal after sign out', async () => {
+    let authState = buildAuthState({
+      user: {
+        _id: 'user-logout',
+        email: 'owner@Invendex.com',
+        role: 'admin',
+        organization: 'org-1',
+        organizationName: 'Invendex Ops'
+      },
+      accessToken: 'token-logout',
+      isAuthenticated: true
+    });
+    let triggerRerender = () => {};
+
+    const Harness = () => {
+      const [, setVersion] = useState(0);
+      triggerRerender = () => setVersion((current) => current + 1);
+      return <App />;
+    };
+
+    authState.logout = jest.fn().mockImplementation(async () => {
+      authState = buildAuthState({});
+      useAuth.mockImplementation(() => authState);
+      triggerRerender();
+    });
+
+    useAuth.mockImplementation(() => authState);
+
+    renderWithProviders(<Harness />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Employer Portal' })
+      ).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByRole('button', { name: 'Employee Portal' })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Intro landing screen' })
+    ).toBeNull();
   });
 
   it('submits employee sign in without invite code for returning staff', () => {

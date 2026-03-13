@@ -566,11 +566,10 @@ const App = () => {
   const [authEvents, setAuthEvents] = useState([]);
   const [poEvents, setPoEvents] = useState([]);
   const [themeId, setThemeId] = useState(() => readThemePreference());
-  const [showAuthPortal, setShowAuthPortal] = useState(() =>
-    readAuthIntroCompleted()
-  );
+  const [showAuthPortal, setShowAuthPortal] = useState(false);
   const [tutorialStepIndex, setTutorialStepIndex] = useState(-1);
   const wasAuthenticatedRef = useRef(false);
+  const logoutIntentRef = useRef(false);
 
   const realtimeBaseUrl = useMemo(() => getRealtimeBaseUrl(), []);
 
@@ -582,7 +581,8 @@ const App = () => {
 
   useEffect(() => {
     if (wasAuthenticatedRef.current && !isAuthenticated) {
-      setShowAuthPortal(true);
+      setShowAuthPortal(logoutIntentRef.current);
+      logoutIntentRef.current = false;
     }
     wasAuthenticatedRef.current = isAuthenticated;
   }, [isAuthenticated]);
@@ -591,6 +591,17 @@ const App = () => {
     persistAuthIntroCompleted();
     setShowAuthPortal(true);
   }, []);
+
+  const handleLogout = useCallback(async () => {
+    logoutIntentRef.current = true;
+
+    try {
+      await logout();
+    } catch (error) {
+      logoutIntentRef.current = false;
+      throw error;
+    }
+  }, [logout]);
   const companyName = useMemo(() => {
     const fromProfile = String(user?.organizationName || '').trim();
     if (fromProfile) return fromProfile;
@@ -1345,6 +1356,7 @@ const App = () => {
       title="Welcome to Invendex"
       description={t('app.authIntroDescription')}
       onGetStarted={handleGetStarted}
+      skipStoryScreen={readAuthIntroCompleted()}
     />
   );
 
@@ -1386,7 +1398,7 @@ const App = () => {
               onEmployeeSignupDecision={handleEmployeeSignupDecision}
             />
           }
-          onLogout={logout}
+          onLogout={handleLogout}
           tabBarNode={
             <TabBar tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
           }
