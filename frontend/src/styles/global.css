@@ -3614,54 +3614,191 @@ textarea:focus-visible {
 }
 
 .brand-company-frame {
-  max-width: min(44vw, 470px);
-  border: 1px solid color-mix(in srgb, var(--brand-border) 66%, rgba(230, 242, 255, 0.16));
+  max-width: min(44vw, 480px);
+  display: inline-grid;
+  width: fit-content;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.9rem;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--brand-border) 60%,
+      rgba(230, 242, 255, 0.18)
+    );
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.015) 100%),
-    linear-gradient(135deg, color-mix(in srgb, var(--brand-start) 84%, #07121d 16%) 0%, color-mix(in srgb, var(--brand-end) 92%, #04101a 8%) 100%);
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(255, 255, 255, 0.014) 100%
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--brand-start) 74%, #07111d 26%) 0%,
+      color-mix(in srgb, var(--brand-end) 64%, #0d1d2f 36%) 56%,
+      rgba(6, 15, 27, 0.9) 100%
+    );
   border-radius: 0;
-  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
-  padding: 0.72rem 0.96rem 0.68rem 1rem;
+  clip-path: polygon(
+    0 0,
+    calc(100% - 14px) 0,
+    100% 14px,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    0 100%
+  );
+  padding: 0.8rem 1.08rem 0.8rem 0.94rem;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 10px 22px rgba(4, 13, 28, 0.22);
+    inset 0 1px 0 rgba(255, 255, 255, 0.11),
+    inset 0 0 0 1px rgba(105, 158, 255, 0.03),
+    0 16px 30px rgba(4, 13, 28, 0.24);
   position: relative;
   overflow: hidden;
+  justify-self: start;
 }
 
 .brand-company-frame::before {
   content: '';
   position: absolute;
-  inset: 0 auto 0 0;
-  width: 4px;
-  background: linear-gradient(180deg, rgba(174, 227, 255, 0.92) 0%, rgba(82, 138, 255, 0.72) 100%);
+  inset: auto 0 0 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    rgba(174, 227, 255, 0) 0%,
+    rgba(174, 227, 255, 0.34) 18%,
+    rgba(255, 255, 255, 0.06) 50%,
+    rgba(174, 227, 255, 0.34) 82%,
+    rgba(174, 227, 255, 0) 100%
+  );
   pointer-events: none;
 }
 
 .brand-company-frame::after {
   content: '';
   position: absolute;
-  inset: auto 10px 10px auto;
-  width: 38px;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(233, 243, 255, 0.28));
-  opacity: 0.85;
+  inset: 0;
+  background:
+    radial-gradient(circle at left center, rgba(174, 227, 255, 0.12), transparent 24%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.035), transparent 38%);
+  opacity: 0.78;
+  pointer-events: none;
+}
+
+.brand-company-badge {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  border: 1px solid rgba(194, 223, 255, 0.2);
+  background:
+    linear-gradient(180deg, rgba(174, 227, 255, 0.24) 0%, rgba(174, 227, 255, 0.08) 100%),
+    linear-gradient(135deg, rgba(18, 43, 78, 0.92) 0%, rgba(12, 31, 55, 0.64) 100%);
+  clip-path: polygon(
+    0 0,
+    calc(100% - 12px) 0,
+    100% 12px,
+    100% 100%,
+    12px 100%,
+    0 calc(100% - 12px)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 12px 24px rgba(4, 13, 28, 0.18),
+    0 0 18px rgba(96, 146, 255, 0.12);
+  padding: 0.08rem;
+  overflow: hidden;
+}
+
+.brand-company-badge::after {
+  content: '';
+  position: absolute;
+  inset: -18% auto -18% -42%;
+  width: 42%;
+  background: linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.08) 22%,
+    rgba(255, 255, 255, 0.38) 50%,
+    rgba(255, 255, 255, 0.1) 74%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: skewX(-24deg) translateX(0);
+  opacity: 0.72;
+  pointer-events: none;
+  animation: companyBadgeShine 7.2s ease-in-out infinite;
+}
+
+.brand-company-logo {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  transform: scale(1.08);
+  filter:
+    drop-shadow(0 2px 8px rgba(3, 10, 20, 0.18))
+    drop-shadow(0 0 10px rgba(183, 221, 255, 0.1));
+}
+
+@keyframes companyBadgeShine {
+  0%,
+  18% {
+    transform: skewX(-24deg) translateX(0);
+    opacity: 0;
+  }
+
+  28% {
+    opacity: 0.72;
+  }
+
+  52% {
+    transform: skewX(-24deg) translateX(270%);
+    opacity: 0.12;
+  }
+
+  53%,
+  100% {
+    transform: skewX(-24deg) translateX(270%);
+    opacity: 0;
+  }
+}
+
+.brand-company-copy {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.brand-company-kicker {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(188, 221, 255, 0.7);
+  text-shadow: 0 1px 0 rgba(3, 10, 20, 0.18);
 }
 
 .brand-company-name {
   color: var(--header-ink);
-  font-size: clamp(0.98rem, 1.44vw, 1.16rem);
-  line-height: 1.1;
+  font-size: clamp(1.04rem, 1.5vw, 1.22rem);
+  line-height: 1.03;
   font-weight: 800;
-  letter-spacing: 0.055em;
+  letter-spacing: 0.04em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   position: relative;
-  z-index: 1;
   text-shadow:
     0 1px 0 rgba(3, 10, 20, 0.34),
-    0 0 10px rgba(172, 212, 255, 0.18);
+    0 0 14px rgba(172, 212, 255, 0.14);
+  margin: 0;
 }
 
 .header-actions {

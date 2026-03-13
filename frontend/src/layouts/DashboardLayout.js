@@ -37,9 +37,19 @@ const DashboardLayout = ({
               className="brand-company-frame"
               data-tutorial-id="header-brand"
             >
-              <h1 className="brand-company-name" title={brandTitle}>
-                {brandTitle}
-              </h1>
+              <div className="brand-company-badge" aria-hidden="true">
+                <img
+                  src="/apple-touch-icon.png"
+                  alt=""
+                  className="brand-company-logo"
+                />
+              </div>
+              <div className="brand-company-copy">
+                <span className="brand-company-kicker">Invendex workspace</span>
+                <h1 className="brand-company-name" title={brandTitle}>
+                  {brandTitle}
+                </h1>
+              </div>
             </div>
           </div>
           <div className="header-actions">
