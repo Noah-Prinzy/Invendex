@@ -28,7 +28,8 @@ module.exports = [
       globals: {
         ...globals.browser,
         ...globals.node,
-        ...globals.jest
+        ...globals.jest,
+        ...globals.vitest
       }
     },
     rules: {

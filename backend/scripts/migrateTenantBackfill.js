@@ -50,7 +50,7 @@ const buildDbUrlFromParts = () => {
   if (!host) return '';
 
   const port = String(process.env.DB_PORT || '27017').trim();
-  const dbName = String(process.env.DB_NAME || 'ledgerly').trim();
+  const dbName = String(process.env.DB_NAME || 'invendex').trim();
   return `mongodb://${host}:${port}/${dbName}`;
 };
 

@@ -37,7 +37,7 @@ describe('Health check', () => {
 
     expect(res.statusCode).toBe(200);
     expect(String(res.headers['content-type'] || '')).toContain('text/plain');
-    expect(res.text).toContain('ledgerly_http_requests_total');
+    expect(res.text).toContain('invendex_http_requests_total');
 
     process.env.METRICS_ENABLED = previousValue;
   });

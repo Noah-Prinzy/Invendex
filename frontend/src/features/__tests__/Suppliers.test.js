@@ -6,18 +6,20 @@ import {
   getSuppliersRequest
 } from '../../api/client.js';
 
-jest.mock('../../api/client.js', () => ({
-  getSuppliersRequest: jest.fn(),
-  getSupplierRankingsRequest: jest.fn()
+vi.mock('../../api/client.js', () => ({
+  getSuppliersRequest: vi.fn(),
+  getSupplierRankingsRequest: vi.fn()
 }));
 
 describe('Suppliers page', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
-  it('shows permission gate for non-admin users', () => {
-    renderWithProviders(<Suppliers accessToken="token" userRole="manager" />);
+  it('shows permission gate for non-admin users', async () => {
+    await renderWithProviders(
+      <Suppliers accessToken="token" userRole="manager" />
+    );
 
     expect(screen.getByText('Admin role needed')).toBeInTheDocument();
     expect(getSuppliersRequest).not.toHaveBeenCalled();
@@ -44,7 +46,9 @@ describe('Suppliers page', () => {
       { supplierId: 's1', rank: 1, name: 'Acme Supply', finalScore: 91 }
     ]);
 
-    renderWithProviders(<Suppliers accessToken="token" userRole="admin" />);
+    await renderWithProviders(
+      <Suppliers accessToken="token" userRole="admin" />
+    );
 
     expect(await screen.findAllByText('Acme Supply')).toHaveLength(2);
     expect(screen.getByText('Bravo Parts')).toBeInTheDocument();

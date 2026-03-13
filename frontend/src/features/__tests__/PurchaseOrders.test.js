@@ -6,14 +6,14 @@ import {
   receivePurchaseOrderRequest
 } from '../../api/client.js';
 
-jest.mock('../../api/client.js', () => ({
-  getPurchaseOrdersRequest: jest.fn(),
-  receivePurchaseOrderRequest: jest.fn()
+vi.mock('../../api/client.js', () => ({
+  getPurchaseOrdersRequest: vi.fn(),
+  receivePurchaseOrderRequest: vi.fn()
 }));
 
 describe('PurchaseOrders page', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('loads purchase orders and receives a SENT order with idempotency key', async () => {
@@ -46,7 +46,7 @@ describe('PurchaseOrders page', () => {
       status: 'RECEIVED'
     });
 
-    renderWithProviders(
+    await renderWithProviders(
       <PurchaseOrders
         accessToken="test-token"
         warehouseId="warehouse-1"

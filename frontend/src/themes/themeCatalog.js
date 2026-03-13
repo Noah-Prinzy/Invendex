@@ -1,3 +1,9 @@
+const LEGACY_THEME_ID_ALIASES = Object.freeze({});
+
+const normalizeThemeId = (themeId) =>
+  LEGACY_THEME_ID_ALIASES[String(themeId || '').trim()] ||
+  String(themeId || '').trim();
+
 export const DEFAULT_THEME_ID = 'invendex-classic';
 
 export const APP_THEMES = Object.freeze([
@@ -52,6 +58,6 @@ export const APP_THEMES = Object.freeze([
 ]);
 
 export const getThemeById = (themeId) =>
-  APP_THEMES.find((theme) => theme.id === String(themeId || '').trim()) || null;
+  APP_THEMES.find((theme) => theme.id === normalizeThemeId(themeId)) || null;
 
 export const isKnownThemeId = (themeId) => Boolean(getThemeById(themeId));

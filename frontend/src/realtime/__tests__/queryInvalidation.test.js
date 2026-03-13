@@ -17,7 +17,7 @@ describe('realtime query invalidation', () => {
 
   it('invalidates matching token-scoped queries', () => {
     const queryClient = {
-      invalidateQueries: jest.fn()
+      invalidateQueries: vi.fn()
     };
 
     invalidateQueriesForRealtimeEvent({
@@ -43,7 +43,7 @@ describe('realtime query invalidation', () => {
 
   it('does nothing for unknown events', () => {
     const queryClient = {
-      invalidateQueries: jest.fn()
+      invalidateQueries: vi.fn()
     };
 
     invalidateQueriesForRealtimeEvent({

@@ -5,13 +5,13 @@ import {
 } from '../../offline/offlineQueue.js';
 import { useOfflineSync } from './useOfflineSync.js';
 
-jest.mock('../../api/client.js', () => ({
+vi.mock('../../api/client.js', () => ({
   API_BASE_URL: 'http://localhost:4000'
 }));
 
-jest.mock('../../offline/offlineQueue.js', () => ({
-  flushOfflineMutations: jest.fn(),
-  getOfflineQueueSize: jest.fn()
+vi.mock('../../offline/offlineQueue.js', () => ({
+  flushOfflineMutations: vi.fn(),
+  getOfflineQueueSize: vi.fn()
 }));
 
 const HookHarness = (props) => {
@@ -21,7 +21,7 @@ const HookHarness = (props) => {
 
 describe('useOfflineSync', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     getOfflineQueueSize.mockReturnValue(0);
     flushOfflineMutations.mockResolvedValue({
       attempted: 0,
@@ -32,8 +32,8 @@ describe('useOfflineSync', () => {
   });
 
   it('syncs queue size on mount and reacts to browser online/offline events', () => {
-    const setIsOnline = jest.fn();
-    const setOfflineQueueSize = jest.fn();
+    const setIsOnline = vi.fn();
+    const setOfflineQueueSize = vi.fn();
     getOfflineQueueSize.mockReturnValue(3);
 
     render(
@@ -56,8 +56,8 @@ describe('useOfflineSync', () => {
   });
 
   it('flushes queued mutations when online and authenticated', async () => {
-    const setIsOnline = jest.fn();
-    const setOfflineQueueSize = jest.fn();
+    const setIsOnline = vi.fn();
+    const setOfflineQueueSize = vi.fn();
     flushOfflineMutations.mockResolvedValue({
       attempted: 2,
       applied: 2,
@@ -90,8 +90,8 @@ describe('useOfflineSync', () => {
   });
 
   it('does not flush when offline or unauthenticated', async () => {
-    const setIsOnline = jest.fn();
-    const setOfflineQueueSize = jest.fn();
+    const setIsOnline = vi.fn();
+    const setOfflineQueueSize = vi.fn();
 
     render(
       <HookHarness

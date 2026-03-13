@@ -1,4 +1,4 @@
-const TRACE_STORAGE_KEY = 'ledgerly_client_trace_id';
+const TRACE_STORAGE_KEY = 'invendex_client_trace_id';
 
 const sanitize = (value) => String(value || '').trim();
 

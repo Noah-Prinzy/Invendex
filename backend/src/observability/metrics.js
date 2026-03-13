@@ -8,7 +8,7 @@ const getMetricsEnabled = () =>
   String(process.env.METRICS_ENABLED || 'false').toLowerCase() === 'true';
 
 const getMetricsPrefix = () =>
-  String(process.env.METRICS_PREFIX || 'ledgerly_');
+  String(process.env.METRICS_PREFIX || 'invendex_');
 
 const getRouteLabel = (req) => {
   if (req?.route?.path) {

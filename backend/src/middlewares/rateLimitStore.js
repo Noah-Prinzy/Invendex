@@ -67,7 +67,7 @@ const initializeRateLimitStore = async () => {
     await client.connect();
 
     const prefix = asString(
-      process.env.RATE_LIMIT_REDIS_PREFIX || 'ledgerly:rate-limit:'
+      process.env.RATE_LIMIT_REDIS_PREFIX || 'invendex:rate-limit:'
     );
     const store = new RedisStore({
       prefix,

@@ -5,7 +5,7 @@ import { getClientTraceId } from '../observability/traceContext.js';
 
 const DEFAULT_TIMEOUT_MS = 10000;
 
-export class LedgerlyRealtimeClient {
+export class InvendexRealtimeClient {
   constructor({
     baseUrl = '',
     getAccessToken = () => null,
@@ -120,7 +120,7 @@ export class LedgerlyRealtimeClient {
   }
 }
 
-export const createLedgerlyRealtimeClient = (options) =>
-  new LedgerlyRealtimeClient(options);
+export const createInvendexRealtimeClient = (options) =>
+  new InvendexRealtimeClient(options);
 
-export default LedgerlyRealtimeClient;
+export default InvendexRealtimeClient;

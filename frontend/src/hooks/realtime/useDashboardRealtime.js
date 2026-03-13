@@ -1,4 +1,4 @@
-import { useLedgerlyRealtime } from './useLedgerlyRealtime.js';
+import { useInvendexRealtime } from './useInvendexRealtime.js';
 
 export const useDashboardRealtime = ({
   baseUrl,
@@ -8,7 +8,7 @@ export const useDashboardRealtime = ({
   onValuationChange = null,
   onCogsRecorded = null
 }) =>
-  useLedgerlyRealtime({
+  useInvendexRealtime({
     baseUrl,
     accessToken,
     warehouseId,

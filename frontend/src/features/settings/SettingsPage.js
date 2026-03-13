@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState
+} from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getFinanceExchangeRatesRequest,
@@ -16,20 +23,6 @@ import {
   getWarehousesRequest,
   patchSettingsRequest
 } from '../../api/client.js';
-import {
-  ThemeSelectionSection,
-  CompanyProfileSection,
-  NotificationRulesSection,
-  InventoryControlsSection,
-  FinanceDefaultsSection,
-  UserAccessPolicySection,
-  SecuritySessionSection,
-  RealtimeOfflineSection,
-  AuditBackupSection,
-  ObservabilityPipelineSection,
-  OnboardingLaunchWizardSection,
-  SettingsSaveFooter
-} from './components/SettingsSections.js';
 import SettingsLayout from '../../layouts/SettingsLayout.js';
 import {
   SETTINGS_MANAGE_ROLES,
@@ -41,6 +34,36 @@ import {
   getDefaultSettings,
   copyTextToClipboard
 } from './settingsUtils.js';
+
+const loadSettingsSections = () => import('./components/SettingsSections.js');
+
+const lazySettingsSection = (exportName) =>
+  lazy(() =>
+    loadSettingsSections().then((module) => ({
+      default: module[exportName]
+    }))
+  );
+
+const ThemeSelectionSection = lazySettingsSection('ThemeSelectionSection');
+const CompanyProfileSection = lazySettingsSection('CompanyProfileSection');
+const NotificationRulesSection = lazySettingsSection(
+  'NotificationRulesSection'
+);
+const InventoryControlsSection = lazySettingsSection(
+  'InventoryControlsSection'
+);
+const FinanceDefaultsSection = lazySettingsSection('FinanceDefaultsSection');
+const UserAccessPolicySection = lazySettingsSection('UserAccessPolicySection');
+const SecuritySessionSection = lazySettingsSection('SecuritySessionSection');
+const RealtimeOfflineSection = lazySettingsSection('RealtimeOfflineSection');
+const AuditBackupSection = lazySettingsSection('AuditBackupSection');
+const ObservabilityPipelineSection = lazySettingsSection(
+  'ObservabilityPipelineSection'
+);
+const OnboardingLaunchWizardSection = lazySettingsSection(
+  'OnboardingLaunchWizardSection'
+);
+const SettingsSaveFooter = lazySettingsSection('SettingsSaveFooter');
 
 const SETTINGS_HUB_PAGE_ID = 'hub';
 const TAB_QUERY_KEY = 'tab';
@@ -1099,19 +1122,27 @@ const Settings = ({
       {formNotice ? <p className="section-note">{formNotice}</p> : null}
       {formError ? <p className="form-error">{formError}</p> : null}
 
-      {renderActivePage()}
+      <Suspense
+        fallback={
+          <article className="event-card">
+            <p className="event-sub">Loading settings page...</p>
+          </article>
+        }
+      >
+        {renderActivePage()}
 
-      {showSaveFooter ? (
-        <SettingsSaveFooter
-          updatedAt={form.updatedAt}
-          isDirty={isDirty}
-          handleReset={handleReset}
-          handleSave={handleSave}
-          canManageSettings={canManageSettings}
-          isSaving={isSavingSettings}
-          isLoadingSettings={settingsQuery.isLoading}
-        />
-      ) : null}
+        {showSaveFooter ? (
+          <SettingsSaveFooter
+            updatedAt={form.updatedAt}
+            isDirty={isDirty}
+            handleReset={handleReset}
+            handleSave={handleSave}
+            canManageSettings={canManageSettings}
+            isSaving={isSavingSettings}
+            isLoadingSettings={settingsQuery.isLoading}
+          />
+        ) : null}
+      </Suspense>
     </SettingsLayout>
   );
 };

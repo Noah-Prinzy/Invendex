@@ -4,8 +4,11 @@ import { renderWithProviders } from '../../test/renderWithProviders.js';
 import {
   adjustProductStockRequest,
   createProductRequest,
+  createProductsBulkImportJobRequest,
+  createProductsBulkImportRequest,
   downloadProductLabelRequest,
   getDeletedProductsRequest,
+  getProductsBulkImportJobStatusRequest,
   getProductsHealthScoreRequest,
   getProductsLowStockSummaryRequest,
   getProductsRequest,
@@ -14,17 +17,20 @@ import {
   softDeleteProductRequest
 } from '../../api/client.js';
 
-jest.mock('../../api/client.js', () => ({
-  adjustProductStockRequest: jest.fn(),
-  createProductRequest: jest.fn(),
-  downloadProductLabelRequest: jest.fn(),
-  getDeletedProductsRequest: jest.fn(),
-  getProductsHealthScoreRequest: jest.fn(),
-  getProductsRequest: jest.fn(),
-  getProductsLowStockSummaryRequest: jest.fn(),
-  permanentlyDeleteProductRequest: jest.fn(),
-  restoreDeletedProductRequest: jest.fn(),
-  softDeleteProductRequest: jest.fn()
+vi.mock('../../api/client.js', () => ({
+  adjustProductStockRequest: vi.fn(),
+  createProductRequest: vi.fn(),
+  createProductsBulkImportJobRequest: vi.fn(),
+  createProductsBulkImportRequest: vi.fn(),
+  downloadProductLabelRequest: vi.fn(),
+  getDeletedProductsRequest: vi.fn(),
+  getProductsBulkImportJobStatusRequest: vi.fn(),
+  getProductsHealthScoreRequest: vi.fn(),
+  getProductsRequest: vi.fn(),
+  getProductsLowStockSummaryRequest: vi.fn(),
+  permanentlyDeleteProductRequest: vi.fn(),
+  restoreDeletedProductRequest: vi.fn(),
+  softDeleteProductRequest: vi.fn()
 }));
 
 const buildProducts = (count) =>
@@ -40,16 +46,19 @@ const buildProducts = (count) =>
 
 describe('Products page', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     adjustProductStockRequest.mockResolvedValue({
       id: 'noop',
       stock: 1
     });
     createProductRequest.mockResolvedValue({});
+    createProductsBulkImportRequest.mockResolvedValue({});
+    createProductsBulkImportJobRequest.mockResolvedValue({});
     softDeleteProductRequest.mockResolvedValue({});
     restoreDeletedProductRequest.mockResolvedValue({});
     permanentlyDeleteProductRequest.mockResolvedValue({});
     getDeletedProductsRequest.mockResolvedValue([]);
+    getProductsBulkImportJobStatusRequest.mockResolvedValue({});
     getProductsHealthScoreRequest.mockResolvedValue({
       score: 91,
       band: 'EXCELLENT'
@@ -64,7 +73,9 @@ describe('Products page', () => {
   it('shows loading and renders error state on failed fetch', async () => {
     getProductsRequest.mockRejectedValueOnce(new Error('Products failed'));
 
-    renderWithProviders(<Products accessToken="test-token" userRole="admin" />);
+    await renderWithProviders(
+      <Products accessToken="test-token" userRole="admin" />
+    );
 
     expect(screen.getByRole('button', { name: /loading/i })).toBeDisabled();
     expect(await screen.findByText('Products failed')).toBeInTheDocument();
@@ -93,7 +104,9 @@ describe('Products page', () => {
       { sku: 'SKU-2' }
     ]);
 
-    renderWithProviders(<Products accessToken="test-token" userRole="admin" />);
+    await renderWithProviders(
+      <Products accessToken="test-token" userRole="admin" />
+    );
 
     const table = await screen.findByRole('table');
     expect(within(table).getByText('Product 1')).toBeInTheDocument();

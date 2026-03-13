@@ -2,7 +2,7 @@ import { QueryClient } from '@tanstack/react-query';
 
 const DEFAULT_STALE_TIME_MS = 45 * 1000;
 
-export const createLedgerlyQueryClient = () =>
+export const createInvendexQueryClient = () =>
   new QueryClient({
     defaultOptions: {
       queries: {
@@ -17,6 +17,6 @@ export const createLedgerlyQueryClient = () =>
     }
   });
 
-const queryClient = createLedgerlyQueryClient();
+const queryClient = createInvendexQueryClient();
 
 export default queryClient;

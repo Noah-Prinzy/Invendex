@@ -1,4 +1,4 @@
-import { useLedgerlyRealtime } from './useLedgerlyRealtime.js';
+import { useInvendexRealtime } from './useInvendexRealtime.js';
 
 export const usePurchaseOrdersRealtime = ({
   baseUrl,
@@ -8,7 +8,7 @@ export const usePurchaseOrdersRealtime = ({
   onPurchaseOrderUpdated = null,
   onPurchaseOrderReceived = null
 }) =>
-  useLedgerlyRealtime({
+  useInvendexRealtime({
     baseUrl,
     accessToken,
     warehouseId,

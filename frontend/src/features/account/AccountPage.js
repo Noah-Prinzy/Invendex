@@ -1,5 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
 import { SectionHint } from '../../components/PageGuide.js';
+import {
+  deleteMyAccount as deleteMyAccountAction,
+  deleteOrganization as deleteOrganizationAction,
+  disableTwoFactor as disableTwoFactorAction,
+  enableTwoFactor as enableTwoFactorAction,
+  exportAccountComplianceData,
+  loadAccountSessions,
+  loadTwoFactorStatus as loadTwoFactorStatusAction,
+  logoutOtherAccountSessions,
+  regenerateTwoFactorRecoveryCodes as regenerateTwoFactorRecoveryCodesAction,
+  revokeAccountSession,
+  setupTwoFactor as setupTwoFactorAction
+} from './accountActions.js';
 
 const valueOrDash = (value) => {
   const normalized = String(value || '').trim();
@@ -33,20 +46,7 @@ const downloadJsonFile = ({ filename, data }) => {
   window.URL.revokeObjectURL(url);
 };
 
-const Account = ({
-  user,
-  onLoadSessions = async () => ({ success: true, sessions: [] }),
-  onRevokeSession = async () => ({ success: false }),
-  onLogoutOtherSessions = async () => ({ success: false }),
-  onGetTwoFactorStatus = async () => ({ success: false }),
-  onSetupTwoFactor = async () => ({ success: false }),
-  onEnableTwoFactor = async () => ({ success: false }),
-  onDisableTwoFactor = async () => ({ success: false }),
-  onRegenerateTwoFactorRecoveryCodes = async () => ({ success: false }),
-  onExportComplianceData = async () => ({ success: false }),
-  onDeleteMyAccount = async () => ({ success: false }),
-  onDeleteOrganization = async () => ({ success: false })
-}) => {
+const Account = ({ user, accessToken, onSessionInvalidated = () => {} }) => {
   const organizationName = valueOrDash(
     user?.organizationName || user?.organization?.name
   );
@@ -92,7 +92,7 @@ const Account = ({
     setSessionsLoading(true);
     setSessionsError('');
 
-    const response = await onLoadSessions();
+    const response = await loadAccountSessions({ accessToken });
     if (!response?.success) {
       setSessionsError(String(response?.message || 'Failed to load sessions'));
       setSessionsLoading(false);
@@ -101,10 +101,10 @@ const Account = ({
 
     setSessions(Array.isArray(response.sessions) ? response.sessions : []);
     setSessionsLoading(false);
-  }, [onLoadSessions]);
+  }, [accessToken]);
 
   const loadTwoFactorStatus = useCallback(async () => {
-    const response = await onGetTwoFactorStatus();
+    const response = await loadTwoFactorStatusAction({ accessToken });
     if (!response?.success) {
       setTwoFactorError(
         String(response?.message || 'Failed to load two-factor status')
@@ -121,7 +121,7 @@ const Account = ({
       enabledAt: response?.data?.enabledAt || null,
       lastVerifiedAt: response?.data?.lastVerifiedAt || null
     });
-  }, [onGetTwoFactorStatus]);
+  }, [accessToken]);
 
   useEffect(() => {
     loadSessions();
@@ -135,7 +135,7 @@ const Account = ({
     setSessionsNotice('');
     setSessionsError('');
 
-    const response = await onLogoutOtherSessions();
+    const response = await logoutOtherAccountSessions({ accessToken });
     if (!response?.success) {
       setSessionsError(
         String(response?.message || 'Failed to log out sessions')
@@ -153,16 +153,21 @@ const Account = ({
     setSessionsNotice('');
     setSessionsError('');
 
-    const response = await onRevokeSession(sessionId);
+    const response = await revokeAccountSession({
+      accessToken,
+      sessionId
+    });
     if (!response?.success) {
       setSessionsError(String(response?.message || 'Failed to revoke session'));
       return;
     }
 
     setSessionsNotice(String(response?.message || 'Session revoked'));
-    if (!response?.currentSessionTerminated) {
-      await loadSessions();
+    if (response?.currentSessionTerminated) {
+      onSessionInvalidated();
+      return;
     }
+    await loadSessions();
   };
 
   const handleSetupTwoFactor = async () => {
@@ -170,7 +175,8 @@ const Account = ({
     setTwoFactorNotice('');
     setTwoFactorLoading(true);
 
-    const response = await onSetupTwoFactor({
+    const response = await setupTwoFactorAction({
+      accessToken,
       currentPassword: twoFactorPassword
     });
     setTwoFactorLoading(false);
@@ -192,7 +198,8 @@ const Account = ({
     setTwoFactorNotice('');
     setTwoFactorLoading(true);
 
-    const response = await onEnableTwoFactor({
+    const response = await enableTwoFactorAction({
+      accessToken,
       currentPassword: twoFactorPassword,
       code: twoFactorCode
     });
@@ -217,7 +224,8 @@ const Account = ({
     setTwoFactorNotice('');
     setTwoFactorLoading(true);
 
-    const response = await onDisableTwoFactor({
+    const response = await disableTwoFactorAction({
+      accessToken,
       currentPassword: twoFactorPassword,
       code: twoFactorCode,
       recoveryCode: twoFactorRecoveryCode
@@ -243,7 +251,8 @@ const Account = ({
     setTwoFactorNotice('');
     setTwoFactorLoading(true);
 
-    const response = await onRegenerateTwoFactorRecoveryCodes({
+    const response = await regenerateTwoFactorRecoveryCodesAction({
+      accessToken,
       currentPassword: twoFactorPassword,
       code: twoFactorCode,
       recoveryCode: twoFactorRecoveryCode
@@ -271,7 +280,8 @@ const Account = ({
     setComplianceNotice('');
     setComplianceLoading(true);
 
-    const response = await onExportComplianceData({
+    const response = await exportAccountComplianceData({
+      accessToken,
       includeAudit: false,
       limit: 2000
     });
@@ -296,7 +306,8 @@ const Account = ({
     setComplianceNotice('');
     setComplianceLoading(true);
 
-    const response = await onDeleteMyAccount({
+    const response = await deleteMyAccountAction({
+      accessToken,
       currentPassword: deleteAccountPassword,
       confirmationText: 'DELETE MY ACCOUNT'
     });
@@ -309,7 +320,7 @@ const Account = ({
       return;
     }
 
-    setComplianceNotice('Account deactivated. You have been signed out.');
+    onSessionInvalidated();
   };
 
   const handleDeleteOrganization = async () => {
@@ -317,7 +328,8 @@ const Account = ({
     setComplianceNotice('');
     setComplianceLoading(true);
 
-    const response = await onDeleteOrganization({
+    const response = await deleteOrganizationAction({
+      accessToken,
       currentPassword: deleteOrgPassword,
       confirmationText: deleteOrgConfirmation
     });
@@ -330,7 +342,7 @@ const Account = ({
       return;
     }
 
-    setComplianceNotice('Organization deactivated. You have been signed out.');
+    onSessionInvalidated();
   };
 
   return (

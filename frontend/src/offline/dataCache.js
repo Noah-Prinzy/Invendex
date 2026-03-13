@@ -1,4 +1,4 @@
-const CACHE_NAMESPACE = 'ledgerly_offline_read_cache_v1';
+const CACHE_NAMESPACE = 'invendex_offline_read_cache_v1';
 
 const buildStorageKey = (key) =>
   `${CACHE_NAMESPACE}:${String(key || '')

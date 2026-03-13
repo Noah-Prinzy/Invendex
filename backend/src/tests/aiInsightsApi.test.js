@@ -45,7 +45,7 @@ beforeAll(async () => {
   process.env.JWT_REFRESH_SECRET =
     process.env.JWT_REFRESH_SECRET || 'test_refresh_secret';
   process.env.MONGO_TEST_URI =
-    'mongodb://127.0.0.1:27017/ledgerly_test_ai_insights_api';
+    'mongodb://127.0.0.1:27017/invendex_test_ai_insights_api';
 
   if (mongoose.connection.readyState === 0) {
     await mongoose.connect(getTestDbUri());

@@ -28,7 +28,7 @@ const unregisterExistingServiceWorkers = () => {
   });
 };
 
-export const registerLedgerlyServiceWorker = () => {
+export const registerInvendexServiceWorker = () => {
   if (!isEnabled()) {
     unregisterExistingServiceWorkers();
     return;
@@ -44,5 +44,5 @@ export const registerLedgerlyServiceWorker = () => {
 };
 
 export default {
-  registerLedgerlyServiceWorker
+  registerInvendexServiceWorker
 };

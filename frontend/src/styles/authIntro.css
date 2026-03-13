@@ -1,0 +1,1562 @@
+/* Lazy-loaded auth intro styles. */
+
+.auth-landing-experience {
+  min-height: 100vh;
+  width: min(100%, 1240px);
+  margin: 0 auto;
+  display: grid;
+  gap: 0;
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+}
+
+.auth-landing-experience::before,
+.auth-landing-experience::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.auth-landing-experience::before {
+  width: min(72vw, 900px);
+  height: min(72vw, 900px);
+  right: -34%;
+  top: 14%;
+  border-radius: 42% 58% 56% 44%;
+  background:
+    radial-gradient(circle at 28% 30%, rgba(98, 195, 255, 0.24) 0%, rgba(98, 195, 255, 0) 68%),
+    conic-gradient(from 210deg, rgba(166, 207, 255, 0.24) 0deg, rgba(166, 207, 255, 0) 100deg, rgba(166, 207, 255, 0.2) 220deg, rgba(166, 207, 255, 0) 360deg);
+  filter: blur(10px);
+  animation: landing-ambient-drift-a 31s ease-in-out infinite;
+}
+
+.auth-landing-experience::after {
+  width: min(58vw, 700px);
+  height: min(58vw, 700px);
+  left: -26%;
+  bottom: 6%;
+  clip-path: polygon(0 22%, 22% 0, 100% 0, 100% 78%, 78% 100%, 0 100%);
+  border: 1px solid rgba(173, 205, 248, 0.28);
+  background:
+    linear-gradient(130deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.02) 66%),
+    rgba(9, 21, 42, 0.22);
+  transform: rotate(8deg);
+  animation: landing-ambient-drift-b 36s ease-in-out infinite;
+}
+
+.auth-landing-stage {
+  min-height: 100vh;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  text-align: center;
+  gap: 0.8rem;
+  padding: clamp(1.4rem, 3.2vw, 3rem);
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.auth-landing-stage-interactive {
+  cursor: pointer;
+  outline: none;
+}
+
+.auth-landing-stage-interactive:focus-visible {
+  box-shadow: inset 0 0 0 2px rgba(151, 210, 255, 0.62);
+}
+
+.auth-landing-stage-orb,
+.auth-landing-stage-grid {
+  position: absolute;
+  pointer-events: none;
+}
+
+.auth-landing-stage-orb {
+  border-radius: 999px;
+  filter: blur(1px);
+}
+
+.auth-landing-stage-orb-a {
+  width: min(48vw, 460px);
+  height: min(48vw, 460px);
+  top: -16%;
+  left: 8%;
+  background: radial-gradient(circle, rgba(108, 173, 255, 0.36) 0%, rgba(108, 173, 255, 0) 72%);
+  animation: landing-orb-float-a 22s ease-in-out infinite;
+}
+
+.auth-landing-stage-orb-b {
+  width: min(52vw, 520px);
+  height: min(52vw, 520px);
+  right: 2%;
+  bottom: -24%;
+  background: radial-gradient(circle, rgba(86, 224, 255, 0.28) 0%, rgba(86, 224, 255, 0) 74%);
+  animation: landing-orb-float-b 26s ease-in-out infinite;
+}
+
+.auth-landing-stage-grid {
+  inset: 8% 6%;
+  background-image:
+    linear-gradient(rgba(189, 215, 255, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(189, 215, 255, 0.1) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 0.95) 34%, rgba(0, 0, 0, 0.16) 84%, transparent 100%);
+  opacity: 0.6;
+  animation: landing-grid-drift 24s linear infinite;
+}
+
+.auth-landing-stage-logo,
+.auth-landing-stage-title {
+  position: relative;
+  z-index: 1;
+}
+
+.auth-landing-stage-logo {
+  width: clamp(520px, 62vw, 980px);
+  height: auto;
+  filter: drop-shadow(0 24px 40px rgba(2, 10, 26, 0.44));
+  animation: intro-logo-float 4s ease-in-out infinite;
+}
+
+.auth-landing-stage-title {
+  color: #f6fbff;
+  font-size: clamp(3.2rem, 8vw, 7rem);
+  line-height: 0.96;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin-top: clamp(-11rem, -13vw, -7rem);
+}
+
+.auth-landing-stage-pills {
+  margin-top: clamp(-0.6rem, -1.2vw, -0.18rem);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.66rem;
+}
+
+.auth-landing-stage-pills span {
+  border: 1px solid rgba(182, 210, 248, 0.5);
+  background: linear-gradient(
+    140deg,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  color: rgba(227, 239, 255, 0.94);
+  border-radius: 999px;
+  font-size: 0.9rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  font-weight: 700;
+  padding: 0.52rem 0.86rem;
+}
+
+.auth-landing-stage-continue {
+  position: relative;
+  z-index: 1;
+  margin-top: 1.6rem;
+  border: 1px solid rgba(186, 222, 255, 0.38);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(233, 245, 255, 0);
+  border-radius: 999px;
+  font-size: 1.12rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 1rem 1.9rem;
+  opacity: 0;
+  transform: translateY(14px) scale(0.96);
+  pointer-events: none;
+  transition:
+    opacity 0.34s ease,
+    transform 0.34s ease,
+    color 0.24s ease,
+    background 0.24s ease,
+    border-color 0.24s ease,
+    box-shadow 0.24s ease;
+}
+
+.auth-landing-stage-continue.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+  color: rgba(233, 245, 255, 0.96);
+}
+
+.auth-landing-stage-continue:hover,
+.auth-landing-stage-continue:focus-visible {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(190, 224, 255, 0.6);
+  box-shadow: 0 20px 36px rgba(2, 10, 26, 0.28);
+  outline: none;
+}
+
+.auth-storyscape {
+  position: relative;
+  margin-top: clamp(7vh, 9vw, 11vh);
+  padding: clamp(2.8rem, 3.4vw, 3.6rem) 0 clamp(5.8rem, 10vw, 8.2rem);
+  overflow: clip;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(77, 151, 255, 0.28) 0%, rgba(77, 151, 255, 0.06) 26%, rgba(5, 11, 22, 0) 54%),
+    radial-gradient(circle at 84% 74%, rgba(117, 220, 255, 0.24) 0%, rgba(117, 220, 255, 0.05) 24%, rgba(5, 11, 22, 0) 52%),
+    linear-gradient(118deg, rgba(80, 145, 255, 0.08) 0%, rgba(80, 145, 255, 0) 28%),
+    linear-gradient(180deg, rgba(4, 9, 18, 0) 0%, rgba(4, 9, 18, 0.58) 12%, rgba(4, 9, 18, 0.94) 52%, rgba(4, 9, 18, 0) 100%);
+}
+
+.auth-storyscape-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.storyscape-grid,
+.storyscape-wave,
+.storyscape-glow,
+.storyscape-dots {
+  position: absolute;
+  display: block;
+}
+
+.storyscape-grid {
+  inset: -12% -8%;
+  background-image:
+    linear-gradient(rgba(164, 211, 255, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(164, 211, 255, 0.09) 1px, transparent 1px);
+  background-size: 48px 48px;
+  transform: perspective(1400px) rotateX(72deg) translateY(14%);
+  transform-origin: center top;
+  opacity: 0.18;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.05) 0%, rgba(0, 0, 0, 0.88) 20%, rgba(0, 0, 0, 0.2) 100%);
+  animation: storyscape-grid-drift 28s linear infinite;
+}
+
+.storyscape-wave {
+  left: -16%;
+  right: -16%;
+  clip-path: polygon(0 24%, 12% 6%, 42% 0, 82% 12%, 100% 28%, 100% 72%, 88% 92%, 54% 100%, 14% 88%, 0 66%);
+  opacity: 0.68;
+  filter: blur(12px);
+  mix-blend-mode: screen;
+}
+
+.storyscape-wave.wave-a {
+  top: -2%;
+  height: clamp(220px, 24vw, 340px);
+  background:
+    linear-gradient(102deg, rgba(91, 170, 255, 0.44) 0%, rgba(91, 170, 255, 0.18) 28%, rgba(91, 170, 255, 0) 72%);
+  animation: storyscape-wave-drift-a 20s ease-in-out infinite;
+}
+
+.storyscape-wave.wave-b {
+  top: 32%;
+  height: clamp(250px, 28vw, 380px);
+  background:
+    linear-gradient(96deg, rgba(116, 224, 255, 0.38) 0%, rgba(116, 224, 255, 0.18) 32%, rgba(116, 224, 255, 0) 74%);
+  animation: storyscape-wave-drift-b 24s ease-in-out infinite;
+}
+
+.storyscape-wave.wave-c {
+  bottom: -6%;
+  height: clamp(220px, 24vw, 320px);
+  background:
+    linear-gradient(102deg, rgba(71, 126, 255, 0.34) 0%, rgba(71, 126, 255, 0.16) 28%, rgba(71, 126, 255, 0) 72%);
+  animation: storyscape-wave-drift-c 22s ease-in-out infinite;
+}
+
+.storyscape-glow {
+  border-radius: 999px;
+  opacity: 0.52;
+  filter: blur(42px);
+}
+
+.storyscape-glow.glow-a {
+  width: clamp(340px, 36vw, 560px);
+  height: clamp(340px, 36vw, 560px);
+  left: -10%;
+  top: 2%;
+  background: radial-gradient(circle, rgba(89, 175, 255, 0.52) 0%, rgba(89, 175, 255, 0.18) 42%, rgba(89, 175, 255, 0) 72%);
+  animation: storyscape-glow-a 18s ease-in-out infinite;
+}
+
+.storyscape-glow.glow-b {
+  width: clamp(280px, 28vw, 460px);
+  height: clamp(280px, 28vw, 460px);
+  right: -8%;
+  bottom: 2%;
+  background: radial-gradient(circle, rgba(113, 220, 255, 0.42) 0%, rgba(113, 220, 255, 0.16) 42%, rgba(113, 220, 255, 0) 76%);
+  animation: storyscape-glow-b 20s ease-in-out infinite;
+}
+
+.storyscape-dots {
+  inset: 0;
+  background-image:
+    radial-gradient(circle, rgba(211, 236, 255, 0.26) 1.1px, transparent 1.1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.58) 12%, rgba(0, 0, 0, 0.16) 100%);
+  opacity: 0.14;
+  animation: storyscape-dots-drift 24s linear infinite;
+}
+
+.auth-storyscape-inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: clamp(4.8rem, 7vw, 6rem);
+}
+
+.auth-storyscape-section {
+  position: relative;
+  min-height: 94vh;
+  display: grid;
+  align-items: center;
+  padding: 0 clamp(0.6rem, 1.3vw, 1.2rem);
+}
+
+.auth-storyscape-rail {
+  position: absolute;
+  top: 50%;
+  width: clamp(52px, 4.6vw, 68px);
+  height: clamp(220px, 22vw, 280px);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.story-align-left .auth-storyscape-rail {
+  right: clamp(0rem, 1.8vw, 0.8rem);
+}
+
+.story-align-right .auth-storyscape-rail {
+  left: clamp(0rem, 1.8vw, 0.8rem);
+}
+
+.auth-storyscape-node {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 18px;
+  height: 18px;
+  transform: translateX(-50%) rotate(45deg);
+  border: 1px solid rgba(207, 236, 255, 0.92);
+  background: linear-gradient(135deg, rgba(128, 210, 255, 0.54), rgba(54, 114, 255, 0.24));
+  box-shadow:
+    0 0 0 10px rgba(118, 202, 255, 0.08),
+    0 0 28px rgba(118, 202, 255, 0.28);
+  transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+}
+
+.auth-storyscape-line {
+  position: absolute;
+  left: 50%;
+  top: 32px;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-50%);
+  background:
+    linear-gradient(180deg, rgba(170, 214, 255, 0.82) 0%, rgba(170, 214, 255, 0.08) 100%);
+  clip-path: polygon(0 0, 100% 8%, 100% 92%, 0 100%);
+}
+
+.auth-storyscape-panel {
+  --story-accent: rgba(124, 204, 255, 0.92);
+  --story-accent-soft: rgba(124, 204, 255, 0.18);
+  --story-accent-glow: rgba(95, 181, 255, 0.14);
+  --story-visual-tint: rgba(125, 200, 255, 0.22);
+  position: relative;
+  width: min(100%, 1320px);
+  justify-self: center;
+  display: grid;
+  grid-template-columns: minmax(0, 0.98fr) minmax(420px, 1.12fr);
+  gap: clamp(2rem, 3vw, 3.2rem);
+  align-items: stretch;
+  padding: clamp(1.7rem, 2.4vw, 2.3rem);
+  background:
+    linear-gradient(140deg, rgba(11, 24, 45, 0.98) 0%, rgba(5, 11, 22, 0.99) 58%, rgba(13, 29, 58, 0.98) 100%);
+  border: 1px solid color-mix(in srgb, var(--story-accent) 24%, transparent);
+  box-shadow:
+    0 54px 132px rgba(2, 8, 19, 0.68),
+    inset 0 0 0 1px color-mix(in srgb, var(--story-accent) 8%, transparent);
+  clip-path: polygon(0 22px, 22px 0, calc(100% - 86px) 0, 100% 24px, 100% calc(100% - 24px), calc(100% - 24px) 100%, 86px 100%, 0 calc(100% - 22px));
+  opacity: 0.42;
+  transform: translateY(34px) scale(0.98);
+  transition:
+    transform 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.32s ease,
+    box-shadow 0.32s ease,
+    border-color 0.32s ease;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.auth-storyscape-panel::before,
+.auth-storyscape-panel::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+}
+
+.auth-storyscape-panel::before {
+  inset: 0;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--story-accent) 18%, transparent) 0, color-mix(in srgb, var(--story-accent) 18%, transparent) 72px, transparent 72px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 38%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, transparent 34%);
+  opacity: 0.9;
+}
+
+.auth-storyscape-panel::after {
+  right: -10%;
+  top: 6%;
+  width: clamp(260px, 28vw, 420px);
+  height: clamp(260px, 28vw, 420px);
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--story-accent) 36%, transparent) 0%, color-mix(in srgb, var(--story-accent) 12%, transparent) 36%, rgba(107, 192, 255, 0) 72%);
+  transform: rotate(12deg);
+  filter: blur(10px);
+}
+
+.auth-storyscape-section.is-active .auth-storyscape-panel {
+  opacity: 1;
+  transform: translateY(0) scale(1.01);
+  border-color: color-mix(in srgb, var(--story-accent) 34%, transparent);
+  box-shadow:
+    0 66px 144px rgba(2, 8, 19, 0.76),
+    inset 0 0 0 1px color-mix(in srgb, var(--story-accent) 12%, transparent),
+    0 0 74px var(--story-accent-glow);
+}
+
+.auth-storyscape-section.is-active .auth-storyscape-node {
+  transform: translateX(-50%) rotate(45deg) scale(1.1);
+  background: linear-gradient(135deg, rgba(143, 220, 255, 0.68), rgba(63, 124, 255, 0.34));
+  box-shadow:
+    0 0 0 12px rgba(118, 202, 255, 0.1),
+    0 0 34px rgba(118, 202, 255, 0.34);
+}
+
+.auth-storyscape-copy,
+.auth-storyscape-visual {
+  position: relative;
+  z-index: 1;
+}
+
+.auth-storyscape-copy {
+  display: grid;
+  align-content: center;
+  gap: 1.1rem;
+  padding: clamp(1.9rem, 2.5vw, 2.5rem);
+  background:
+    linear-gradient(180deg, rgba(15, 32, 58, 0.92) 0%, rgba(8, 17, 31, 0.98) 100%);
+  border: 1px solid color-mix(in srgb, var(--story-accent) 14%, transparent);
+  clip-path: polygon(0 18px, 18px 0, calc(100% - 58px) 0, 100% 18px, 100% 100%, 54px 100%, 0 calc(100% - 18px));
+  overflow: hidden;
+}
+
+.auth-storyscape-copy::before,
+.auth-storyscape-copy::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+}
+
+.auth-storyscape-copy::before {
+  content: attr(data-step);
+  right: clamp(1.1rem, 2vw, 1.8rem);
+  top: clamp(0.9rem, 1.6vw, 1.3rem);
+  color: rgba(139, 200, 255, 0.11);
+  font-size: clamp(4.8rem, 8vw, 7rem);
+  line-height: 0.84;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+}
+
+.auth-storyscape-copy::after {
+  left: 0;
+  top: clamp(1.1rem, 1.8vw, 1.4rem);
+  width: 4px;
+  height: clamp(86px, 10vw, 124px);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--story-accent) 96%, white 4%) 0%, color-mix(in srgb, var(--story-accent) 20%, transparent) 100%);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--story-accent) 24%, transparent);
+}
+
+.auth-storyscape-panel .auth-storyscape-copy > * {
+  position: relative;
+  z-index: 1;
+}
+
+.auth-storyscape-panel .auth-storyscape-copy > p:last-of-type::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: clamp(74px, 8vw, 126px);
+  height: 1px;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--story-accent) 12%, transparent) 0%,
+      color-mix(in srgb, var(--story-accent) 68%, white 10%) 50%,
+      color-mix(in srgb, var(--story-accent) 12%, transparent) 100%
+    );
+  background-size: 220% 100%;
+  background-position: 0 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  opacity: 0.82;
+}
+
+.auth-storyscape-panel .auth-storyscape-copy > p:last-of-type::before {
+  content: '';
+  position: absolute;
+  top: calc(50% - 6px);
+  width: 14px;
+  height: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--story-accent) 54%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--story-accent) 54%, transparent);
+  transform: rotate(45deg);
+  pointer-events: none;
+  opacity: 0.92;
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+}
+
+.story-align-right .auth-storyscape-copy {
+  order: 1;
+}
+
+.story-align-right .auth-storyscape-visual {
+  order: 2;
+}
+
+.story-align-left .auth-storyscape-visual {
+  order: 1;
+}
+
+.story-align-left .auth-storyscape-copy {
+  order: 2;
+}
+
+.story-align-right .auth-storyscape-copy > p:last-of-type::after {
+  right: clamp(-116px, -8.2vw, -72px);
+}
+
+.story-align-right .auth-storyscape-copy > p:last-of-type::before {
+  right: clamp(-132px, -9.1vw, -86px);
+}
+
+.story-align-left .auth-storyscape-copy > p:last-of-type::after {
+  left: clamp(-116px, -8.2vw, -72px);
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--story-accent) 12%, transparent) 0%,
+      color-mix(in srgb, var(--story-accent) 68%, white 10%) 50%,
+      color-mix(in srgb, var(--story-accent) 12%, transparent) 100%
+    );
+}
+
+.story-align-left .auth-storyscape-copy > p:last-of-type::before {
+  left: clamp(-132px, -9.1vw, -86px);
+  border-top: 0;
+  border-right: 0;
+  border-left: 1px solid color-mix(in srgb, var(--story-accent) 54%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--story-accent) 54%, transparent);
+}
+
+.auth-storyscape-copy .eyebrow {
+  margin: 0;
+  color: rgba(190, 230, 255, 0.86);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.auth-storyscape-step {
+  margin: 0;
+  color: var(--story-accent);
+  font-size: clamp(0.8rem, 1.04vw, 0.9rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.34em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.82rem;
+  opacity: 0.92;
+}
+
+.auth-storyscape-step::before {
+  content: '';
+  width: 40px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--story-accent), color-mix(in srgb, var(--story-accent) 14%, transparent));
+}
+
+.auth-storyscape-copy h2 {
+  margin: 0;
+  color: #fbfdff;
+  font-size: clamp(2.35rem, 4.5vw, 3.95rem);
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+  max-width: 11ch;
+  text-shadow: 0 0 28px rgba(118, 202, 255, 0.06);
+}
+
+.auth-storyscape-copy > p:last-of-type {
+  margin: 0;
+  color: rgba(232, 242, 255, 0.9);
+  font-size: clamp(1.02rem, 1.18vw, 1.12rem);
+  line-height: 1.78;
+  max-width: 38ch;
+}
+
+.auth-storyscape-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+  margin-top: 0.2rem;
+}
+
+.auth-storyscape-meta .story-meta-chip {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid color-mix(in srgb, var(--story-accent) 16%, transparent);
+  color: rgba(218, 236, 255, 0.78);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 0.5rem 0.82rem;
+  box-shadow: none;
+}
+
+.auth-storyscape-visual {
+  min-height: clamp(420px, 38vw, 560px);
+  background:
+    radial-gradient(circle at 22% 18%, color-mix(in srgb, var(--story-accent) 24%, transparent) 0%, rgba(8, 17, 31, 0) 32%),
+    linear-gradient(180deg, rgba(14, 32, 58, 0.86) 0%, rgba(8, 17, 31, 0.96) 100%);
+  border: 1px solid color-mix(in srgb, var(--story-accent) 14%, transparent);
+  clip-path: polygon(0 20px, 20px 0, calc(100% - 68px) 0, 100% 20px, 100% calc(100% - 20px), calc(100% - 20px) 100%, 68px 100%, 0 calc(100% - 20px));
+  overflow: hidden;
+}
+
+.auth-storyscape-visual::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: clamp(46px, 5vw, 74px);
+  height: 1px;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--story-accent) 12%, transparent) 0%,
+      color-mix(in srgb, var(--story-accent) 76%, white 8%) 50%,
+      color-mix(in srgb, var(--story-accent) 12%, transparent) 100%
+    );
+  background-size: 220% 100%;
+  background-position: 0 50%;
+  transform: translateY(-50%);
+  opacity: 0.9;
+}
+
+.auth-storyscape-visual::after {
+  content: '';
+  position: absolute;
+  top: calc(50% - 7px);
+  width: 14px;
+  height: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--story-accent) 72%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--story-accent) 72%, transparent);
+  transform: rotate(45deg);
+  opacity: 0.95;
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+}
+
+.story-align-right .auth-storyscape-visual::before {
+  left: 0;
+}
+
+.story-align-right .auth-storyscape-visual::after {
+  left: clamp(34px, 4vw, 56px);
+}
+
+.story-align-left .auth-storyscape-visual::before {
+  right: 0;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--story-accent) 12%, transparent) 0%,
+      color-mix(in srgb, var(--story-accent) 76%, white 8%) 50%,
+      color-mix(in srgb, var(--story-accent) 12%, transparent) 100%
+    );
+}
+
+.story-align-left .auth-storyscape-visual::after {
+  right: clamp(34px, 4vw, 56px);
+  border-top: 0;
+  border-right: 0;
+  border-left: 1px solid color-mix(in srgb, var(--story-accent) 72%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--story-accent) 72%, transparent);
+}
+
+.auth-storyscape-section.is-active .auth-storyscape-copy > p:last-of-type::after,
+.auth-storyscape-section.is-active .auth-storyscape-visual::before {
+  animation: storyscape-connector-flow 2.6s linear infinite;
+}
+
+.auth-storyscape-section.is-active .auth-storyscape-copy > p:last-of-type::before,
+.auth-storyscape-section.is-active .auth-storyscape-visual::after {
+  animation: storyscape-connector-pulse 1.8s ease-in-out infinite;
+}
+
+.story-align-left.auth-storyscape-section.is-active .auth-storyscape-copy > p:last-of-type::after,
+.story-align-left.auth-storyscape-section.is-active .auth-storyscape-visual::before {
+  animation-direction: reverse;
+}
+
+.auth-storyscape-visual .visual-grid,
+.auth-storyscape-visual .visual-panel,
+.auth-storyscape-visual .visual-ring,
+.auth-storyscape-visual .visual-marker,
+.auth-storyscape-visual .visual-beacon,
+.auth-storyscape-visual .visual-slab,
+.auth-storyscape-visual .visual-pillar {
+  position: absolute;
+  display: none;
+}
+
+.auth-storyscape-visual .visual-grid {
+  display: block;
+  inset: 8% 8%;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--story-accent) 10%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--story-accent) 10%, transparent) 1px, transparent 1px);
+  background-size: 16px 16px;
+  transform: skewX(-16deg);
+  opacity: 0.18;
+}
+
+.auth-storyscape-visual .visual-panel {
+  display: block;
+  width: 54%;
+  height: 44%;
+  left: 7%;
+  top: 10%;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.03) 100%);
+  border: 1px solid color-mix(in srgb, var(--story-accent) 18%, transparent);
+  clip-path: polygon(0 16px, 16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%);
+  animation: storyscape-panel-float 8s ease-in-out infinite;
+}
+
+.auth-storyscape-visual .visual-ring {
+  display: block;
+  width: 42%;
+  aspect-ratio: 1;
+  right: 12%;
+  top: 12%;
+  border: 1px solid color-mix(in srgb, var(--story-accent) 24%, transparent);
+  border-radius: 999px;
+  box-shadow: 0 0 54px rgba(100, 182, 255, 0.2);
+  animation: storyscape-ring-shift 7s ease-in-out infinite;
+}
+
+.auth-storyscape-visual .visual-marker {
+  display: block;
+  width: 54%;
+  height: 12%;
+  left: 8%;
+  bottom: 14%;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--story-accent) 72%, white 8%) 0%, color-mix(in srgb, var(--story-accent) 14%, transparent) 72%, rgba(174, 219, 255, 0) 100%);
+  clip-path: polygon(0 0, 86% 0, 100% 50%, 86% 100%, 0 100%, 8% 50%);
+}
+
+.auth-storyscape-visual .visual-beacon {
+  display: block;
+  width: 44%;
+  height: 34%;
+  right: 4%;
+  bottom: 4%;
+  background:
+    radial-gradient(circle at 26% 50%, color-mix(in srgb, var(--story-accent) 42%, transparent) 0%, color-mix(in srgb, var(--story-accent) 14%, transparent) 34%, rgba(115, 200, 255, 0) 78%);
+}
+
+.auth-storyscape-visual .visual-slab {
+  display: block;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--story-accent) 24%, transparent) 0%, color-mix(in srgb, var(--story-accent) 4%, transparent) 100%);
+  border: 1px solid color-mix(in srgb, var(--story-accent) 14%, transparent);
+  clip-path: polygon(0 12px, 12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
+  opacity: 0.58;
+}
+
+.auth-storyscape-visual .visual-slab-a {
+  width: 26%;
+  height: 24%;
+  right: 10%;
+  top: 12%;
+  transform: rotate(-10deg);
+}
+
+.auth-storyscape-visual .visual-slab-b {
+  width: 30%;
+  height: 16%;
+  left: 14%;
+  bottom: 8%;
+  transform: rotate(6deg);
+}
+
+.auth-storyscape-visual .visual-pillar {
+  display: block;
+  width: 18px;
+  bottom: 14%;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--story-accent) 86%, white 6%) 0%, color-mix(in srgb, var(--story-accent) 8%, transparent) 100%);
+  clip-path: polygon(0 18px, 100% 0, 100% 100%, 0 calc(100% - 18px));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--story-accent) 14%, transparent);
+  opacity: 0.64;
+}
+
+.auth-storyscape-visual .visual-grid,
+.auth-storyscape-visual .visual-slab,
+.auth-storyscape-visual .visual-pillar,
+.auth-storyscape-visual .visual-marker {
+  opacity: 0;
+}
+
+.panel-overview .visual-ring,
+.panel-overview .visual-beacon {
+  display: block;
+}
+
+.panel-overview {
+  --story-accent: rgba(126, 214, 255, 0.96);
+  --story-accent-glow: rgba(103, 199, 255, 0.16);
+}
+
+.panel-overview .visual-grid {
+  opacity: 0.08;
+}
+
+.panel-overview .visual-ring {
+  opacity: 1;
+  width: 54%;
+  right: 10%;
+  top: 16%;
+}
+
+.panel-overview .visual-beacon {
+  opacity: 1;
+  width: 52%;
+  height: 38%;
+  right: 2%;
+  bottom: 8%;
+}
+
+.panel-operations {
+  --story-accent: rgba(106, 182, 255, 0.96);
+  --story-accent-glow: rgba(89, 162, 255, 0.16);
+}
+
+.panel-operations .visual-panel,
+.panel-operations .visual-marker {
+  display: block;
+  opacity: 1;
+}
+
+.panel-operations .visual-grid {
+  opacity: 0.12;
+}
+
+.panel-signals {
+  --story-accent: rgba(124, 231, 255, 0.96);
+  --story-accent-glow: rgba(101, 218, 255, 0.18);
+}
+
+.panel-signals .visual-panel,
+.panel-signals .visual-ring {
+  display: block;
+  opacity: 1;
+}
+
+.panel-signals .visual-grid {
+  opacity: 0.1;
+}
+
+.panel-roles {
+  --story-accent: rgba(154, 196, 255, 0.96);
+  --story-accent-glow: rgba(129, 174, 255, 0.16);
+}
+
+.panel-roles .visual-grid {
+  opacity: 0.08;
+}
+
+.panel-roles .visual-pillar,
+.panel-roles .visual-marker {
+  display: block;
+  opacity: 1;
+}
+
+.panel-roles .visual-marker {
+  width: 48%;
+  left: 18%;
+  bottom: 18%;
+}
+
+.panel-roles .pillar-a {
+  left: 58%;
+  height: 34%;
+}
+
+.panel-roles .pillar-b {
+  display: block;
+  left: 66%;
+  height: 52%;
+}
+
+.panel-operations::before {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--story-accent) 20%, transparent) 0, color-mix(in srgb, var(--story-accent) 20%, transparent) 96px, transparent 96px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, transparent 42%);
+}
+
+.panel-signals .auth-storyscape-copy::before {
+  font-size: clamp(5.4rem, 8.6vw, 7.4rem);
+  letter-spacing: 0.01em;
+}
+
+.panel-roles .auth-storyscape-copy {
+  background:
+    linear-gradient(180deg, rgba(15, 32, 58, 0.9) 0%, rgba(9, 19, 36, 0.98) 100%);
+}
+
+.auth-storyscape-visual .pillar-a {
+  left: 60%;
+  height: 34%;
+}
+
+.auth-storyscape-visual .pillar-b {
+  left: 67%;
+  height: 48%;
+}
+
+.visual-operations .visual-panel {
+  width: 60%;
+  height: 30%;
+  left: 4%;
+  top: 14%;
+  transform: skewX(-16deg);
+}
+
+.visual-operations .visual-ring {
+  width: 30%;
+  right: 10%;
+  top: 14%;
+  border-radius: 20px;
+}
+
+.visual-operations .visual-marker {
+  width: 70%;
+  left: 8%;
+  bottom: 24%;
+  transform: rotate(-8deg);
+}
+
+.visual-operations .visual-beacon {
+  width: 52%;
+  height: 24%;
+  right: 2%;
+  bottom: 8%;
+  background: linear-gradient(90deg, rgba(120, 204, 255, 0.38) 0%, rgba(120, 204, 255, 0) 100%);
+}
+
+.visual-signals .visual-grid {
+  transform: skewX(0);
+  opacity: 0.32;
+}
+
+.visual-signals .visual-panel {
+  width: 52%;
+  height: 56%;
+  left: 10%;
+  top: 16%;
+}
+
+.visual-signals .visual-panel::before,
+.visual-signals .visual-panel::after {
+  content: '';
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  height: 2px;
+  background: rgba(178, 222, 255, 0.22);
+}
+
+.visual-signals .visual-panel::before {
+  top: 32%;
+}
+
+.visual-signals .visual-panel::after {
+  top: 58%;
+}
+
+.visual-signals .visual-ring {
+  width: 46%;
+  right: 4%;
+  top: 12%;
+  border-width: 2px;
+}
+
+.visual-signals .visual-marker {
+  width: 44%;
+  left: 12%;
+  bottom: 10%;
+}
+
+.visual-signals .visual-beacon {
+  width: 24%;
+  height: 24%;
+  right: 12%;
+  bottom: 12%;
+  border-radius: 999px;
+}
+
+.visual-roles .visual-panel {
+  width: 40%;
+  height: 42%;
+  left: 10%;
+  top: 18%;
+}
+
+.visual-roles .visual-ring {
+  width: 44%;
+  right: 6%;
+  top: 12%;
+  border-radius: 22px;
+}
+
+.visual-roles .visual-marker {
+  width: 62%;
+  left: 8%;
+  bottom: 16%;
+  height: 10%;
+}
+
+.visual-roles .visual-beacon {
+  width: 34%;
+  height: 34%;
+  right: 8%;
+  bottom: 6%;
+}
+
+.visual-roles .pillar-a {
+  left: 52%;
+  height: 24%;
+}
+
+.visual-roles .pillar-b {
+  left: 60%;
+  height: 40%;
+}
+
+.auth-storyscape-cta {
+  min-height: 66vh;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  gap: 1.1rem;
+  position: relative;
+  padding: clamp(1.8rem, 3.2vw, 3rem);
+}
+
+.auth-storyscape-cta-shell {
+  --cta-button-width: clamp(320px, 48vw, 460px);
+  --cta-button-height: clamp(72px, 9vw, 90px);
+  position: relative;
+  width: min(100%, 820px);
+  min-height: clamp(240px, 26vw, 310px);
+  display: grid;
+  place-items: center;
+  padding: clamp(1.6rem, 2.6vw, 2.2rem);
+  background:
+    linear-gradient(140deg, rgba(11, 24, 45, 0.96) 0%, rgba(6, 14, 28, 0.98) 100%);
+  border: 1px solid rgba(145, 198, 255, 0.2);
+  clip-path: polygon(0 24px, 24px 0, calc(100% - 100px) 0, 100% 24px, 100% calc(100% - 24px), calc(100% - 24px) 100%, 100px 100%, 0 calc(100% - 24px));
+  box-shadow:
+    0 30px 74px rgba(2, 8, 19, 0.54),
+    inset 0 0 0 1px rgba(163, 214, 255, 0.06);
+}
+
+.auth-storyscape-cta-art {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.auth-storyscape-cta-art .pulse {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(1);
+  border: 1px solid rgba(175, 212, 255, 0.22);
+  clip-path: polygon(0 18px, 18px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 18px), calc(100% - 18px) 100%, 18px 100%, 0 calc(100% - 18px));
+  animation: pulse-ring 4.2s ease-in-out infinite;
+}
+
+.auth-storyscape-cta-art .pulse-a {
+  width: calc(var(--cta-button-width) + clamp(104px, 15vw, 190px));
+  height: calc(var(--cta-button-height) + clamp(82px, 11vw, 138px));
+}
+
+.auth-storyscape-cta-art .pulse-b {
+  width: calc(var(--cta-button-width) + clamp(52px, 7vw, 104px));
+  height: calc(var(--cta-button-height) + clamp(40px, 5vw, 76px));
+  animation-delay: 0.7s;
+}
+
+.auth-storyscape-cta-art .pulse-c {
+  width: calc(var(--cta-button-width) + clamp(14px, 2vw, 30px));
+  height: calc(var(--cta-button-height) + clamp(12px, 2vw, 24px));
+  animation-delay: 1.4s;
+}
+
+.auth-storyscape-get-started-btn.btn-primary {
+  min-height: var(--cta-button-height);
+  width: var(--cta-button-width);
+  min-width: 0;
+  font-size: clamp(1.08rem, 1.8vw, 1.36rem);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 800;
+  clip-path: polygon(0 18px, 18px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 18px), calc(100% - 18px) 100%, 18px 100%, 0 calc(100% - 18px));
+  box-shadow:
+    0 22px 36px rgba(31, 91, 186, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.36);
+  position: relative;
+  z-index: 2;
+}
+
+.auth-storyscape-get-started-btn.btn-primary:hover:not(:disabled) {
+  transform: translateY(-3px) scale(1.01);
+  box-shadow:
+    0 28px 42px rgba(31, 91, 186, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+
+.auth-storyscape-get-started-btn.btn-primary:active:not(:disabled) {
+  transform: translateY(-1px) scale(0.995);
+}
+
+.auth-storyscape-cta-note {
+  position: relative;
+  z-index: 2;
+  margin-top: 0.24rem;
+  color: rgba(214, 231, 255, 0.9);
+  font-size: 0.98rem;
+  letter-spacing: 0.04em;
+}
+
+@keyframes storyscape-connector-flow {
+  0% {
+    background-position: 0 50%;
+    opacity: 0.48;
+  }
+  45% {
+    opacity: 0.98;
+  }
+  100% {
+    background-position: 220% 50%;
+    opacity: 0.48;
+  }
+}
+
+@keyframes storyscape-connector-pulse {
+  0%,
+  100% {
+    opacity: 0.7;
+    box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 14px color-mix(in srgb, var(--story-accent) 28%, transparent);
+  }
+}
+
+@keyframes storyscape-grid-shift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-24px, 28px, 0);
+  }
+}
+
+@keyframes storyscape-grid-drift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(0, 54px, 0);
+  }
+}
+
+@keyframes storyscape-wave-drift-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scaleX(1);
+    opacity: 0.28;
+  }
+  50% {
+    transform: translate3d(6%, 12px, 0) scaleX(1.06);
+    opacity: 0.42;
+  }
+}
+
+@keyframes storyscape-wave-drift-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scaleX(1);
+    opacity: 0.24;
+  }
+  50% {
+    transform: translate3d(-5%, -10px, 0) scaleX(1.08);
+    opacity: 0.38;
+  }
+}
+
+@keyframes storyscape-wave-drift-c {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scaleX(1);
+    opacity: 0.22;
+  }
+  50% {
+    transform: translate3d(4%, 8px, 0) scaleX(1.04);
+    opacity: 0.34;
+  }
+}
+
+@keyframes storyscape-glow-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(6%, 10%, 0) scale(1.08);
+  }
+}
+
+@keyframes storyscape-glow-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-6%, -8%, 0) scale(1.05);
+  }
+}
+
+@keyframes storyscape-dots-drift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(24px, 24px, 0);
+  }
+}
+
+@keyframes storyscape-panel-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes storyscape-ring-shift {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.66;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 0.94;
+  }
+}
+
+@keyframes landing-ambient-drift-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translate3d(-14px, 10px, 0) scale(1.024);
+    opacity: 0.97;
+  }
+}
+
+@keyframes landing-ambient-drift-b {
+  0%,
+  100% {
+    transform: rotate(8deg) translate3d(0, 0, 0) scale(1);
+    opacity: 0.72;
+  }
+  50% {
+    transform: rotate(6.4deg) translate3d(11px, -8px, 0) scale(1.016);
+    opacity: 0.86;
+  }
+}
+
+@keyframes landing-orb-float-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: translate3d(11px, -8px, 0) scale(1.04);
+    opacity: 0.89;
+  }
+}
+
+@keyframes landing-orb-float-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.92;
+  }
+  50% {
+    transform: translate3d(-10px, 10px, 0) scale(1.032);
+    opacity: 0.98;
+  }
+}
+
+@keyframes landing-grid-drift {
+  0% {
+    background-position: 0 0, 0 0;
+    opacity: 0.5;
+  }
+  50% {
+    background-position: 19px 13px, 19px 13px;
+    opacity: 0.63;
+  }
+  100% {
+    background-position: 38px 26px, 38px 26px;
+    opacity: 0.5;
+  }
+}
+
+@keyframes intro-logo-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes pulse-ring {
+  0%,
+  100% {
+    opacity: 0.26;
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+  50% {
+    opacity: 0.64;
+    transform: translate(-50%, -50%) scale(1.04);
+  }
+}
+
+@media (max-width: 1120px) {
+  .auth-landing-experience {
+      width: 100%;
+    }
+}
+
+@media (max-width: 760px) {
+  .auth-landing-stage {
+      min-height: 92vh;
+      padding: 0.84rem;
+    }
+
+  .auth-landing-stage-logo {
+      width: clamp(280px, 72vw, 420px);
+    }
+
+  .auth-landing-stage-title {
+      font-size: clamp(1.9rem, 10.4vw, 2.85rem);
+      margin-top: clamp(-5rem, -12vw, -3.2rem);
+    }
+
+  .auth-landing-stage-pills {
+      margin-top: clamp(-0.3rem, -1vw, -0.08rem);
+      gap: 0.3rem;
+    }
+
+  .auth-landing-stage-pills span {
+      font-size: 0.64rem;
+      padding: 0.26rem 0.44rem;
+    }
+}
+
+@media (max-width: 980px) {
+  .auth-storyscape-inner {
+      gap: clamp(4.8rem, 7vw, 6rem);
+    }
+
+  .auth-storyscape-section {
+      min-height: 76vh;
+    }
+
+  .auth-storyscape-panel {
+      grid-template-columns: 1fr;
+      gap: 1.2rem;
+    }
+
+  .story-align-right .auth-storyscape-copy,
+    .story-align-right .auth-storyscape-visual,
+    .story-align-left .auth-storyscape-copy,
+    .story-align-left .auth-storyscape-visual {
+      order: initial;
+    }
+
+  .auth-storyscape-copy h2,
+    .auth-storyscape-copy > p:last-of-type {
+      max-width: 100%;
+    }
+
+  .auth-storyscape-visual {
+      min-height: 280px;
+    }
+
+  .auth-storyscape-rail {
+      width: 82px;
+      height: 210px;
+    }
+
+  .auth-storyscape-line {
+      height: 118px;
+      bottom: auto;
+    }
+
+  .auth-storyscape-panel .auth-storyscape-copy > p:last-of-type::after,
+    .auth-storyscape-panel .auth-storyscape-copy > p:last-of-type::before,
+    .auth-storyscape-visual::before,
+    .auth-storyscape-visual::after {
+      display: none;
+    }
+}
+
+@media (max-width: 760px) {
+  .auth-storyscape {
+      margin-top: clamp(6vh, 8vw, 10vh);
+      padding-bottom: 3.2rem;
+    }
+
+  .auth-storyscape-inner {
+      gap: 3.6rem;
+    }
+
+  .auth-storyscape-section {
+      min-height: auto;
+      padding: 0 0.2rem;
+    }
+
+  .auth-storyscape-rail {
+      display: none;
+    }
+
+  .auth-storyscape-panel {
+      width: 100%;
+      padding: 1rem;
+      clip-path: polygon(0 16px, 16px 0, calc(100% - 42px) 0, 100% 16px, 100% calc(100% - 16px), calc(100% - 16px) 100%, 42px 100%, 0 calc(100% - 16px));
+      transform: none;
+      opacity: 1;
+    }
+
+  .auth-storyscape-panel::before {
+      background:
+        linear-gradient(90deg, rgba(127, 204, 255, 0.14) 0, rgba(127, 204, 255, 0.14) 44px, transparent 44px),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, transparent 42%);
+    }
+
+  .auth-storyscape-panel::after {
+      width: 140px;
+      height: 140px;
+      top: auto;
+      bottom: -24px;
+      right: -30px;
+    }
+
+  .auth-storyscape-copy {
+      gap: 0.84rem;
+      padding: 1.2rem;
+      clip-path: polygon(0 14px, 14px 0, calc(100% - 30px) 0, 100% 14px, 100% 100%, 32px 100%, 0 calc(100% - 14px));
+    }
+
+  .auth-storyscape-copy h2 {
+      font-size: clamp(1.96rem, 8vw, 2.7rem);
+      line-height: 0.98;
+    }
+
+  .auth-storyscape-copy > p:last-of-type {
+      font-size: 0.99rem;
+    }
+
+  .auth-storyscape-meta {
+      gap: 0.34rem;
+    }
+
+  .auth-storyscape-visual {
+      min-height: 220px;
+      clip-path: polygon(0 14px, 14px 0, calc(100% - 34px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 34px 100%, 0 calc(100% - 14px));
+    }
+
+  .auth-storyscape-visual .visual-grid {
+      background-size: 14px 14px;
+    }
+
+  .auth-storyscape-cta {
+      min-height: 52vh;
+      padding-inline: 0.2rem;
+    }
+
+  .auth-storyscape-cta-shell {
+      width: 100%;
+      min-height: 200px;
+      clip-path: polygon(0 18px, 18px 0, calc(100% - 44px) 0, 100% 18px, 100% calc(100% - 18px), calc(100% - 18px) 100%, 44px 100%, 0 calc(100% - 18px));
+    }
+
+  .auth-storyscape-get-started-btn.btn-primary {
+      width: 100%;
+      max-width: 420px;
+      clip-path: polygon(0 14px, 14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px));
+    }
+
+  .auth-landing-stage-logo {
+      width: clamp(380px, 92vw, 620px);
+    }
+
+  .auth-landing-stage-title {
+      font-size: clamp(2.8rem, 12vw, 4.8rem);
+      margin-top: clamp(-8rem, -16vw, -5rem);
+    }
+
+  .auth-landing-stage-pills {
+      gap: 0.46rem;
+    }
+
+  .auth-landing-stage-pills span {
+      font-size: 0.76rem;
+      padding: 0.42rem 0.7rem;
+    }
+
+  .auth-landing-stage-continue {
+      font-size: 0.98rem;
+      padding: 0.88rem 1.5rem;
+    }
+}

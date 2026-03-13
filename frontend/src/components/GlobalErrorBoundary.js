@@ -1,5 +1,13 @@
 import React from 'react';
-import { captureFrontendException } from '../observability/errorTracker.js';
+
+let errorTrackerModulePromise;
+
+const loadErrorTracker = async () => {
+  if (!errorTrackerModulePromise) {
+    errorTrackerModulePromise = import('../observability/errorTracker.js');
+  }
+  return errorTrackerModulePromise;
+};
 
 class GlobalErrorBoundary extends React.Component {
   constructor(props) {
@@ -14,10 +22,14 @@ class GlobalErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    captureFrontendException(error, {
-      scope: 'react_error_boundary',
-      componentStack: errorInfo?.componentStack || null
-    }).catch(() => {});
+    loadErrorTracker()
+      .then(({ captureFrontendException }) =>
+        captureFrontendException(error, {
+          scope: 'react_error_boundary',
+          componentStack: errorInfo?.componentStack || null
+        })
+      )
+      .catch(() => {});
   }
 
   render() {

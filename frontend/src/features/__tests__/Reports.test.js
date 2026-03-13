@@ -19,31 +19,31 @@ import {
 } from '../../api/client.js';
 import useOrganizationCurrency from '../../hooks/finance/useOrganizationCurrency.js';
 
-jest.mock('../../api/client.js', () => ({
-  downloadInventoryReportExportJobRequest: jest.fn(),
-  downloadReportExportJobRequest: jest.fn(),
-  getAuditLogsRequest: jest.fn(),
-  getFinanceDeadStockRequest: jest.fn(),
-  getFinanceGrossMarginRequest: jest.fn(),
-  getFinanceInventoryValuationRequest: jest.fn(),
-  getInventoryReportExportJobStatusRequest: jest.fn(),
-  getReportExportJobStatusRequest: jest.fn(),
-  getWmsMovementLedgerRequest: jest.fn(),
-  queueInventoryReportExportJobRequest: jest.fn(),
-  queueReportExportJobRequest: jest.fn(),
-  getReportPurchaseOrderStatusSummaryRequest: jest.fn(),
-  getReportSpendSummaryRequest: jest.fn(),
-  getReportSpendBySupplierRequest: jest.fn()
+vi.mock('../../api/client.js', () => ({
+  downloadInventoryReportExportJobRequest: vi.fn(),
+  downloadReportExportJobRequest: vi.fn(),
+  getAuditLogsRequest: vi.fn(),
+  getFinanceDeadStockRequest: vi.fn(),
+  getFinanceGrossMarginRequest: vi.fn(),
+  getFinanceInventoryValuationRequest: vi.fn(),
+  getInventoryReportExportJobStatusRequest: vi.fn(),
+  getReportExportJobStatusRequest: vi.fn(),
+  getWmsMovementLedgerRequest: vi.fn(),
+  queueInventoryReportExportJobRequest: vi.fn(),
+  queueReportExportJobRequest: vi.fn(),
+  getReportPurchaseOrderStatusSummaryRequest: vi.fn(),
+  getReportSpendSummaryRequest: vi.fn(),
+  getReportSpendBySupplierRequest: vi.fn()
 }));
 
-jest.mock('../../hooks/finance/useOrganizationCurrency.js', () => ({
+vi.mock('../../hooks/finance/useOrganizationCurrency.js', () => ({
   __esModule: true,
-  default: jest.fn()
+  default: vi.fn()
 }));
 
 describe('Reports page', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     useOrganizationCurrency.mockReturnValue({
       currencyCode: 'UGX',
       baseCurrencyCode: 'UGX',
@@ -76,8 +76,8 @@ describe('Reports page', () => {
     });
   });
 
-  it('shows permission gate for non-admin users', () => {
-    renderWithProviders(<Reports accessToken="token" userRole="staff" />);
+  it('shows permission gate for non-admin users', async () => {
+    await renderWithProviders(<Reports accessToken="token" userRole="staff" />);
 
     expect(screen.getByText('Admin role needed')).toBeInTheDocument();
     expect(getReportSpendSummaryRequest).not.toHaveBeenCalled();
@@ -148,7 +148,7 @@ describe('Reports page', () => {
       }
     });
 
-    renderWithProviders(
+    await renderWithProviders(
       <Reports
         accessToken="token"
         userRole="admin"
@@ -223,7 +223,7 @@ describe('Reports page', () => {
       }
     });
 
-    renderWithProviders(
+    await renderWithProviders(
       <Reports
         accessToken="token"
         userRole="admin"

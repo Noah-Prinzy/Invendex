@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import Button from '../ui/Button.js';
 
+import '../styles/authForm.css';
+
 const AUTH_PORTALS = Object.freeze({
   ADMIN: 'admin',
   EMPLOYEE: 'employee'

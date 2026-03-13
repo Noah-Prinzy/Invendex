@@ -1,6 +1,6 @@
 import { DEFAULT_THEME_ID, getThemeById } from './themeCatalog.js';
 
-const THEME_STORAGE_KEY = 'ledgerly.theme.id';
+const THEME_STORAGE_KEY = 'invendex.theme.id';
 
 const normalizeThemeId = (themeId) =>
   getThemeById(themeId)?.id || DEFAULT_THEME_ID;

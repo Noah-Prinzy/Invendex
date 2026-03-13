@@ -1,91 +1,28 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ApiError,
   authLoginRequest,
   authAdminLoginRequest,
   authEmployeeLoginRequest,
-  authEmployeeSignupRequest,
-  authApproveEmployeeSignupRequest,
-  authDeclineEmployeeSignupRequest,
-  authRegisterRequest,
-  authVerifyEmailRequest,
-  authVerifyEmailConfirmRequest,
-  authForgotPasswordRequest,
-  authResetPasswordRequest,
-  authTwoFactorVerifyLoginRequest,
-  authTwoFactorStatusRequest,
-  authTwoFactorSetupRequest,
-  authTwoFactorEnableRequest,
-  authTwoFactorDisableRequest,
-  authTwoFactorRegenerateRecoveryCodesRequest,
   authCsrfTokenRequest,
   authLogoutRequest,
   authMeRequest,
-  authListSessionsRequest,
-  authRevokeSessionRequest,
-  authLogoutOtherSessionsRequest,
-  authRefreshRequest,
-  authUpdatePreferencesRequest,
-  complianceExportRequest,
-  complianceDeleteMyAccountRequest,
-  complianceDeleteOrganizationRequest
-} from '../../api/client.js';
+  authRefreshRequest
+} from '../../api/authClient.js';
+import {
+  getAuthErrorMessage,
+  normalizeAuthUser,
+  persistAccessToken,
+  readStoredAccessToken
+} from './authHelpers.js';
 
-const ACCESS_TOKEN_KEY = 'ledgerly_access_token';
+let deferredAuthModulePromise = null;
 
-const saveAccessToken = (token) => {
-  if (!token) {
-    window.localStorage.removeItem(ACCESS_TOKEN_KEY);
-    return;
+const loadDeferredAuthModule = async () => {
+  if (!deferredAuthModulePromise) {
+    deferredAuthModulePromise = import('./authDeferredActions.js');
   }
-  window.localStorage.setItem(ACCESS_TOKEN_KEY, token);
-};
 
-const getSavedAccessToken = () =>
-  String(window.localStorage.getItem(ACCESS_TOKEN_KEY) || '').trim();
-
-const normalizeUser = (user, organization = null) => {
-  if (!user) return null;
-
-  const normalizedOrganizationId =
-    (typeof user.organization === 'object' && user.organization?._id) ||
-    (typeof organization === 'object' && organization?._id) ||
-    user.organization ||
-    null;
-
-  const normalizedOrganizationName =
-    String(
-      user.organizationName ||
-        (typeof user.organization === 'object'
-          ? user.organization?.name
-          : '') ||
-        (typeof organization === 'object' ? organization?.name : '')
-    ).trim() || null;
-
-  return {
-    _id: user._id,
-    email: user.email,
-    mobileNumber: user.mobileNumber || null,
-    username: user.username || null,
-    role: user.role,
-    uiTheme: String(user.uiTheme || '').trim() || null,
-    organization: normalizedOrganizationId,
-    organizationName: normalizedOrganizationName,
-    name:
-      user.name ||
-      user.username ||
-      (user.email ? user.email.split('@')[0] : 'Operator')
-  };
-};
-
-const getMessage = (error) => {
-  if (error instanceof ApiError) {
-    if (error.statusCode === 429) {
-      return 'Too many login attempts. Please wait 15 minutes and try again.';
-    }
-    return error.message;
-  }
-  return 'Unable to complete authentication request.';
+  return deferredAuthModulePromise;
 };
 
 export const useAuth = () => {
@@ -99,15 +36,15 @@ export const useAuth = () => {
 
   const applyAuthState = useCallback(
     ({ token, resolvedUser, organization }) => {
-      saveAccessToken(token);
+      persistAccessToken(token);
       setAccessToken(token || null);
-      setUser(normalizeUser(resolvedUser, organization));
+      setUser(normalizeAuthUser(resolvedUser, organization));
     },
     []
   );
 
   const clearAuthState = useCallback(() => {
-    saveAccessToken('');
+    persistAccessToken('');
     setAccessToken(null);
     setUser(null);
     setPendingTwoFactorLogin(null);
@@ -123,7 +60,7 @@ export const useAuth = () => {
         // no-op: fallback login still works when CSRF is disabled
       }
 
-      const storedToken = getSavedAccessToken();
+      const storedToken = readStoredAccessToken();
 
       if (!storedToken) {
         if (isMounted) setIsInitializing(false);
@@ -260,7 +197,7 @@ export const useAuth = () => {
 
         return { success: true, accessToken: token };
       } catch (loginError) {
-        setError(getMessage(loginError));
+        setError(getAuthErrorMessage(loginError));
         return { success: false };
       } finally {
         setIsLoading(false);
@@ -320,682 +257,125 @@ export const useAuth = () => {
     }
   }, [accessToken, clearAuthState]);
 
+  const endSession = useCallback(() => {
+    setError('');
+    setNotice('');
+    clearAuthState();
+  }, [clearAuthState]);
+
   const verifyTwoFactorLogin = useCallback(
     async ({ code = '', recoveryCode = '' }) => {
-      const twoFactorToken = String(
-        pendingTwoFactorLogin?.twoFactorToken || ''
-      ).trim();
-      if (!twoFactorToken) {
-        return {
-          success: false,
-          message: 'No active two-factor login challenge'
-        };
-      }
-
-      setError('');
-      setNotice('');
-      setIsLoading(true);
-
-      try {
-        const response = await authTwoFactorVerifyLoginRequest({
-          twoFactorToken,
-          code: String(code || '').trim(),
-          recoveryCode: String(recoveryCode || '').trim()
-        });
-
-        const token = response?.data?.accessToken || '';
-        const resolvedUser = response?.data?.user || null;
-        if (!token || !resolvedUser) {
-          throw new Error(
-            'Two-factor verification response missing auth data.'
-          );
-        }
-
-        applyAuthState({
-          token,
-          resolvedUser,
-          organization: response?.data?.organization || null
-        });
-        setPendingTwoFactorLogin(null);
-        setNotice('Two-factor verification complete.');
-        return { success: true };
-      } catch (verificationError) {
-        const message = getMessage(verificationError);
-        setError(message);
-        return { success: false, message };
-      } finally {
-        setIsLoading(false);
-      }
+      const { verifyTwoFactorLoginAction } = await loadDeferredAuthModule();
+      return verifyTwoFactorLoginAction({
+        pendingTwoFactorLogin,
+        code,
+        recoveryCode,
+        applyAuthState,
+        setPendingTwoFactorLogin,
+        setError,
+        setNotice,
+        setIsLoading,
+        getMessage: getAuthErrorMessage
+      });
     },
     [applyAuthState, pendingTwoFactorLogin]
   );
 
-  const signup = useCallback(
-    async ({
-      username,
-      email,
-      mobileNumber,
-      password,
-      confirmPassword,
-      organizationName
-    }) => {
-      const normalizedUsername = String(username || '').trim();
-      const normalizedEmail = String(email || '').trim();
-      const normalizedMobileNumber = String(mobileNumber || '').trim();
-      const normalizedPassword = String(password || '').trim();
-      const normalizedConfirmPassword = String(confirmPassword || '').trim();
-      const normalizedOrganizationName = String(organizationName || '').trim();
+  const signup = useCallback(async (params) => {
+    const { signupAction } = await loadDeferredAuthModule();
+    return signupAction({
+      ...params,
+      setError,
+      setNotice,
+      setIsLoading,
+      getMessage: getAuthErrorMessage
+    });
+  }, []);
 
-      if (
-        !normalizedUsername ||
-        !normalizedEmail ||
-        !normalizedMobileNumber ||
-        !normalizedPassword ||
-        !normalizedConfirmPassword ||
-        !normalizedOrganizationName
-      ) {
-        setError(
-          'Username, email, mobile number, password, confirm password, and organization are required.'
-        );
-        setNotice('');
-        return { success: false };
-      }
-
-      if (normalizedPassword !== normalizedConfirmPassword) {
-        setError('Password and confirm password do not match.');
-        setNotice('');
-        return { success: false };
-      }
-
-      setError('');
-      setNotice('');
-      setIsLoading(true);
-
-      try {
-        await authRegisterRequest({
-          username: normalizedUsername,
-          email: normalizedEmail,
-          mobileNumber: normalizedMobileNumber,
-          password: normalizedPassword,
-          confirmPassword: normalizedConfirmPassword,
-          organizationName: normalizedOrganizationName
-        });
-
-        setNotice('Account created successfully. Sign in to continue.');
-        return { success: true };
-      } catch (registerError) {
-        setError(getMessage(registerError));
-        return { success: false };
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    []
-  );
-
-  const employeeSignup = useCallback(
-    async ({
-      companyName,
-      username,
-      email,
-      mobileNumber,
-      password,
-      confirmPassword
-    }) => {
-      const normalizedCompanyName = String(companyName || '').trim();
-      const normalizedUsername = String(username || '').trim();
-      const normalizedEmail = String(email || '').trim();
-      const normalizedMobileNumber = String(mobileNumber || '').trim();
-      const normalizedPassword = String(password || '').trim();
-      const normalizedConfirmPassword = String(confirmPassword || '').trim();
-
-      if (
-        !normalizedCompanyName ||
-        !normalizedUsername ||
-        !normalizedEmail ||
-        !normalizedMobileNumber ||
-        !normalizedPassword ||
-        !normalizedConfirmPassword
-      ) {
-        setError(
-          'Company, username, email, mobile number, password, and confirm password are required.'
-        );
-        setNotice('');
-        return { success: false };
-      }
-
-      if (normalizedPassword !== normalizedConfirmPassword) {
-        setError('Password and confirm password do not match.');
-        setNotice('');
-        return { success: false };
-      }
-
-      setError('');
-      setNotice('');
-      setIsLoading(true);
-
-      try {
-        const response = await authEmployeeSignupRequest({
-          companyName: normalizedCompanyName,
-          username: normalizedUsername,
-          email: normalizedEmail,
-          mobileNumber: normalizedMobileNumber,
-          password: normalizedPassword,
-          confirmPassword: normalizedConfirmPassword
-        });
-
-        setNotice(
-          String(
-            response?.message ||
-              'Signup request submitted. Wait for admin approval.'
-          )
-        );
-        return {
-          success: true,
-          data: response?.data || null
-        };
-      } catch (signupError) {
-        setError(getMessage(signupError));
-        return { success: false };
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    []
-  );
+  const employeeSignup = useCallback(async (params) => {
+    const { employeeSignupAction } = await loadDeferredAuthModule();
+    return employeeSignupAction({
+      ...params,
+      setError,
+      setNotice,
+      setIsLoading,
+      getMessage: getAuthErrorMessage
+    });
+  }, []);
 
   const reviewEmployeeSignupRequest = useCallback(
     async ({ requestId, decision = 'approve', reason = '' }) => {
-      if (!accessToken) {
-        return { success: false, message: 'Not authenticated' };
-      }
-
-      const normalizedRequestId = String(requestId || '').trim();
-      if (!normalizedRequestId) {
-        return { success: false, message: 'requestId is required' };
-      }
-
-      const normalizedDecision = String(decision || '')
-        .trim()
-        .toLowerCase();
-      const decisionRequest =
-        normalizedDecision === 'decline'
-          ? authDeclineEmployeeSignupRequest
-          : authApproveEmployeeSignupRequest;
-
-      try {
-        const data = await decisionRequest({
-          accessToken,
-          requestId: normalizedRequestId,
-          reason
-        });
-        return { success: true, data };
-      } catch (reviewError) {
-        return { success: false, message: getMessage(reviewError) };
-      }
+      const { reviewEmployeeSignupRequestAction } =
+        await loadDeferredAuthModule();
+      return reviewEmployeeSignupRequestAction({
+        accessToken,
+        requestId,
+        decision,
+        reason,
+        getMessage: getAuthErrorMessage
+      });
     },
     [accessToken]
   );
 
   const requestEmailVerification = useCallback(async ({ email }) => {
-    const normalizedEmail = String(email || '').trim();
-    if (!normalizedEmail) {
-      setError('Email is required.');
-      setNotice('');
-      return { success: false };
-    }
-
-    setError('');
-    setNotice('');
-    setIsLoading(true);
-
-    try {
-      const response = await authVerifyEmailRequest({ email: normalizedEmail });
-      const debugToken = response?.data?.debugToken || '';
-      const tokenSuffix = debugToken ? ` Token: ${debugToken}` : '';
-      setNotice(`Verification request accepted.${tokenSuffix}`);
-      return { success: true, debugToken };
-    } catch (verificationError) {
-      setError(getMessage(verificationError));
-      return { success: false };
-    } finally {
-      setIsLoading(false);
-    }
+    const { requestEmailVerificationAction } = await loadDeferredAuthModule();
+    return requestEmailVerificationAction({
+      email,
+      setError,
+      setNotice,
+      setIsLoading,
+      getMessage: getAuthErrorMessage
+    });
   }, []);
 
   const verifyEmail = useCallback(async ({ email, token }) => {
-    const normalizedEmail = String(email || '').trim();
-    const normalizedToken = String(token || '').trim();
-    if (!normalizedEmail || !normalizedToken) {
-      setError('Email and verification token are required.');
-      setNotice('');
-      return { success: false };
-    }
-
-    setError('');
-    setNotice('');
-    setIsLoading(true);
-
-    try {
-      await authVerifyEmailConfirmRequest({
-        email: normalizedEmail,
-        token: normalizedToken
-      });
-      setNotice('Email verified. You can now sign in.');
-      return { success: true };
-    } catch (verificationError) {
-      setError(getMessage(verificationError));
-      return { success: false };
-    } finally {
-      setIsLoading(false);
-    }
+    const { verifyEmailAction } = await loadDeferredAuthModule();
+    return verifyEmailAction({
+      email,
+      token,
+      setError,
+      setNotice,
+      setIsLoading,
+      getMessage: getAuthErrorMessage
+    });
   }, []);
 
   const requestPasswordReset = useCallback(async ({ email }) => {
-    const normalizedEmail = String(email || '').trim();
-    if (!normalizedEmail) {
-      setError('Email is required.');
-      setNotice('');
-      return { success: false };
-    }
-
-    setError('');
-    setNotice('');
-    setIsLoading(true);
-
-    try {
-      const response = await authForgotPasswordRequest({
-        email: normalizedEmail
-      });
-      const debugToken = response?.data?.debugToken || '';
-      const tokenSuffix = debugToken ? ` Token: ${debugToken}` : '';
-      setNotice(`Password reset token generated.${tokenSuffix}`);
-      return { success: true, debugToken };
-    } catch (resetError) {
-      setError(getMessage(resetError));
-      return { success: false };
-    } finally {
-      setIsLoading(false);
-    }
+    const { requestPasswordResetAction } = await loadDeferredAuthModule();
+    return requestPasswordResetAction({
+      email,
+      setError,
+      setNotice,
+      setIsLoading,
+      getMessage: getAuthErrorMessage
+    });
   }, []);
 
-  const resetPassword = useCallback(
-    async ({ email, token, password, confirmPassword }) => {
-      const normalizedEmail = String(email || '').trim();
-      const normalizedToken = String(token || '').trim();
-      const normalizedPassword = String(password || '').trim();
-      const normalizedConfirmPassword = String(confirmPassword || '').trim();
-
-      if (
-        !normalizedEmail ||
-        !normalizedToken ||
-        !normalizedPassword ||
-        !normalizedConfirmPassword
-      ) {
-        setError('Email, token, password, and confirm password are required.');
-        setNotice('');
-        return { success: false };
-      }
-
-      if (normalizedPassword !== normalizedConfirmPassword) {
-        setError('Password and confirm password do not match.');
-        setNotice('');
-        return { success: false };
-      }
-
-      setError('');
-      setNotice('');
-      setIsLoading(true);
-
-      try {
-        await authResetPasswordRequest({
-          email: normalizedEmail,
-          token: normalizedToken,
-          password: normalizedPassword,
-          confirmPassword: normalizedConfirmPassword
-        });
-        setNotice('Password reset successful. Sign in with your new password.');
-        return { success: true };
-      } catch (resetError) {
-        setError(getMessage(resetError));
-        return { success: false };
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    []
-  );
+  const resetPassword = useCallback(async (params) => {
+    const { resetPasswordAction } = await loadDeferredAuthModule();
+    return resetPasswordAction({
+      ...params,
+      setError,
+      setNotice,
+      setIsLoading,
+      getMessage: getAuthErrorMessage
+    });
+  }, []);
 
   const updatePreferences = useCallback(
     async ({ uiTheme, mobileNumber }) => {
-      const normalizedTheme = String(uiTheme || '').trim();
-      const hasTheme = Boolean(normalizedTheme);
-      const hasMobileNumber = mobileNumber !== undefined;
-      if ((!hasTheme && !hasMobileNumber) || !accessToken) {
-        return { success: false };
-      }
-
-      try {
-        const response = await authUpdatePreferencesRequest({
-          accessToken,
-          ...(hasTheme ? { uiTheme: normalizedTheme } : {}),
-          ...(hasMobileNumber
-            ? {
-                mobileNumber: String(mobileNumber || '').trim()
-              }
-            : {})
-        });
-        const updatedUser = normalizeUser(
-          response?.data || null,
-          response?.data?.organization || null
-        );
-        if (updatedUser) {
-          setUser(updatedUser);
-        }
-        return { success: true, user: updatedUser };
-      } catch (prefError) {
-        return {
-          success: false,
-          message: getMessage(prefError)
-        };
-      }
+      const { updatePreferencesAction } = await loadDeferredAuthModule();
+      return updatePreferencesAction({
+        accessToken,
+        uiTheme,
+        mobileNumber,
+        normalizeUser: normalizeAuthUser,
+        setUser,
+        getMessage: getAuthErrorMessage
+      });
     },
     [accessToken]
-  );
-
-  const listSessions = useCallback(async () => {
-    if (!accessToken) {
-      return {
-        success: false,
-        sessions: [],
-        message: 'Not authenticated'
-      };
-    }
-
-    try {
-      const response = await authListSessionsRequest(accessToken);
-      const sessions = Array.isArray(response?.data?.sessions)
-        ? response.data.sessions
-        : [];
-      return {
-        success: true,
-        sessions,
-        total: Number(response?.data?.total || sessions.length)
-      };
-    } catch (sessionError) {
-      return {
-        success: false,
-        sessions: [],
-        message: getMessage(sessionError)
-      };
-    }
-  }, [accessToken]);
-
-  const revokeSession = useCallback(
-    async (sessionId) => {
-      if (!accessToken) {
-        return {
-          success: false,
-          message: 'Not authenticated'
-        };
-      }
-
-      const normalizedSessionId = String(sessionId || '').trim();
-      if (!normalizedSessionId) {
-        return {
-          success: false,
-          message: 'sessionId is required'
-        };
-      }
-
-      try {
-        await authCsrfTokenRequest();
-        const response = await authRevokeSessionRequest({
-          accessToken,
-          sessionId: normalizedSessionId
-        });
-
-        if (response?.data?.currentSessionTerminated) {
-          clearAuthState();
-        }
-
-        return {
-          success: true,
-          currentSessionTerminated: Boolean(
-            response?.data?.currentSessionTerminated
-          ),
-          message: String(response?.message || 'Session revoked')
-        };
-      } catch (sessionError) {
-        return {
-          success: false,
-          message: getMessage(sessionError)
-        };
-      }
-    },
-    [accessToken, clearAuthState]
-  );
-
-  const logoutOtherSessions = useCallback(async () => {
-    if (!accessToken) {
-      return {
-        success: false,
-        message: 'Not authenticated'
-      };
-    }
-
-    try {
-      await authCsrfTokenRequest();
-      const response = await authLogoutOtherSessionsRequest(accessToken);
-      return {
-        success: true,
-        removedCount: Number(response?.data?.removedCount || 0),
-        message: String(response?.message || 'Other sessions logged out')
-      };
-    } catch (sessionError) {
-      return {
-        success: false,
-        message: getMessage(sessionError)
-      };
-    }
-  }, [accessToken]);
-
-  const getTwoFactorStatus = useCallback(async () => {
-    if (!accessToken) return { success: false, message: 'Not authenticated' };
-    try {
-      const response = await authTwoFactorStatusRequest(accessToken);
-      return {
-        success: true,
-        data: response?.data || {}
-      };
-    } catch (twoFactorError) {
-      return {
-        success: false,
-        message: getMessage(twoFactorError)
-      };
-    }
-  }, [accessToken]);
-
-  const setupTwoFactor = useCallback(
-    async ({ currentPassword }) => {
-      if (!accessToken) {
-        return { success: false, message: 'Not authenticated' };
-      }
-
-      try {
-        await authCsrfTokenRequest();
-        const response = await authTwoFactorSetupRequest({
-          accessToken,
-          currentPassword: String(currentPassword || '').trim()
-        });
-        return {
-          success: true,
-          data: response?.data || {}
-        };
-      } catch (twoFactorError) {
-        return {
-          success: false,
-          message: getMessage(twoFactorError)
-        };
-      }
-    },
-    [accessToken]
-  );
-
-  const enableTwoFactor = useCallback(
-    async ({ currentPassword, code }) => {
-      if (!accessToken) {
-        return { success: false, message: 'Not authenticated' };
-      }
-
-      try {
-        await authCsrfTokenRequest();
-        const response = await authTwoFactorEnableRequest({
-          accessToken,
-          currentPassword: String(currentPassword || '').trim(),
-          code: String(code || '').trim()
-        });
-        return {
-          success: true,
-          data: response?.data || {}
-        };
-      } catch (twoFactorError) {
-        return {
-          success: false,
-          message: getMessage(twoFactorError)
-        };
-      }
-    },
-    [accessToken]
-  );
-
-  const disableTwoFactor = useCallback(
-    async ({ currentPassword, code = '', recoveryCode = '' }) => {
-      if (!accessToken) {
-        return { success: false, message: 'Not authenticated' };
-      }
-
-      try {
-        await authCsrfTokenRequest();
-        const response = await authTwoFactorDisableRequest({
-          accessToken,
-          currentPassword: String(currentPassword || '').trim(),
-          code: String(code || '').trim(),
-          recoveryCode: String(recoveryCode || '').trim()
-        });
-        return {
-          success: true,
-          data: response?.data || {}
-        };
-      } catch (twoFactorError) {
-        return {
-          success: false,
-          message: getMessage(twoFactorError)
-        };
-      }
-    },
-    [accessToken]
-  );
-
-  const regenerateTwoFactorRecoveryCodes = useCallback(
-    async ({ currentPassword, code = '', recoveryCode = '' }) => {
-      if (!accessToken) {
-        return { success: false, message: 'Not authenticated' };
-      }
-
-      try {
-        await authCsrfTokenRequest();
-        const response = await authTwoFactorRegenerateRecoveryCodesRequest({
-          accessToken,
-          currentPassword: String(currentPassword || '').trim(),
-          code: String(code || '').trim(),
-          recoveryCode: String(recoveryCode || '').trim()
-        });
-        return {
-          success: true,
-          data: response?.data || {}
-        };
-      } catch (twoFactorError) {
-        return {
-          success: false,
-          message: getMessage(twoFactorError)
-        };
-      }
-    },
-    [accessToken]
-  );
-
-  const exportComplianceData = useCallback(
-    async ({ includeAudit = false, limit = 2000 } = {}) => {
-      if (!accessToken) {
-        return { success: false, message: 'Not authenticated' };
-      }
-
-      try {
-        const response = await complianceExportRequest({
-          accessToken,
-          includeAudit,
-          limit
-        });
-        return { success: true, data: response };
-      } catch (complianceError) {
-        return {
-          success: false,
-          message: getMessage(complianceError)
-        };
-      }
-    },
-    [accessToken]
-  );
-
-  const deleteMyAccount = useCallback(
-    async ({ currentPassword, confirmationText = 'DELETE MY ACCOUNT' }) => {
-      if (!accessToken) {
-        return { success: false, message: 'Not authenticated' };
-      }
-
-      try {
-        await authCsrfTokenRequest();
-        await complianceDeleteMyAccountRequest({
-          accessToken,
-          currentPassword: String(currentPassword || '').trim(),
-          confirmationText
-        });
-        clearAuthState();
-        return { success: true };
-      } catch (complianceError) {
-        return {
-          success: false,
-          message: getMessage(complianceError)
-        };
-      }
-    },
-    [accessToken, clearAuthState]
-  );
-
-  const deleteOrganization = useCallback(
-    async ({ currentPassword, confirmationText }) => {
-      if (!accessToken) {
-        return { success: false, message: 'Not authenticated' };
-      }
-
-      try {
-        await authCsrfTokenRequest();
-        await complianceDeleteOrganizationRequest({
-          accessToken,
-          currentPassword: String(currentPassword || '').trim(),
-          confirmationText: String(confirmationText || '').trim()
-        });
-        clearAuthState();
-        return { success: true };
-      } catch (complianceError) {
-        return {
-          success: false,
-          message: getMessage(complianceError)
-        };
-      }
-    },
-    [accessToken, clearAuthState]
   );
 
   return {
@@ -1019,17 +399,7 @@ export const useAuth = () => {
     requestPasswordReset,
     resetPassword,
     updatePreferences,
-    getTwoFactorStatus,
-    setupTwoFactor,
-    enableTwoFactor,
-    disableTwoFactor,
-    regenerateTwoFactorRecoveryCodes,
-    exportComplianceData,
-    deleteMyAccount,
-    deleteOrganization,
-    listSessions,
-    revokeSession,
-    logoutOtherSessions,
+    endSession,
     logout
   };
 };

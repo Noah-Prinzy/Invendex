@@ -94,11 +94,7 @@ const DashboardLayout = ({
             </Button>
           </div>
         </div>
-        {tabBarNode ? (
-          <div className="app-header-nav">
-            {tabBarNode}
-          </div>
-        ) : null}
+        {tabBarNode ? <div className="app-header-nav">{tabBarNode}</div> : null}
       </header>
       <section className="app-body">{children}</section>
     </main>

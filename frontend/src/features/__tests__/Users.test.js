@@ -14,26 +14,26 @@ import {
   updateUserStatusRequest
 } from '../../api/client.js';
 
-jest.mock('../../api/client.js', () => ({
-  createUserInviteRequest: jest.fn(),
-  getOnlineUsersRequest: jest.fn(),
-  getUserProductivityRequest: jest.fn(),
-  getUserRolePermissionsMatrixRequest: jest.fn(),
-  getUserInvitesRequest: jest.fn(),
-  getUsersRequest: jest.fn(),
-  revokeUserInviteRequest: jest.fn(),
-  updateUserRolePermissionsMatrixRequest: jest.fn(),
-  updateUserRoleRequest: jest.fn(),
-  updateUserStatusRequest: jest.fn()
+vi.mock('../../api/client.js', () => ({
+  createUserInviteRequest: vi.fn(),
+  getOnlineUsersRequest: vi.fn(),
+  getUserProductivityRequest: vi.fn(),
+  getUserRolePermissionsMatrixRequest: vi.fn(),
+  getUserInvitesRequest: vi.fn(),
+  getUsersRequest: vi.fn(),
+  revokeUserInviteRequest: vi.fn(),
+  updateUserRolePermissionsMatrixRequest: vi.fn(),
+  updateUserRoleRequest: vi.fn(),
+  updateUserStatusRequest: vi.fn()
 }));
 
 describe('Users page', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
-  it('shows role restriction message for non-admin roles', () => {
-    renderWithProviders(
+  it('shows role restriction message for non-admin roles', async () => {
+    await renderWithProviders(
       <Users accessToken="token" userRole="staff" currentUserId="u-1" />
     );
     expect(
@@ -148,7 +148,7 @@ describe('Users page', () => {
       }
     });
 
-    renderWithProviders(
+    await renderWithProviders(
       <Users accessToken="token" userRole="admin" currentUserId="u-1" />
     );
 

@@ -1,5 +1,5 @@
-const OFFLINE_QUEUE_KEY = 'ledgerly_offline_mutations_v1';
-const OFFLINE_DEVICE_ID_KEY = 'ledgerly_offline_device_id_v1';
+const OFFLINE_QUEUE_KEY = 'invendex_offline_mutations_v1';
+const OFFLINE_DEVICE_ID_KEY = 'invendex_offline_device_id_v1';
 
 const sanitizeBaseUrl = (value) =>
   String(value || '')

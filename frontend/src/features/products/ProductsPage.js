@@ -1,13 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   adjustProductStockRequest,
   createProductRequest,
-  createProductsBulkImportRequest,
-  createProductsBulkImportJobRequest,
   downloadProductLabelRequest,
   getDeletedProductsRequest,
-  getProductsBulkImportJobStatusRequest,
   getProductsHealthScoreRequest,
   getProductsLowStockSummaryRequest,
   getProductsRequest,
@@ -20,6 +25,10 @@ import { SectionHint } from '../../components/PageGuide.js';
 import useOrganizationCurrency from '../../hooks/finance/useOrganizationCurrency.js';
 import { readCachedData, writeCachedData } from '../../offline/dataCache.js';
 import Modal from '../../ui/Modal.js';
+
+const ProductsBulkImportPanel = lazy(
+  () => import('./components/ProductsBulkImportPanel.js')
+);
 
 const ROLES_WITH_LOW_STOCK_ACCESS = new Set([
   'owner',
@@ -77,48 +86,7 @@ const SENSITIVE_STOCK_ADJUST_REASONS = new Set([
   'supplier_return'
 ]);
 const ROLES_WITH_SENSITIVE_ADJUSTMENTS = new Set(['owner', 'admin', 'manager']);
-const BULK_PREVIEW_ROW_LIMIT = 5;
-const BULK_FIELD_KEYS = [
-  'name',
-  'sku',
-  'skuPrefix',
-  'price',
-  'category',
-  'description',
-  'lowStockThreshold',
-  'barcode',
-  'barcodeType'
-];
-const BULK_FIELD_LABELS = {
-  name: 'Name',
-  sku: 'SKU',
-  skuPrefix: 'SKU prefix',
-  price: 'Price',
-  category: 'Category',
-  description: 'Description',
-  lowStockThreshold: 'Low-stock threshold',
-  barcode: 'Barcode',
-  barcodeType: 'Barcode type'
-};
-const BULK_TEMPLATE_HEADERS = [
-  'name',
-  'sku',
-  'skuPrefix',
-  'price',
-  'category',
-  'description',
-  'lowStockThreshold',
-  'barcode',
-  'barcodeType'
-];
-const BULK_IMPORT_DUPLICATE_POLICIES = [
-  { value: 'skip', label: 'Skip duplicates' },
-  { value: 'update', label: 'Update existing' },
-  { value: 'fail', label: 'Fail duplicate rows' }
-];
-const BULK_IMPORT_JOB_TERMINAL_STATUSES = new Set(['COMPLETED', 'FAILED']);
-const BULK_IMPORT_JOB_POLL_INTERVAL_MS = 2000;
-const PRODUCT_SAVED_VIEWS_STORAGE_KEY = 'ledgerly.products.savedViews.v1';
+const PRODUCT_SAVED_VIEWS_STORAGE_KEY = 'invendex.products.savedViews.v1';
 
 const resolveProductId = (product) =>
   String(product?.id || product?._id || '').trim();
@@ -141,87 +109,6 @@ const toUserDateTime = (value) => {
   return asDate.toLocaleString();
 };
 
-const parseCsvMatrix = (inputText) => {
-  const text = String(inputText || '');
-  const rows = [];
-  let currentRow = [];
-  let currentCell = '';
-  let inQuotes = false;
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    const nextChar = text[index + 1];
-
-    if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        currentCell += '"';
-        index += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-
-    if (char === ',' && !inQuotes) {
-      currentRow.push(currentCell);
-      currentCell = '';
-      continue;
-    }
-
-    if ((char === '\n' || char === '\r') && !inQuotes) {
-      if (char === '\r' && nextChar === '\n') {
-        index += 1;
-      }
-      currentRow.push(currentCell);
-      rows.push(currentRow);
-      currentRow = [];
-      currentCell = '';
-      continue;
-    }
-
-    currentCell += char;
-  }
-
-  if (currentCell.length > 0 || currentRow.length > 0) {
-    currentRow.push(currentCell);
-    rows.push(currentRow);
-  }
-
-  return rows;
-};
-
-const parseCsvToObjects = (csvText) => {
-  const matrix = parseCsvMatrix(csvText).filter((row) =>
-    row.some((cell) => String(cell || '').trim() !== '')
-  );
-
-  if (!matrix.length) {
-    throw new Error('CSV is empty.');
-  }
-
-  const rawHeaders = matrix[0].map((cell, index) => {
-    const normalized = String(cell || '').trim();
-    return normalized || `column_${index + 1}`;
-  });
-  const seenHeaders = new Map();
-  const headers = rawHeaders.map((header) => {
-    const count = Number(seenHeaders.get(header) || 0) + 1;
-    seenHeaders.set(header, count);
-    if (count === 1) return header;
-    return `${header}_${count}`;
-  });
-
-  const rows = matrix.slice(1).map((line) => {
-    const rowObject = {};
-    headers.forEach((header, index) => {
-      rowObject[header] = String(line[index] ?? '').trim();
-    });
-    return rowObject;
-  });
-
-  return { headers, rows };
-};
-
 const parseVariantAttributesText = (value) => {
   const input = String(value || '').trim();
   if (!input) return {};
@@ -236,20 +123,6 @@ const parseVariantAttributesText = (value) => {
   }, {});
 };
 
-const buildDefaultBulkFieldMap = (headers = []) =>
-  BULK_FIELD_KEYS.reduce((acc, key) => {
-    acc[key] = headers.includes(key) ? key : '';
-    return acc;
-  }, {});
-
-const sanitizeCsvExportCell = (value) => {
-  const normalized = String(value ?? '');
-  if (/^[=+\-@]/.test(normalized)) {
-    return `'${normalized}`;
-  }
-  return normalized;
-};
-
 const mapScannerFormatToBarcodeType = (scannerFormat) => {
   const normalized = String(scannerFormat || '')
     .trim()
@@ -260,20 +133,6 @@ const mapScannerFormatToBarcodeType = (scannerFormat) => {
   if (normalized === 'code_128') return 'CODE128';
   if (normalized === 'qr_code') return 'QR';
   return 'OTHER';
-};
-
-const downloadTextFile = ({ filename, content, mimeType }) => {
-  const blob = new Blob([String(content || '')], {
-    type: mimeType || 'text/plain;charset=utf-8'
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 };
 
 const downloadBlobFile = ({ blob, filename }) => {
@@ -346,19 +205,6 @@ const Products = ({
   const [adjustReason, setAdjustReason] = useState('adjustment');
   const [adjustNotice, setAdjustNotice] = useState('');
   const [managementNotice, setManagementNotice] = useState('');
-  const [bulkImportNotice, setBulkImportNotice] = useState('');
-  const [bulkImportHeaders, setBulkImportHeaders] = useState([]);
-  const [bulkImportRows, setBulkImportRows] = useState([]);
-  const [bulkImportRowErrors, setBulkImportRowErrors] = useState([]);
-  const [bulkImportSummary, setBulkImportSummary] = useState(null);
-  const [bulkImportJob, setBulkImportJob] = useState(null);
-  const [bulkImportOptions, setBulkImportOptions] = useState({
-    duplicatePolicy: 'skip',
-    atomic: false
-  });
-  const [bulkImportFieldMap, setBulkImportFieldMap] = useState(
-    buildDefaultBulkFieldMap([])
-  );
   const [createForm, setCreateForm] = useState({
     name: '',
     sku: '',
@@ -529,6 +375,11 @@ const Products = ({
     }
   });
 
+  const refreshProducts = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ['products:index'] });
+    await refetch();
+  }, [queryClient, refetch]);
+
   const stockAdjustMutation = useMutation({
     mutationFn: async ({
       productId,
@@ -545,7 +396,7 @@ const Products = ({
         warehouseId: selectedWarehouseId,
         idempotencyKey
       }),
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       if (result?.queued) {
         setAdjustNotice(
           `No network. Adjustment queued for sync (queue size: ${Number(result.queueSize || 0)}).`
@@ -555,8 +406,7 @@ const Products = ({
 
       setAdjustNotice('Stock adjustment saved.');
       setAdjustAmount('');
-      queryClient.invalidateQueries({ queryKey: ['products:index'] });
-      refetch();
+      await refreshProducts();
     },
     onError: (mutationError) => {
       setAdjustNotice(
@@ -571,7 +421,7 @@ const Products = ({
         accessToken,
         ...payload
       }),
-    onSuccess: (createdProduct) => {
+    onSuccess: async (createdProduct) => {
       const createdSku = String(
         createdProduct?.sku || createdProduct?.data?.sku || ''
       ).trim();
@@ -597,8 +447,7 @@ const Products = ({
         lowStockThreshold: '5',
         description: ''
       });
-      queryClient.invalidateQueries({ queryKey: ['products:index'] });
-      refetch();
+      await refreshProducts();
     },
     onError: (mutationError) => {
       setManagementNotice(
@@ -606,160 +455,6 @@ const Products = ({
       );
     }
   });
-
-  const bulkImportMutation = useMutation({
-    mutationFn: async ({ rows, fieldMap, options }) =>
-      createProductsBulkImportRequest({
-        accessToken,
-        products: rows,
-        fieldMap,
-        options
-      }),
-    onSuccess: (result) => {
-      const safeResult = result || {};
-      const createdCount = Number(result?.createdCount || 0);
-      const updatedCount = Number(result?.updatedCount || 0);
-      const skippedCount = Number(result?.skippedCount || 0);
-      const failedCount = Number(result?.failedCount || 0);
-      const dryRun = safeResult?.dryRun === true;
-      setBulkImportSummary(safeResult);
-      setBulkImportRowErrors(
-        Array.isArray(safeResult?.rowErrors) ? safeResult.rowErrors : []
-      );
-      setBulkImportNotice(
-        dryRun
-          ? `Validation completed. Valid: ${Number(safeResult?.validRows || 0)}, Invalid: ${Number(safeResult?.invalidRows || 0)}.`
-          : `Bulk import completed. Created: ${createdCount}, Updated: ${updatedCount}, Skipped: ${skippedCount}, Failed: ${failedCount}.`
-      );
-
-      if (!dryRun) {
-        queryClient.invalidateQueries({ queryKey: ['products:index'] });
-        refetch();
-      }
-    },
-    onError: (mutationError) => {
-      setBulkImportSummary(null);
-      setBulkImportRowErrors([]);
-      setBulkImportNotice(
-        String(mutationError?.message || 'Unable to import CSV')
-      );
-    }
-  });
-
-  const bulkImportJobMutation = useMutation({
-    mutationFn: async ({ rows, fieldMap, options }) =>
-      createProductsBulkImportJobRequest({
-        accessToken,
-        products: rows,
-        fieldMap,
-        options
-      }),
-    onSuccess: (job) => {
-      setBulkImportJob(job || null);
-      setBulkImportSummary(null);
-      setBulkImportRowErrors([]);
-      setBulkImportNotice(
-        `Bulk import queued. Job ${String(job?.id || '').slice(-8)} is running in the background.`
-      );
-    },
-    onError: (mutationError) => {
-      setBulkImportJob(null);
-      setBulkImportSummary(null);
-      setBulkImportRowErrors([]);
-      setBulkImportNotice(
-        String(mutationError?.message || 'Unable to queue bulk import job')
-      );
-    }
-  });
-
-  useEffect(() => {
-    const jobId = String(bulkImportJob?.id || '').trim();
-    const status = String(bulkImportJob?.status || '')
-      .trim()
-      .toUpperCase();
-
-    if (
-      !accessToken ||
-      !jobId ||
-      BULK_IMPORT_JOB_TERMINAL_STATUSES.has(status)
-    ) {
-      return undefined;
-    }
-
-    let isCancelled = false;
-
-    const pollJobStatus = async () => {
-      try {
-        const nextJob = await getProductsBulkImportJobStatusRequest({
-          accessToken,
-          jobId
-        });
-        if (isCancelled) return;
-
-        setBulkImportJob(nextJob || null);
-
-        const nextStatus = String(nextJob?.status || '')
-          .trim()
-          .toUpperCase();
-        if (nextStatus === 'RUNNING' || nextStatus === 'QUEUED') {
-          const progress = Number(nextJob?.progress?.percent || 0);
-          setBulkImportNotice(
-            `Bulk import job running... ${Math.max(0, Math.min(100, Math.round(progress)))}%`
-          );
-          return;
-        }
-
-        if (nextStatus === 'COMPLETED') {
-          const result = nextJob?.result || null;
-          setBulkImportSummary(result);
-          setBulkImportRowErrors(
-            Array.isArray(result?.rowErrors) ? result.rowErrors : []
-          );
-          if (result?.dryRun) {
-            setBulkImportNotice(
-              `Background validation completed. Valid: ${Number(result?.validRows || 0)}, Invalid: ${Number(result?.invalidRows || 0)}.`
-            );
-          } else {
-            setBulkImportNotice(
-              `Background import completed. Created: ${Number(result?.createdCount || 0)}, Updated: ${Number(result?.updatedCount || 0)}, Skipped: ${Number(result?.skippedCount || 0)}, Failed: ${Number(result?.failedCount || 0)}.`
-            );
-            queryClient.invalidateQueries({ queryKey: ['products:index'] });
-            refetch();
-          }
-          return;
-        }
-
-        if (nextStatus === 'FAILED') {
-          setBulkImportSummary(null);
-          setBulkImportRowErrors([]);
-          setBulkImportNotice(
-            String(nextJob?.error?.message || 'Background import failed')
-          );
-        }
-      } catch (pollError) {
-        if (isCancelled) return;
-        setBulkImportNotice(
-          String(pollError?.message || 'Unable to fetch background job status')
-        );
-      }
-    };
-
-    void pollJobStatus();
-    const interval = setInterval(() => {
-      void pollJobStatus();
-    }, BULK_IMPORT_JOB_POLL_INTERVAL_MS);
-
-    return () => {
-      isCancelled = true;
-      clearInterval(interval);
-    };
-  }, [
-    accessToken,
-    bulkImportJob?.id,
-    bulkImportJob?.status,
-    queryClient,
-    refetch
-  ]);
 
   useEffect(() => {
     writeSavedProductViews(savedViews);
@@ -895,12 +590,11 @@ const Products = ({
         accessToken,
         productId
       }),
-    onSuccess: () => {
+    onSuccess: async () => {
       setManagementNotice(
         'Product removed from active list and sent for admin review.'
       );
-      queryClient.invalidateQueries({ queryKey: ['products:index'] });
-      refetch();
+      await refreshProducts();
     },
     onError: (mutationError) => {
       setManagementNotice(
@@ -915,10 +609,9 @@ const Products = ({
         accessToken,
         productId
       }),
-    onSuccess: () => {
+    onSuccess: async () => {
       setManagementNotice('Deleted product restored to active list.');
-      queryClient.invalidateQueries({ queryKey: ['products:index'] });
-      refetch();
+      await refreshProducts();
     },
     onError: (mutationError) => {
       setManagementNotice(
@@ -933,10 +626,9 @@ const Products = ({
         accessToken,
         productId
       }),
-    onSuccess: () => {
+    onSuccess: async () => {
       setManagementNotice('Product permanently deleted.');
-      queryClient.invalidateQueries({ queryKey: ['products:index'] });
-      refetch();
+      await refreshProducts();
     },
     onError: (mutationError) => {
       setManagementNotice(
@@ -978,16 +670,6 @@ const Products = ({
         ? 'e.g. 10'
         : 'e.g. -3 or 10';
   const adjustDirectionHint = getAdjustmentDirectionHint(adjustReason);
-  const bulkImportJobStatus = String(bulkImportJob?.status || '')
-    .trim()
-    .toUpperCase();
-  const isBulkImportJobActive =
-    Boolean(bulkImportJob?.id) &&
-    !BULK_IMPORT_JOB_TERMINAL_STATUSES.has(bulkImportJobStatus);
-  const isBulkImportBusy =
-    bulkImportMutation.isPending ||
-    bulkImportJobMutation.isPending ||
-    isBulkImportJobActive;
 
   const handleAdjustStockSubmit = async (event) => {
     event.preventDefault();
@@ -1054,201 +736,6 @@ const Products = ({
     }
 
     setBarcodeScannerOpen(true);
-  };
-
-  const handleBulkImportFieldMapChange = (field) => (event) => {
-    const value = String(event.target.value || '').trim();
-    setBulkImportFieldMap((current) => ({
-      ...current,
-      [field]: value
-    }));
-  };
-
-  const handleBulkImportOptionChange = (field) => (event) => {
-    const value =
-      field === 'atomic' ? Boolean(event.target.checked) : event.target.value;
-    setBulkImportOptions((current) => ({
-      ...current,
-      [field]: value
-    }));
-  };
-
-  const handleBulkImportFileChange = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setBulkImportNotice('');
-    setBulkImportRowErrors([]);
-    setBulkImportSummary(null);
-    setBulkImportJob(null);
-
-    try {
-      const csvText = await file.text();
-      const { headers, rows } = parseCsvToObjects(csvText);
-      if (!rows.length) {
-        throw new Error('CSV has headers but no data rows.');
-      }
-
-      setBulkImportHeaders(headers);
-      setBulkImportRows(rows);
-      setBulkImportFieldMap((current) =>
-        BULK_FIELD_KEYS.reduce((acc, key) => {
-          const preferred = String(current?.[key] || '').trim();
-          if (preferred && headers.includes(preferred)) {
-            acc[key] = preferred;
-            return acc;
-          }
-          acc[key] = headers.includes(key) ? key : '';
-          return acc;
-        }, {})
-      );
-
-      setBulkImportNotice(
-        `Loaded ${rows.length} rows from ${file.name}. Review mapping, then import.`
-      );
-    } catch (fileError) {
-      setBulkImportHeaders([]);
-      setBulkImportRows([]);
-      setBulkImportFieldMap(buildDefaultBulkFieldMap([]));
-      setBulkImportNotice(
-        String(fileError?.message || 'Unable to parse CSV file')
-      );
-      setBulkImportRowErrors([]);
-      setBulkImportSummary(null);
-    } finally {
-      event.target.value = '';
-    }
-  };
-
-  const buildBulkImportRequestPayload = () => {
-    if (!bulkImportRows.length) {
-      throw new Error('Upload a CSV file first.');
-    }
-
-    const normalizedFieldMap = BULK_FIELD_KEYS.reduce((acc, key) => {
-      const mappedHeader = String(bulkImportFieldMap?.[key] || '').trim();
-      if (mappedHeader) {
-        acc[key] = mappedHeader;
-      }
-      return acc;
-    }, {});
-
-    if (!normalizedFieldMap.name || !normalizedFieldMap.price) {
-      throw new Error('Map at least Name and Price columns before importing.');
-    }
-
-    return {
-      rows: bulkImportRows,
-      fieldMap: normalizedFieldMap,
-      options: {
-        duplicatePolicy: String(bulkImportOptions.duplicatePolicy || 'skip'),
-        atomic: Boolean(bulkImportOptions.atomic)
-      }
-    };
-  };
-
-  const submitBulkImport = async ({ validateOnly }) => {
-    setBulkImportNotice('');
-    setBulkImportRowErrors([]);
-    setBulkImportSummary(null);
-    setBulkImportJob(null);
-
-    const payload = buildBulkImportRequestPayload();
-    await bulkImportMutation.mutateAsync({
-      rows: payload.rows,
-      fieldMap: payload.fieldMap,
-      options: {
-        validateOnly: Boolean(validateOnly),
-        duplicatePolicy: payload.options.duplicatePolicy,
-        atomic: payload.options.atomic
-      }
-    });
-  };
-
-  const handleBulkImportSubmit = async (event) => {
-    event.preventDefault();
-    await submitBulkImport({ validateOnly: false });
-  };
-
-  const handleBulkValidate = async () => {
-    await submitBulkImport({ validateOnly: true });
-  };
-
-  const handleBulkImportInBackground = async () => {
-    setBulkImportNotice('');
-    setBulkImportRowErrors([]);
-    setBulkImportSummary(null);
-
-    try {
-      const payload = buildBulkImportRequestPayload();
-      await bulkImportJobMutation.mutateAsync({
-        rows: payload.rows,
-        fieldMap: payload.fieldMap,
-        options: {
-          validateOnly: false,
-          duplicatePolicy: payload.options.duplicatePolicy,
-          atomic: payload.options.atomic
-        }
-      });
-    } catch (error) {
-      setBulkImportNotice(String(error?.message || 'Unable to queue import'));
-    }
-  };
-
-  const handleDownloadBulkImportErrors = () => {
-    if (!bulkImportRowErrors.length) return;
-    const headers = [
-      'rowNumber',
-      'field',
-      'error',
-      'originalValue',
-      'suggestedFix'
-    ];
-    const lines = [headers.join(',')];
-    bulkImportRowErrors.forEach((rowError) => {
-      const values = [
-        rowError?.row,
-        rowError?.field,
-        rowError?.error,
-        rowError?.originalValue,
-        rowError?.suggestedFix
-      ].map((value) => {
-        const safe = sanitizeCsvExportCell(value);
-        const asString = String(safe ?? '');
-        if (/[",\n]/.test(asString)) {
-          return `"${asString.replace(/"/g, '""')}"`;
-        }
-        return asString;
-      });
-      lines.push(values.join(','));
-    });
-
-    downloadTextFile({
-      filename: 'invendex-bulk-import-errors.csv',
-      content: `${lines.join('\n')}\n`,
-      mimeType: 'text/csv;charset=utf-8'
-    });
-  };
-
-  const handleDownloadBulkTemplate = () => {
-    const headerRow = BULK_TEMPLATE_HEADERS.join(',');
-    const exampleRow = [
-      'Example Product',
-      '',
-      'ELC',
-      '29.99',
-      'Electronics',
-      'Optional description',
-      '5',
-      '1234567890123',
-      'EAN13'
-    ].join(',');
-
-    downloadTextFile({
-      filename: 'invendex-products-template.csv',
-      content: `${headerRow}\n${exampleRow}\n`,
-      mimeType: 'text/csv;charset=utf-8'
-    });
   };
 
   const handleSaveCurrentProductView = () => {
@@ -1954,194 +1441,18 @@ const Products = ({
       ) : null}
 
       {canManageProducts ? (
-        <article className="data-card">
-          <h3>Bulk import (CSV)</h3>
-          <p className="muted">
-            Upload a CSV file, map the columns, then import products in one run.
-          </p>
-          <div className="pagination-row compact bulk-template-row">
-            <p className="muted">
-              Use the template to get the expected column headers.
-            </p>
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={handleDownloadBulkTemplate}
-            >
-              Download CSV template
-            </button>
-          </div>
-          <form className="control-row" onSubmit={handleBulkImportSubmit}>
-            <label className="control-field">
-              <span>CSV file</span>
-              <input
-                type="file"
-                accept=".csv,text/csv"
-                onChange={handleBulkImportFileChange}
-                disabled={isBulkImportBusy}
-              />
-            </label>
-            <label className="control-field">
-              <span>Duplicate handling</span>
-              <select
-                value={bulkImportOptions.duplicatePolicy}
-                onChange={handleBulkImportOptionChange('duplicatePolicy')}
-                disabled={isBulkImportBusy}
-              >
-                {BULK_IMPORT_DUPLICATE_POLICIES.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="control-field">
-              <span>Atomic mode</span>
-              <input
-                type="checkbox"
-                checked={bulkImportOptions.atomic}
-                onChange={handleBulkImportOptionChange('atomic')}
-                disabled={isBulkImportBusy}
-              />
-            </label>
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={handleBulkValidate}
-              disabled={isBulkImportBusy || !bulkImportRows.length}
-            >
-              {bulkImportMutation.isPending ? 'Validating...' : 'Validate CSV'}
-            </button>
-            <button
-              type="submit"
-              className="btn-ghost"
-              disabled={isBulkImportBusy || !bulkImportRows.length}
-            >
-              {bulkImportMutation.isPending ? 'Importing...' : 'Import CSV'}
-            </button>
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={handleBulkImportInBackground}
-              disabled={isBulkImportBusy || !bulkImportRows.length}
-            >
-              {bulkImportJobMutation.isPending
-                ? 'Queuing...'
-                : isBulkImportJobActive
-                  ? 'Background job running...'
-                  : 'Run in background'}
-            </button>
-          </form>
-
-          {bulkImportNotice ? (
-            <p className="section-note">{bulkImportNotice}</p>
-          ) : null}
-          {bulkImportJob?.id ? (
-            <p className="muted">
-              Job ID: {bulkImportJob.id} | Status: {bulkImportJob.status} |
-              Progress:{' '}
-              {Math.round(Number(bulkImportJob?.progress?.percent || 0))}%
-            </p>
-          ) : null}
-          {bulkImportSummary ? (
-            <div className="metric-grid">
-              <article className="metric-card">
-                <p className="metric-label">Rows</p>
-                <p className="metric-value">
-                  {Number(bulkImportSummary.totalRows || 0)}
-                </p>
-              </article>
-              <article className="metric-card">
-                <p className="metric-label">Valid</p>
-                <p className="metric-value">
-                  {Number(bulkImportSummary.validRows || 0)}
-                </p>
-              </article>
-              <article className="metric-card">
-                <p className="metric-label">Invalid</p>
-                <p className="metric-value">
-                  {Number(bulkImportSummary.invalidRows || 0)}
-                </p>
-              </article>
-              <article className="metric-card">
-                <p className="metric-label">Created/Updated</p>
-                <p className="metric-value">
-                  {Number(bulkImportSummary.createdCount || 0)} /{' '}
-                  {Number(bulkImportSummary.updatedCount || 0)}
-                </p>
-              </article>
-            </div>
-          ) : null}
-
-          {bulkImportRowErrors.length ? (
-            <div className="pagination-row compact">
-              <p className="form-error">
-                {bulkImportRowErrors.length} row error(s) detected.
-              </p>
-              <button
-                type="button"
-                className="btn-ghost"
-                onClick={handleDownloadBulkImportErrors}
-              >
-                Download errors.csv
-              </button>
-            </div>
-          ) : null}
-
-          {bulkImportHeaders.length ? (
-            <>
-              <div className="control-row">
-                {BULK_FIELD_KEYS.map((field) => (
-                  <label className="control-field" key={field}>
-                    <span>{BULK_FIELD_LABELS[field]}</span>
-                    <select
-                      value={bulkImportFieldMap[field] || ''}
-                      onChange={handleBulkImportFieldMapChange(field)}
-                      disabled={isBulkImportBusy}
-                    >
-                      <option value="">Skip</option>
-                      {bulkImportHeaders.map((header) => (
-                        <option key={`${field}-${header}`} value={header}>
-                          {header}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ))}
-              </div>
-
-              <div className="table-wrap">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      {bulkImportHeaders.map((header) => (
-                        <th key={`preview-head-${header}`}>{header}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bulkImportRows
-                      .slice(0, BULK_PREVIEW_ROW_LIMIT)
-                      .map((row, index) => (
-                        <tr key={`preview-row-${index + 1}`}>
-                          {bulkImportHeaders.map((header) => (
-                            <td key={`preview-cell-${index + 1}-${header}`}>
-                              {row[header] || '-'}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="muted">
-                Previewing{' '}
-                {Math.min(bulkImportRows.length, BULK_PREVIEW_ROW_LIMIT)} of{' '}
-                {bulkImportRows.length} rows.
-              </p>
-            </>
-          ) : null}
-        </article>
+        <Suspense
+          fallback={
+            <article className="data-card">
+              <p className="muted">Loading import tools...</p>
+            </article>
+          }
+        >
+          <ProductsBulkImportPanel
+            accessToken={accessToken}
+            onProductsChanged={refreshProducts}
+          />
+        </Suspense>
       ) : null}
 
       <article className="data-card">

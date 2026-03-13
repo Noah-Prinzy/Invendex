@@ -1,6 +1,6 @@
 import { logger } from '../../observability/logger.js';
 
-const DEFAULT_QUEUE_NAME = 'ledgerly:background-jobs';
+const DEFAULT_QUEUE_NAME = 'invendex:background-jobs';
 
 const asString = (value) => String(value || '').trim();
 const asBoolean = (value) =>

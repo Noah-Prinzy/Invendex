@@ -121,7 +121,7 @@ const captureWithSentry = async (error, context) => {
     if (safeContext.scope) {
       scope.setTag('scope', String(safeContext.scope));
     }
-    scope.setContext('ledgerly_context', safeContext);
+    scope.setContext('invendex_context', safeContext);
     sentry.captureException(error);
   });
 };

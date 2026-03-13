@@ -31,8 +31,8 @@ jobs:
       NODE_ENV: test
       JWT_ACCESS_SECRET: test_access_secret
       JWT_REFRESH_SECRET: test_refresh_secret
-      DB_URL: mongodb://127.0.0.1:27017/ledgerly_test
-      TEST_DB_URI: mongodb://127.0.0.1:27017/ledgerly_test
+      DB_URL: mongodb://127.0.0.1:27017/invendex_test
+      TEST_DB_URI: mongodb://127.0.0.1:27017/invendex_test
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -89,6 +89,9 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Check bundle budgets
+        run: npm run check:bundle-budget
 
   e2e:
     name: End-to-End Smoke

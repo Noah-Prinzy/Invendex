@@ -8,7 +8,7 @@ const originalTestDbUri = process.env.MONGO_TEST_URI;
 beforeAll(async () => {
   process.env.AUTH_TEST_BYPASS = 'true';
   process.env.MONGO_TEST_URI =
-    'mongodb://127.0.0.1:27017/ledgerly_test_observability_runtime';
+    'mongodb://127.0.0.1:27017/invendex_test_observability_runtime';
 
   if (mongoose.connection.readyState === 0) {
     await mongoose.connect(getTestDbUri());

@@ -4,7 +4,7 @@ beforeAll(async () => {
   const uri =
     process.env.MONGO_TEST_URI ||
     process.env.DB_URL ||
-    'mongodb://127.0.0.1:27017/ledgerly_test';
+    'mongodb://127.0.0.1:27017/invendex_test';
 
   if (!uri) {
     throw new Error(

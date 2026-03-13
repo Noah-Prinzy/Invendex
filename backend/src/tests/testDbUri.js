@@ -1,4 +1,4 @@
-const DEFAULT_TEST_DB_URI = 'mongodb://127.0.0.1:27017/ledgerly_test';
+const DEFAULT_TEST_DB_URI = 'mongodb://127.0.0.1:27017/invendex_test';
 
 const shouldIsolateWorkers = () =>
   String(process.env.MONGO_TEST_ISOLATE_WORKERS || 'true')
@@ -24,7 +24,7 @@ const withWorkerSuffix = (uri, suffix) => {
     const currentDbName = String(parsed.pathname || '/')
       .replace(/^\/+/, '')
       .trim();
-    const baseDbName = currentDbName || 'ledgerly_test';
+    const baseDbName = currentDbName || 'invendex_test';
     parsed.pathname = `/${baseDbName}${suffix}`;
     return parsed.toString();
   } catch {

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Button from '../ui/Button.js';
 
+import '../styles/authIntro.css';
+
 const STORY_SECTIONS = Object.freeze([
   {
     eyebrow: 'Start Here',
@@ -67,14 +69,18 @@ const AuthIntroLanding = ({
       (entries) => {
         const visibleEntries = entries
           .filter((entry) => entry.isIntersecting)
-          .sort((left, right) => right.intersectionRatio - left.intersectionRatio);
+          .sort(
+            (left, right) => right.intersectionRatio - left.intersectionRatio
+          );
 
         if (!visibleEntries.length) return;
 
         const nextIndex = Number(
           visibleEntries[0].target.getAttribute('data-story-index') || 0
         );
-        setActiveIndex((current) => (current === nextIndex ? current : nextIndex));
+        setActiveIndex((current) =>
+          current === nextIndex ? current : nextIndex
+        );
       },
       {
         threshold: [0.25, 0.4, 0.55, 0.72],
@@ -196,7 +202,10 @@ const AuthIntroLanding = ({
                   <article
                     className={`auth-storyscape-panel panel-${section.visualKey}`}
                   >
-                    <div className="auth-storyscape-copy" data-step={stepNumber}>
+                    <div
+                      className="auth-storyscape-copy"
+                      data-step={stepNumber}
+                    >
                       <p className="eyebrow">{section.eyebrow}</p>
                       <p className="auth-storyscape-step">{stepNumber}</p>
                       <h2>{section.title}</h2>

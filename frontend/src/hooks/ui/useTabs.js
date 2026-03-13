@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../i18n/index.js';
 
 export const APP_TABS = Object.freeze([
   { key: 'dashboard', labelKey: 'tabs.dashboard' },
@@ -23,7 +23,7 @@ const EMPLOYEE_ALLOWED_TABS = new Set([
 ]);
 
 export const useTabs = (userRole = null, initialKey = APP_TABS[0].key) => {
-  const { t } = useTranslation();
+  const { language, t } = useTranslation();
   const [activeTab, setActiveTab] = useState(initialKey);
 
   const normalizedRole = String(userRole || '').toLowerCase();
@@ -36,7 +36,7 @@ export const useTabs = (userRole = null, initialKey = APP_TABS[0].key) => {
       ...tab,
       label: t(tab.labelKey)
     }));
-  }, [isAdmin, t]);
+  }, [isAdmin, language, t]);
 
   const tabMap = useMemo(() => {
     const map = new Map();

@@ -20,28 +20,28 @@ import {
   getDashboardTurnoverSkusRequest
 } from '../../api/client.js';
 
-jest.mock('../../api/client.js', () => ({
-  getProductsHealthScoreRequest: jest.fn(),
-  getProductsLowStockSummaryRequest: jest.fn(),
-  getProductsRequest: jest.fn(),
-  getWmsBinMovementsRequest: jest.fn(),
-  getWmsBinInventoryRequest: jest.fn(),
-  getAiDemandAnomaliesRequest: jest.fn(),
-  getAiSupplierReliabilityRequest: jest.fn(),
-  getDashboardDeadStockRequest: jest.fn(),
-  getDashboardDeadStockRescueRequest: jest.fn(),
-  getDashboardDigitalTwinRequest: jest.fn(),
-  getDashboardInventoryAdvisorRequest: jest.fn(),
-  getDashboardSlowMovingSkusRequest: jest.fn(),
-  getDashboardStockAgingBucketsRequest: jest.fn(),
-  getDashboardSupplierRankingRequest: jest.fn(),
-  getDashboardTopSellingItemsRequest: jest.fn(),
-  getDashboardTurnoverSkusRequest: jest.fn()
+vi.mock('../../api/client.js', () => ({
+  getProductsHealthScoreRequest: vi.fn(),
+  getProductsLowStockSummaryRequest: vi.fn(),
+  getProductsRequest: vi.fn(),
+  getWmsBinMovementsRequest: vi.fn(),
+  getWmsBinInventoryRequest: vi.fn(),
+  getAiDemandAnomaliesRequest: vi.fn(),
+  getAiSupplierReliabilityRequest: vi.fn(),
+  getDashboardDeadStockRequest: vi.fn(),
+  getDashboardDeadStockRescueRequest: vi.fn(),
+  getDashboardDigitalTwinRequest: vi.fn(),
+  getDashboardInventoryAdvisorRequest: vi.fn(),
+  getDashboardSlowMovingSkusRequest: vi.fn(),
+  getDashboardStockAgingBucketsRequest: vi.fn(),
+  getDashboardSupplierRankingRequest: vi.fn(),
+  getDashboardTopSellingItemsRequest: vi.fn(),
+  getDashboardTurnoverSkusRequest: vi.fn()
 }));
 
 describe('Dashboard page', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     getProductsRequest.mockResolvedValue([
       {
         _id: 'p1',
@@ -233,7 +233,7 @@ describe('Dashboard page', () => {
   });
 
   it('renders dashboard intelligence blocks with API data', async () => {
-    renderWithProviders(
+    await renderWithProviders(
       <Dashboard
         accessToken="token"
         warehouseId="WH-1"

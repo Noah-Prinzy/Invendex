@@ -3,7 +3,7 @@ import { AppError } from '../errors/AppError.js';
 import { successResponse } from '../utils/response.js';
 import { getCsrfCookieOptions } from '../config/envConfig.js';
 
-const CSRF_COOKIE_NAME = 'ledgerly_csrf_token';
+const CSRF_COOKIE_NAME = 'invendex_csrf_token';
 const CSRF_HEADER_NAME = 'x-csrf-token';
 
 const isCsrfEnabled = () =>
@@ -21,8 +21,11 @@ const getHeaderToken = (req) =>
 
 const generateCsrfToken = () => crypto.randomBytes(24).toString('hex');
 
+const readCsrfCookieToken = (req) =>
+  String(req.cookies?.[CSRF_COOKIE_NAME] || '').trim();
+
 const ensureCsrfCookie = (req, res) => {
-  const existing = String(req.cookies?.[CSRF_COOKIE_NAME] || '').trim();
+  const existing = readCsrfCookieToken(req);
   if (existing) return existing;
 
   const token = generateCsrfToken();
@@ -62,7 +65,7 @@ export const requireCsrf = (req, res, next) => {
   );
   if (hasBearerToken) return next();
 
-  const cookieToken = String(req.cookies?.[CSRF_COOKIE_NAME] || '').trim();
+  const cookieToken = readCsrfCookieToken(req);
   const headerToken = getHeaderToken(req);
 
   if (!cookieToken || !headerToken) {
