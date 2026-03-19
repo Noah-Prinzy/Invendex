@@ -29,6 +29,14 @@ out/
 .nuxt/
 .svelte-kit/
 coverage/
+*.zip
+*.7z
+*.rar
+*.tar
+*.gz
+*.tgz
+*.bz2
+*.xz
 
 # =========================
 # Logs

@@ -61,6 +61,12 @@ npm run dev:frontend
 
 ## Quality Commands
 
+- Repo hygiene:
+
+```bash
+npm run check:repo-hygiene
+```
+
 - Backend lint/test:
 
 ```bash
@@ -80,6 +86,7 @@ npm --prefix frontend run build
 
 - Never commit real secrets.
 - Use `backend/.env.example` as the canonical template.
+- Keep local `.env` files untracked.
 - Backend runtime performs strict env validation and refuses startup on critical issues.
 
 ## Release Hygiene
