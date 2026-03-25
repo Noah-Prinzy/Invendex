@@ -25,6 +25,9 @@ dist/
 build/
 build_tmp/
 out/
+.desktop-packager/
+desktop-resources/
+desktop-dist/
 .next/
 .nuxt/
 .svelte-kit/

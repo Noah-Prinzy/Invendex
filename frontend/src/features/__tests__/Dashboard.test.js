@@ -247,7 +247,9 @@ describe('Dashboard page', () => {
       expect(getDashboardTopSellingItemsRequest).toHaveBeenCalled();
     });
 
-    expect(await screen.findByText('Widget One')).toBeInTheDocument();
+    expect((await screen.findAllByText('Widget One')).length).toBeGreaterThan(
+      0
+    );
     const supplierHits = await screen.findAllByText('Acme Supplies');
     expect(supplierHits.length).toBeGreaterThan(0);
     expect(screen.getByText('Products in scope')).toBeInTheDocument();
@@ -257,6 +259,8 @@ describe('Dashboard page', () => {
     expect(screen.getByText('91.0 / 100')).toBeInTheDocument();
     expect(screen.getByText('EXCELLENT')).toBeInTheDocument();
     expect(screen.getByText('Stock Aging Buckets')).toBeInTheDocument();
+    expect(screen.getByText('Top Seller Distribution')).toBeInTheDocument();
+    expect(screen.getByText('Warehouse Stock Leaders')).toBeInTheDocument();
     expect(screen.getByText('Dead Stock (90d)')).toBeInTheDocument();
     expect(screen.getByText('AI Inventory Advisor')).toBeInTheDocument();
     expect(screen.getByText('Dead Stock Rescue Actions')).toBeInTheDocument();

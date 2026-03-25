@@ -1,10 +1,10 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
+import { clearDatabase } from './helpers/clearDatabase.js';
+import { getTestDbUri } from './testDbUri.js';
 
 beforeAll(async () => {
   const uri =
-    process.env.MONGO_TEST_URI ||
-    process.env.DB_URL ||
-    'mongodb://127.0.0.1:27017/invendex_test';
+    process.env.MONGO_TEST_URI || process.env.DB_URL || getTestDbUri();
 
   if (!uri) {
     throw new Error(
@@ -16,11 +16,7 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
-  const collections = await mongoose.connection.db.collections();
-
-  for (const collection of collections) {
-    await collection.deleteMany({});
-  }
+  await clearDatabase(mongoose.connection);
 });
 
 afterAll(async () => {

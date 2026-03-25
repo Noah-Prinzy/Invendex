@@ -18,8 +18,11 @@ import {
   getWmsBinInventoryRequest,
   getWmsBinMovementsRequest
 } from '../../api/client.js';
+import SalesChart from '../../charts/SalesChart.js';
+import StockLevelChart from '../../charts/StockLevelChart.js';
 import { SectionHint } from '../../components/PageGuide.js';
 import useOrganizationCurrency from '../../hooks/finance/useOrganizationCurrency.js';
+import useInventory from '../../hooks/inventory/useInventory.js';
 import { readCachedData, writeCachedData } from '../../offline/dataCache.js';
 
 const REPORTS_QUERY_STALE_TIME_MS = 45 * 1000;
@@ -224,9 +227,7 @@ const Dashboard = ({
             ? lowStockSummary
             : [],
           healthScore:
-            healthScore && typeof healthScore === 'object'
-              ? healthScore
-              : null,
+            healthScore && typeof healthScore === 'object' ? healthScore : null,
           inventoryAdvisor:
             inventoryAdvisor && typeof inventoryAdvisor === 'object'
               ? inventoryAdvisor
@@ -295,9 +296,16 @@ const Dashboard = ({
     intelligence.healthScore && typeof intelligence.healthScore === 'object'
       ? intelligence.healthScore
       : null;
-  const scopedOnHandUnits =
+  const inventorySnapshot = useInventory({
+    products: scopedProducts,
+    lowStockSummary: scopedLowStockSummary,
+    healthScore: scopedHealthScore
+  });
+  const digitalTwinOnHandUnits =
     Number(intelligence.digitalTwin?.totals?.unitsBinned || 0) +
     Number(intelligence.digitalTwin?.totals?.unitsUnbinned || 0);
+  const scopedOnHandUnits =
+    digitalTwinOnHandUnits || inventorySnapshot.unitsOnHand;
 
   const agingSummaryRows = useMemo(() => {
     const summary = intelligence.stockAgingBuckets?.summary || {};
@@ -323,7 +331,7 @@ const Dashboard = ({
     },
     {
       label: 'Products in scope',
-      value: String(scopedProducts.length)
+      value: String(inventorySnapshot.productCount)
     },
     {
       label: 'Units on hand',
@@ -331,18 +339,26 @@ const Dashboard = ({
     },
     {
       label: 'Low-stock SKUs',
-      value: String(scopedLowStockSummary.length)
+      value: String(inventorySnapshot.lowStockCount)
     },
     {
       label: 'Inventory health',
-      value: scopedHealthScore
-        ? `${Number(scopedHealthScore.score || 0).toFixed(1)} / 100`
+      value: inventorySnapshot.healthBand
+        ? `${Number(inventorySnapshot.healthScoreValue || 0).toFixed(1)} / 100`
         : '-',
-      caption: scopedHealthScore?.band || 'No score available'
+      caption: inventorySnapshot.healthBand || 'No score available'
+    },
+    {
+      label: 'Estimated stock value',
+      value: formatFromBaseAmount(
+        inventorySnapshot.estimatedInventoryValue || 0
+      )
     },
     {
       label: 'Dead stock items',
-      value: String(Number(intelligence.deadStock?.count || deadStockRows.length))
+      value: String(
+        Number(intelligence.deadStock?.count || deadStockRows.length)
+      )
     },
     {
       label: 'Dead stock value',
@@ -580,6 +596,15 @@ const Dashboard = ({
               Start here if you want to see what is leaving the shelf fastest in
               the selected warehouse scope.
             </SectionHint>
+            <SalesChart
+              rows={intelligence.topSelling}
+              eyebrow="Sales Signal"
+              badge={`${salesWindowDays} day window`}
+              title="Top Seller Distribution"
+              subtitle="Fast-moving products by units sold in the current window"
+              emptyTitle="No demand pulse yet"
+              footer={`Tracking ${Math.min(intelligence.topSelling.length, 6)} top movers for ${salesWindowDays} days.`}
+            />
             {intelligence.topSelling.length ? (
               <div className="table-wrap">
                 <table className="data-table">
@@ -656,6 +681,18 @@ const Dashboard = ({
 
           <article className="data-card">
             <h3>Stock Aging Buckets</h3>
+            <StockLevelChart
+              eyebrow="Aging Signal"
+              badge={`${agingSummaryRows.length} buckets`}
+              rows={agingSummaryRows.map((bucket) => ({
+                ...bucket,
+                value: bucket.quantity
+              }))}
+              title="Aging Volume"
+              subtitle="Units sitting in each stock-age bucket"
+              emptyTitle="No aging distribution yet"
+              footer="Use this with the SKU counts below to spot aging concentration."
+            />
             <ul className="rank-list">
               {agingSummaryRows.map((bucket) => (
                 <li key={bucket.label} className="rank-item">
@@ -696,6 +733,23 @@ const Dashboard = ({
             ) : (
               <p className="muted">No supplier ranking data yet.</p>
             )}
+          </article>
+
+          <article className="data-card">
+            <h3>Stock Coverage Leaders</h3>
+            <SectionHint>
+              This snapshot uses current on-hand quantities to show which SKUs
+              are carrying the most inventory in the selected scope.
+            </SectionHint>
+            <StockLevelChart
+              eyebrow="Coverage Signal"
+              badge={`${inventorySnapshot.topStockedProducts.length} SKU leaders`}
+              rows={inventorySnapshot.topStockedProducts}
+              title="Warehouse Stock Leaders"
+              subtitle="Highest on-hand SKU balances in the current scope"
+              emptyTitle="No stock leaders yet"
+              footer="High bars here are useful for spotting concentration and overstock risk."
+            />
           </article>
 
           <article className="data-card">

@@ -1102,12 +1102,14 @@ const AuthenticatedWorkspace = ({
       return (
         <RequireRole
           role={role}
-          allowedRoles={['owner', 'admin']}
+          allowedRoles={['owner', 'admin', 'manager']}
           fallback={roleGuardFallback}
         >
           <Warehouses
             accessToken={accessToken}
             userRole={role}
+            warehouseId={activeWarehouseId || null}
+            activeWarehouseLabel={selectedWarehouseLabel}
             onWarehousesChanged={refreshWarehouses}
           />
         </RequireRole>

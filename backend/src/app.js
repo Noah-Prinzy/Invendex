@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
@@ -35,6 +38,16 @@ dotenv.config();
 
 const API_V1_BASE_PATH = '/api/v1';
 const LEGACY_API_BASE_PATH = '/api';
+const DESKTOP_RUNTIME_ENABLED =
+  String(process.env.INVENDEX_DESKTOP_RUNTIME || '')
+    .trim()
+    .toLowerCase() === 'true';
+const DESKTOP_FRONTEND_DIR = String(
+  process.env.INVENDEX_DESKTOP_FRONTEND_DIR || ''
+).trim();
+const DESKTOP_FRONTEND_INDEX_PATH = DESKTOP_FRONTEND_DIR
+  ? path.join(DESKTOP_FRONTEND_DIR, 'index.html')
+  : '';
 
 const app = express();
 const corsOriginValidator = createCorsOriginValidator();
@@ -199,6 +212,29 @@ app.get('/api/health', (req, res) => {
 app.get('/api/v1/health', (req, res) => {
   res.status(200).json(buildApiHealthPayload());
 });
+
+if (
+  DESKTOP_RUNTIME_ENABLED &&
+  DESKTOP_FRONTEND_DIR &&
+  DESKTOP_FRONTEND_INDEX_PATH &&
+  existsSync(DESKTOP_FRONTEND_INDEX_PATH)
+) {
+  app.use(express.static(DESKTOP_FRONTEND_DIR));
+
+  app.get('*', (req, res, next) => {
+    if (
+      req.path.startsWith('/api') ||
+      req.path.startsWith('/auth') ||
+      req.path.startsWith('/health') ||
+      req.path.startsWith('/metrics')
+    ) {
+      next();
+      return;
+    }
+
+    res.sendFile(DESKTOP_FRONTEND_INDEX_PATH);
+  });
+}
 
 app.use(errorHandler);
 

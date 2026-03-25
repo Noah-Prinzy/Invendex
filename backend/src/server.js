@@ -40,6 +40,46 @@ import { ensureDefaultPlanCatalog } from './services/subscription/subscriptionSe
 dotenv.config();
 
 const PORT = Number(process.env.PORT) || 4000;
+const NODE_ENV = process.env.NODE_ENV || 'development';
+
+const normalizeStartupError = (error) => {
+  if (!error) return new Error('Unknown startup error');
+
+  const code = String(error.code || '').trim();
+  if (code === 'EADDRINUSE') {
+    const friendlyError = new Error(
+      `Port ${PORT} is already in use. Stop the other process using ${PORT}, then run the dev server again.`
+    );
+    friendlyError.code = code;
+    friendlyError.port = PORT;
+    friendlyError.cause = error;
+    return friendlyError;
+  }
+
+  return error;
+};
+
+const startListening = (httpServer, httpServerTimeoutConfig) =>
+  new Promise((resolve, reject) => {
+    const handleError = (error) => {
+      httpServer.off('listening', handleListening);
+      reject(normalizeStartupError(error));
+    };
+
+    const handleListening = () => {
+      httpServer.off('error', handleError);
+      logger.info('server_started', {
+        port: PORT,
+        nodeEnv: NODE_ENV,
+        httpTimeouts: httpServerTimeoutConfig
+      });
+      resolve();
+    };
+
+    httpServer.once('error', handleError);
+    httpServer.once('listening', handleListening);
+    httpServer.listen(PORT);
+  });
 
 async function startServer() {
   try {
@@ -105,6 +145,8 @@ async function startServer() {
       });
     }
 
+    await startListening(httpServer, httpServerTimeoutConfig);
+
     autoSendPurchaseOrdersJob();
     autoClosePurchaseOrdersJob();
 
@@ -113,14 +155,6 @@ async function startServer() {
     startInventoryIntegrityCron();
     startForecastGenerationCron();
     startForecastReorderCron();
-
-    httpServer.listen(PORT, () => {
-      logger.info('server_started', {
-        port: PORT,
-        nodeEnv: process.env.NODE_ENV || 'development',
-        httpTimeouts: httpServerTimeoutConfig
-      });
-    });
 
     const shutdown = async () => {
       try {
@@ -137,10 +171,12 @@ async function startServer() {
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
   } catch (error) {
+    const startupError = normalizeStartupError(error);
     logger.error('server_start_failed', {
-      err: error
+      err: startupError,
+      port: PORT
     });
-    await captureException(error, { scope: 'bootstrap' });
+    await captureException(startupError, { scope: 'bootstrap', port: PORT });
     await flushErrorTracker();
     process.exit(1);
   }

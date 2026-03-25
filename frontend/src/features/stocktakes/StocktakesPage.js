@@ -801,8 +801,8 @@ const StocktakesPage = ({
       <article className="data-card" data-tutorial-id="stocktakes-create">
         <h3>Create stocktake session</h3>
         <SectionHint>
-          Create a new session whenever a team is about to physically count items
-          in a warehouse.
+          Create a new session whenever a team is about to physically count
+          items in a warehouse.
         </SectionHint>
         <form className="control-row" onSubmit={handleCreateSession}>
           <label className="control-field">
@@ -864,8 +864,8 @@ const StocktakesPage = ({
       <article className="data-card" data-tutorial-id="stocktakes-session">
         <h3>Session list</h3>
         <SectionHint>
-          Use filters here to find the exact count session you want to continue or
-          review.
+          Use filters here to find the exact count session you want to continue
+          or review.
         </SectionHint>
         <div className="control-row compact">
           <label className="control-field">
@@ -1020,6 +1020,7 @@ const StocktakesPage = ({
                         <td>{expectedQuantity}</td>
                         <td>
                           <input
+                            className="table-count-input"
                             type="number"
                             min="0"
                             step="1"
@@ -1034,7 +1035,6 @@ const StocktakesPage = ({
                                 [productId]: value
                               }));
                             }}
-                            style={{ width: '92px' }}
                           />
                         </td>
                         <td>{Number.isFinite(variance) ? variance : '-'}</td>
@@ -1045,7 +1045,7 @@ const StocktakesPage = ({
               </table>
             </div>
 
-            <div className="action-row" style={{ marginTop: '0.75rem' }}>
+            <div className="action-row">
               <button
                 type="button"
                 className="btn-ghost"
@@ -1120,7 +1120,7 @@ const StocktakesPage = ({
         />
         {scannerError ? <p className="form-error">{scannerError}</p> : null}
         {Object.keys(scannerTallies).length ? (
-          <div className="table-wrap" style={{ marginTop: '0.65rem' }}>
+          <div className="table-wrap">
             <table className="data-table">
               <thead>
                 <tr>
@@ -1159,7 +1159,7 @@ const StocktakesPage = ({
           Capture or upload a shelf image to estimate SKU counts, then apply to
           the draft.
         </p>
-        <div className="action-row" style={{ marginBottom: '0.6rem' }}>
+        <div className="action-row">
           <button
             type="button"
             className="btn-ghost"
@@ -1196,9 +1196,7 @@ const StocktakesPage = ({
         />
         {visionImageDataUrl ? (
           <>
-            <p className="section-note" style={{ marginTop: '0.6rem' }}>
-              Captured/selected image preview
-            </p>
+            <p className="section-note">Captured/selected image preview</p>
             <img
               src={visionImageDataUrl}
               alt="Stocktake shelf capture"
@@ -1206,7 +1204,7 @@ const StocktakesPage = ({
             />
           </>
         ) : null}
-        <div className="action-row" style={{ marginTop: '0.75rem' }}>
+        <div className="action-row">
           <button
             type="button"
             className="btn-ghost"
@@ -1255,7 +1253,7 @@ const StocktakesPage = ({
           </div>
         ) : null}
         {Array.isArray(visionResult?.counts) && visionResult.counts.length ? (
-          <div className="table-wrap" style={{ marginTop: '0.6rem' }}>
+          <div className="table-wrap">
             <table className="data-table">
               <thead>
                 <tr>

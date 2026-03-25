@@ -157,8 +157,10 @@ describe('Reports page', () => {
       />
     );
 
-    expect(await screen.findByText('Acme Supply')).toBeInTheDocument();
-    expect(screen.getByText('Bravo Parts')).toBeInTheDocument();
+    expect((await screen.findAllByText('Acme Supply')).length).toBeGreaterThan(
+      0
+    );
+    expect(screen.getAllByText('Bravo Parts').length).toBeGreaterThan(0);
     expect(getReportSpendSummaryRequest).toHaveBeenCalledWith({
       accessToken: 'token',
       warehouseId: 'warehouse-1'
@@ -176,7 +178,7 @@ describe('Reports page', () => {
 
     await waitFor(() => {
       expect(screen.queryByText('Acme Supply')).not.toBeInTheDocument();
-      expect(screen.getByText('Bravo Parts')).toBeInTheDocument();
+      expect(screen.getAllByText('Bravo Parts').length).toBeGreaterThan(0);
     });
   });
 
@@ -240,6 +242,9 @@ describe('Reports page', () => {
     expect(screen.getByRole('menu')).toBeInTheDocument();
     expect(
       screen.getByRole('menuitem', { name: 'PO status Excel' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: 'Print summary PDF' })
     ).toBeInTheDocument();
     expect(
       screen.getByRole('menuitem', { name: 'Download queued inventory export' })

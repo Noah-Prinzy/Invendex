@@ -10,14 +10,19 @@ Invendex is a multi-tenant inventory and purchasing platform with:
 
 ## Monorepo Structure
 
-- `backend/` Express + MongoDB API
-- `frontend/` React web app
+- `backend/` Express + MongoDB API, Socket.IO realtime, cron jobs, background jobs
+- `frontend/` React 18 + Vite web app
+- `desktop/` Electron shell that runs the bundled backend and frontend together
+- `e2e/` Playwright smoke coverage
+- `ops/` monitoring and deployment support files
+- `scripts/` root dev, desktop packaging, and release helpers
 
 ## Prerequisites
 
 - Node.js 18+
 - npm 9+
 - MongoDB (local or Atlas)
+- Redis is optional and only needed for BullMQ-backed background jobs or scaled realtime/rate limiting
 
 ## Quick Start
 
@@ -59,6 +64,37 @@ npm run dev:backend
 npm run dev:frontend
 ```
 
+Dev defaults:
+
+- frontend: `http://localhost:3000`
+- backend health: `http://localhost:4000/health`
+- API docs: `http://localhost:4000/api/docs` and `http://localhost:4000/api/v1/docs`
+
+## Desktop App
+
+Prepare the desktop bundle and run Electron locally:
+
+```bash
+npm run desktop:dev
+```
+
+Create a packaged desktop build:
+
+```bash
+npm run desktop:build
+```
+
+`npm run desktop:build` now produces:
+
+- an installable Windows NSIS installer in `desktop-dist/`
+- `latest.yml` and `.blockmap` files for desktop auto-updates
+- a `win-unpacked/` folder for local verification
+
+The desktop runtime is intentionally explicit. The backend only serves bundled desktop assets when `INVENDEX_DESKTOP_RUNTIME=true`.
+
+Desktop distribution and update-feed setup are documented in [docs/desktop-distribution.md](docs/desktop-distribution.md).
+GitHub Releases publishing is automated by [.github/workflows/desktop-release.yml](.github/workflows/desktop-release.yml).
+
 ## Quality Commands
 
 - Repo hygiene:
@@ -82,11 +118,22 @@ npm --prefix frontend test
 npm --prefix frontend run build
 ```
 
+- End-to-end smoke:
+
+```bash
+npm run test:e2e
+```
+
+Notes:
+
+- backend tests require MongoDB and default to `mongodb://127.0.0.1:27017/invendex_test`
+- Playwright starts an isolated stack on frontend `3100` and backend `4100`
+
 ## Environment and Secrets
 
 - Never commit real secrets.
 - Use `backend/.env.example` as the canonical template.
-- Keep local `.env` files untracked.
+- Keep local `.env` files untracked. The repo hygiene check will fail if a real `.env` file is committed.
 - Backend runtime performs strict env validation and refuses startup on critical issues.
 
 ## Release Hygiene
@@ -105,5 +152,7 @@ npm run release:bundle
 
 GitHub Actions CI runs:
 
+- repo hygiene checks,
 - backend format/lint/test,
-- frontend format/lint/test/build.
+- frontend format/lint/test/build,
+- Playwright smoke coverage.

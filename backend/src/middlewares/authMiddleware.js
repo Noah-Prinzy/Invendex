@@ -1,5 +1,6 @@
 import User from '../models/User.js';
 import { AppError } from '../errors/AppError.js';
+import { ERROR_CODES } from '../errors/errorCodes.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { verifyAccessToken } from '../utils/token.js';
 
@@ -36,7 +37,13 @@ export const protect = async (req, res, next) => {
     }
 
     if (!token) {
-      return next(new AppError('Not authorized, no token provided', 401));
+      return next(
+        new AppError(
+          'Not authorized, no token provided',
+          401,
+          ERROR_CODES.AUTH_MISSING_TOKEN
+        )
+      );
     }
 
     let decoded;
@@ -44,20 +51,42 @@ export const protect = async (req, res, next) => {
       decoded = verifyAccessToken(token);
     } catch (err) {
       if (err.name === 'TokenExpiredError') {
-        return next(new AppError('Access token expired', 401));
+        return next(
+          new AppError(
+            'Access token expired',
+            401,
+            ERROR_CODES.AUTH_TOKEN_EXPIRED
+          )
+        );
       }
-      return next(new AppError('Invalid access token', 401));
+      return next(
+        new AppError(
+          'Invalid access token',
+          401,
+          ERROR_CODES.AUTH_INVALID_TOKEN
+        )
+      );
     }
 
     // 🔎 Check user still exists
     const user = await User.findById(decoded.id).select('-password');
 
     if (!user) {
-      return next(new AppError('User no longer exists', 401));
+      return next(
+        new AppError(
+          'User no longer exists',
+          401,
+          ERROR_CODES.AUTH_USER_NOT_FOUND
+        )
+      );
     }
     if (user.isActive === false) {
       return next(
-        new AppError('Account is deactivated. Contact an administrator.', 403)
+        new AppError(
+          'Account is deactivated. Contact an administrator.',
+          403,
+          ERROR_CODES.AUTH_ACCOUNT_DEACTIVATED
+        )
       );
     }
 
@@ -68,7 +97,11 @@ export const protect = async (req, res, next) => {
 
     if (requiresVerifiedEmail && user.isVerified !== true) {
       return next(
-        new AppError('Email verification required for this account.', 403)
+        new AppError(
+          'Email verification required for this account.',
+          403,
+          ERROR_CODES.AUTH_EMAIL_VERIFICATION_REQUIRED
+        )
       );
     }
 

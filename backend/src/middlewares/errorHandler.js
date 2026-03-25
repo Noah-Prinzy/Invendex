@@ -1,6 +1,7 @@
 import { captureException } from '../observability/errorTracker.js';
 import { logger } from '../observability/logger.js';
 import { raiseOperationalAlert } from '../observability/opsAlerting.js';
+import { ERROR_CODES } from '../errors/errorCodes.js';
 
 const recentAlertMap = new Map();
 const ALERT_COOLDOWN_MS = Number(process.env.OPS_ALERT_COOLDOWN_MS || 60_000);
@@ -19,11 +20,14 @@ const shouldRaiseAlert = ({ path, statusCode }) => {
 export const errorHandler = (err, req, res, _next) => {
   let statusCode = err.statusCode || 500;
   let message = err.message || 'Internal server error';
+  let errorCode =
+    typeof err?.errorCode === 'string' ? String(err.errorCode).trim() : '';
 
   if (err.code === 11000) {
     statusCode = 409;
     const field = Object.keys(err.keyValue || {})[0] || 'resource';
     message = `${field} already exists`;
+    errorCode = ERROR_CODES.DUPLICATE_RESOURCE;
   }
 
   if (err.name === 'ValidationError') {
@@ -31,16 +35,23 @@ export const errorHandler = (err, req, res, _next) => {
     message = Object.values(err.errors || {})
       .map((entry) => entry.message)
       .join(', ');
+    errorCode = ERROR_CODES.VALIDATION_FAILED;
   }
 
   if (err.name === 'JsonWebTokenError') {
     statusCode = 401;
     message = 'Invalid token';
+    errorCode = ERROR_CODES.AUTH_INVALID_TOKEN;
   }
 
   if (err.name === 'TokenExpiredError') {
     statusCode = 401;
     message = 'Token expired';
+    errorCode = ERROR_CODES.AUTH_TOKEN_EXPIRED;
+  }
+
+  if (!errorCode && statusCode >= 500) {
+    errorCode = ERROR_CODES.INTERNAL_SERVER_ERROR;
   }
 
   const logMeta = {
@@ -96,6 +107,7 @@ export const errorHandler = (err, req, res, _next) => {
 
   res.status(statusCode).json({
     success: false,
-    message
+    message,
+    ...(errorCode ? { code: errorCode } : {})
   });
 };

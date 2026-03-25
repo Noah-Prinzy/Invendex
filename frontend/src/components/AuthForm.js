@@ -212,6 +212,79 @@ const AuthForm = ({
         'Collaborate inside assigned company scope',
         'Follow manager-approved operational actions'
       ];
+  const heroSupportChips = isTwoFactorChallengeActive
+    ? ['Secure challenge', 'One-time code', 'Recovery option']
+    : isAdminPortal
+      ? ['Secure sign-in', 'Role governance', 'Audit-ready access']
+      : [
+          'Company-scoped access',
+          'Operational workflows',
+          'Team-ready sign-in'
+        ];
+  const formSectionLabel = isTwoFactorChallengeActive
+    ? 'Verification Details'
+    : isAdminPortal
+      ? isAdminSignUp
+        ? 'Employer Setup'
+        : isAdminForgot
+          ? 'Recovery Request'
+          : isAdminReset
+            ? 'Reset Credentials'
+            : isAdminVerify
+              ? 'Email Verification'
+              : 'Access Credentials'
+      : isEmployeeSignUp
+        ? 'Employee Request'
+        : 'Shift Access';
+  const formSectionHint = isTwoFactorChallengeActive
+    ? 'Enter the authenticator code or a recovery code to finish this protected sign in.'
+    : isAdminPortal
+      ? isAdminSignUp
+        ? 'Set up the core company account that will govern inventory, approvals, and workspace administration.'
+        : isAdminForgot
+          ? 'Provide the email address tied to the admin account and continue the recovery flow.'
+          : isAdminReset
+            ? 'Apply the issued token and choose the new credentials for the admin account.'
+            : isAdminVerify
+              ? 'Use the verification token sent to the admin email to confirm access.'
+              : 'Sign in with your admin credentials to manage the full Invendex workspace.'
+      : isEmployeeSignUp
+        ? 'Submit the employee details required for an approval-based signup request.'
+        : 'Use your assigned company name, username, and password to continue into daily operations.';
+  const statusChips = isTwoFactorChallengeActive
+    ? [portalLabel, 'Protected access']
+    : isAdminPortal
+      ? [
+          portalLabel,
+          isAdminSignUp ? 'Workspace creation' : 'Employer controls'
+        ]
+      : [
+          portalLabel,
+          isEmployeeSignUp ? 'Approval request' : 'Daily operations'
+        ];
+
+  const renderField = ({
+    id,
+    label,
+    type = 'text',
+    placeholder = '',
+    autoComplete,
+    required = false
+  }) => (
+    <div key={id} className="auth-authflow-field">
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        name={id}
+        type={type}
+        placeholder={placeholder}
+        value={formValues[id]}
+        onChange={handleChange}
+        autoComplete={autoComplete}
+        required={required}
+      />
+    </div>
+  );
 
   if (!portal) {
     return (
@@ -334,15 +407,24 @@ const AuthForm = ({
 
       <form className="auth-card auth-authflow-card" onSubmit={handleSubmit}>
         <aside className="auth-authflow-hero">
-          <p className="eyebrow">{portalLabel}</p>
-          <h2>{heroTitle}</h2>
-          <p className="form-copy">{copy}</p>
-          <div className="auth-authflow-mode-chip">{title}</div>
-          <ul className="auth-authflow-points">
+          <div className="auth-authflow-hero-copy">
+            <p className="eyebrow">{portalLabel}</p>
+            <h2>{heroTitle}</h2>
+            <p className="form-copy">{copy}</p>
+            <div className="auth-authflow-mode-chip">{title}</div>
+          </div>
+          <div className="auth-authflow-hero-grid">
             {heroHighlights.map((item) => (
-              <li key={item}>{item}</li>
+              <article key={item} className="auth-authflow-point-card">
+                <p>{item}</p>
+              </article>
             ))}
-          </ul>
+          </div>
+          <div className="auth-authflow-hero-support" aria-hidden="true">
+            {heroSupportChips.map((item) => (
+              <span key={item}>{item}</span>
+            ))}
+          </div>
           <div className="auth-authflow-hero-rails" aria-hidden="true">
             <span />
             <span />
@@ -351,249 +433,204 @@ const AuthForm = ({
         </aside>
 
         <div className="auth-authflow-main">
-          <div className="auth-title-row">
-            <div>
-              <h1>{title}</h1>
-              <p className="form-copy">{copy}</p>
+          <div className="auth-authflow-main-top">
+            <div className="auth-title-row">
+              <div className="auth-authflow-title-copy">
+                <p className="auth-authflow-top-eyebrow">Workspace Access</p>
+                <h1>{title}</h1>
+                <p className="form-copy">{copy}</p>
+              </div>
+              <div className="auth-authflow-status-chips" aria-hidden="true">
+                {statusChips.map((chip) => (
+                  <span key={chip} className="auth-authflow-status-chip">
+                    {chip}
+                  </span>
+                ))}
+              </div>
             </div>
+
+            {!isTwoFactorChallengeActive ? (
+              <div className="auth-mode-actions">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className={`auth-mode-btn ${isAdminPortal ? 'active' : ''}`}
+                  onClick={() => setPortalMode(AUTH_PORTALS.ADMIN)}
+                >
+                  Admin portal
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className={`auth-mode-btn ${!isAdminPortal ? 'active' : ''}`}
+                  onClick={() => setPortalMode(AUTH_PORTALS.EMPLOYEE)}
+                >
+                  Employee portal
+                </Button>
+              </div>
+            ) : null}
           </div>
 
-          {!isTwoFactorChallengeActive ? (
-            <div className="auth-mode-actions">
-              <Button
-                type="button"
-                variant="ghost"
-                className={`auth-mode-btn ${isAdminPortal ? 'active' : ''}`}
-                onClick={() => setPortalMode(AUTH_PORTALS.ADMIN)}
-              >
-                Admin portal
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                className={`auth-mode-btn ${!isAdminPortal ? 'active' : ''}`}
-                onClick={() => setPortalMode(AUTH_PORTALS.EMPLOYEE)}
-              >
-                Employee portal
-              </Button>
-            </div>
-          ) : null}
-
-          {!isTwoFactorChallengeActive && !isAdminPortal ? (
-            <>
-              <label htmlFor="companyName">Company Name</label>
-              <input
-                id="companyName"
-                name="companyName"
-                type="text"
-                placeholder="Acme Logistics"
-                value={formValues.companyName}
-                onChange={handleChange}
-                required
-              />
-
-              <label htmlFor="username">Username</label>
-              <input
-                id="username"
-                name="username"
-                type="text"
-                placeholder="jane.staff"
-                value={formValues.username}
-                onChange={handleChange}
-                autoComplete="username"
-                required
-              />
-            </>
-          ) : null}
-
-          {!isTwoFactorChallengeActive && !isAdminPortal && isEmployeeSignUp ? (
-            <>
-              <label htmlFor="email">Email</label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="you@company.com"
-                value={formValues.email}
-                onChange={handleChange}
-                autoComplete="email"
-                required
-              />
-
-              <label htmlFor="mobileNumber">Mobile Number</label>
-              <input
-                id="mobileNumber"
-                name="mobileNumber"
-                type="tel"
-                placeholder="+256700000000"
-                value={formValues.mobileNumber}
-                onChange={handleChange}
-                autoComplete="tel"
-                required
-              />
-            </>
-          ) : null}
-
-          {!isTwoFactorChallengeActive && isAdminPortal && isAdminSignIn ? (
-            <>
-              <label htmlFor="username">Username</label>
-              <input
-                id="username"
-                name="username"
-                type="text"
-                placeholder="admin.username"
-                value={formValues.username}
-                onChange={handleChange}
-                autoComplete="username"
-                required
-              />
-            </>
-          ) : null}
-
-          {!isTwoFactorChallengeActive &&
-          isAdminPortal &&
-          (isAdminSignUp || isAdminForgot || isAdminReset || isAdminVerify) ? (
-            <>
-              <label htmlFor="email">Email</label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="you@company.com"
-                value={formValues.email}
-                onChange={handleChange}
-                autoComplete="email"
-                required
-              />
-            </>
-          ) : null}
-
-          {!isTwoFactorChallengeActive && isAdminPortal && isAdminSignUp ? (
-            <>
-              <label htmlFor="organizationName">Company Name</label>
-              <input
-                id="organizationName"
-                name="organizationName"
-                type="text"
-                placeholder="Acme Operations"
-                value={formValues.organizationName}
-                onChange={handleChange}
-                autoComplete="organization"
-                required
-              />
-
-              <label htmlFor="mobileNumber">Mobile Number</label>
-              <input
-                id="mobileNumber"
-                name="mobileNumber"
-                type="tel"
-                placeholder="+256700000000"
-                value={formValues.mobileNumber}
-                onChange={handleChange}
-                autoComplete="tel"
-                required
-              />
-
-              <label htmlFor="username">Username</label>
-              <input
-                id="username"
-                name="username"
-                type="text"
-                placeholder="admin.username"
-                value={formValues.username}
-                onChange={handleChange}
-                autoComplete="username"
-                required
-              />
-            </>
-          ) : null}
-
-          {!isTwoFactorChallengeActive &&
-          isAdminPortal &&
-          (isAdminReset || isAdminVerify) ? (
-            <>
-              <label htmlFor="token">Token</label>
-              <input
-                id="token"
-                name="token"
-                type="text"
-                placeholder="Enter token"
-                value={formValues.token}
-                onChange={handleChange}
-                required
-              />
-            </>
-          ) : null}
-
-          {!isTwoFactorChallengeActive &&
-          (isAdminPortal
-            ? isAdminSignIn || isAdminSignUp || isAdminReset
-            : true) ? (
-            <>
-              <label htmlFor="password">Password</label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                placeholder="Enter your password"
-                value={formValues.password}
-                onChange={handleChange}
-                autoComplete="current-password"
-                required
-              />
-            </>
-          ) : null}
-
-          {!isTwoFactorChallengeActive &&
-          ((isAdminPortal && (isAdminSignUp || isAdminReset)) ||
-            (!isAdminPortal && isEmployeeSignUp)) ? (
-            <>
-              <label htmlFor="confirmPassword">Confirm Password</label>
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                placeholder="Confirm your password"
-                value={formValues.confirmPassword}
-                onChange={handleChange}
-                autoComplete="new-password"
-                required
-              />
-            </>
-          ) : null}
-
-          {isTwoFactorChallengeActive ? (
-            <>
-              <p className="form-copy">
-                Account:{' '}
-                {pendingTwoFactorLogin?.username ||
-                  pendingTwoFactorLogin?.email ||
-                  formValues.username ||
-                  formValues.email}
+          <div className="auth-authflow-fields-shell">
+            <div className="auth-authflow-section-head">
+              <p className="auth-authflow-section-eyebrow">
+                {formSectionLabel}
               </p>
-              <label htmlFor="twoFactorCode">Authenticator Code</label>
-              <input
-                id="twoFactorCode"
-                name="twoFactorCode"
-                type="text"
-                placeholder="123456"
-                value={formValues.twoFactorCode}
-                onChange={handleChange}
-                autoComplete="one-time-code"
-              />
-              <label htmlFor="twoFactorRecoveryCode">
-                Recovery Code (optional)
-              </label>
-              <input
-                id="twoFactorRecoveryCode"
-                name="twoFactorRecoveryCode"
-                type="text"
-                placeholder="AB12C-34D5E"
-                value={formValues.twoFactorRecoveryCode}
-                onChange={handleChange}
-              />
-            </>
-          ) : null}
+              <p className="auth-authflow-section-copy">{formSectionHint}</p>
+            </div>
+
+            <div className="auth-authflow-fields">
+              {!isTwoFactorChallengeActive && !isAdminPortal
+                ? [
+                    renderField({
+                      id: 'companyName',
+                      label: 'Company Name',
+                      placeholder: 'Acme Logistics',
+                      required: true
+                    }),
+                    renderField({
+                      id: 'username',
+                      label: 'Username',
+                      placeholder: 'jane.staff',
+                      autoComplete: 'username',
+                      required: true
+                    })
+                  ]
+                : null}
+
+              {!isTwoFactorChallengeActive && !isAdminPortal && isEmployeeSignUp
+                ? [
+                    renderField({
+                      id: 'email',
+                      label: 'Email',
+                      type: 'email',
+                      placeholder: 'you@company.com',
+                      autoComplete: 'email',
+                      required: true
+                    }),
+                    renderField({
+                      id: 'mobileNumber',
+                      label: 'Mobile Number',
+                      type: 'tel',
+                      placeholder: '+256700000000',
+                      autoComplete: 'tel',
+                      required: true
+                    })
+                  ]
+                : null}
+
+              {!isTwoFactorChallengeActive && isAdminPortal && isAdminSignIn
+                ? renderField({
+                    id: 'username',
+                    label: 'Username',
+                    placeholder: 'admin.username',
+                    autoComplete: 'username',
+                    required: true
+                  })
+                : null}
+
+              {!isTwoFactorChallengeActive &&
+              isAdminPortal &&
+              (isAdminSignUp || isAdminForgot || isAdminReset || isAdminVerify)
+                ? renderField({
+                    id: 'email',
+                    label: 'Email',
+                    type: 'email',
+                    placeholder: 'you@company.com',
+                    autoComplete: 'email',
+                    required: true
+                  })
+                : null}
+
+              {!isTwoFactorChallengeActive && isAdminPortal && isAdminSignUp
+                ? [
+                    renderField({
+                      id: 'organizationName',
+                      label: 'Company Name',
+                      placeholder: 'Acme Operations',
+                      autoComplete: 'organization',
+                      required: true
+                    }),
+                    renderField({
+                      id: 'mobileNumber',
+                      label: 'Mobile Number',
+                      type: 'tel',
+                      placeholder: '+256700000000',
+                      autoComplete: 'tel',
+                      required: true
+                    }),
+                    renderField({
+                      id: 'username',
+                      label: 'Username',
+                      placeholder: 'admin.username',
+                      autoComplete: 'username',
+                      required: true
+                    })
+                  ]
+                : null}
+
+              {!isTwoFactorChallengeActive &&
+              isAdminPortal &&
+              (isAdminReset || isAdminVerify)
+                ? renderField({
+                    id: 'token',
+                    label: 'Token',
+                    placeholder: 'Enter token',
+                    required: true
+                  })
+                : null}
+
+              {!isTwoFactorChallengeActive &&
+              (isAdminPortal
+                ? isAdminSignIn || isAdminSignUp || isAdminReset
+                : true)
+                ? renderField({
+                    id: 'password',
+                    label: 'Password',
+                    type: 'password',
+                    placeholder: 'Enter your password',
+                    autoComplete: 'current-password',
+                    required: true
+                  })
+                : null}
+
+              {!isTwoFactorChallengeActive &&
+              ((isAdminPortal && (isAdminSignUp || isAdminReset)) ||
+                (!isAdminPortal && isEmployeeSignUp))
+                ? renderField({
+                    id: 'confirmPassword',
+                    label: 'Confirm Password',
+                    type: 'password',
+                    placeholder: 'Confirm your password',
+                    autoComplete: 'new-password',
+                    required: true
+                  })
+                : null}
+
+              {isTwoFactorChallengeActive ? (
+                <>
+                  <p className="form-copy auth-authflow-account-state">
+                    Account:{' '}
+                    {pendingTwoFactorLogin?.username ||
+                      pendingTwoFactorLogin?.email ||
+                      formValues.username ||
+                      formValues.email}
+                  </p>
+                  {renderField({
+                    id: 'twoFactorCode',
+                    label: 'Authenticator Code',
+                    placeholder: '123456',
+                    autoComplete: 'one-time-code'
+                  })}
+                  {renderField({
+                    id: 'twoFactorRecoveryCode',
+                    label: 'Recovery Code (optional)',
+                    placeholder: 'AB12C-34D5E'
+                  })}
+                </>
+              ) : null}
+            </div>
+          </div>
 
           {error ? (
             <p className="form-error" role="alert" aria-live="assertive">
@@ -606,29 +643,31 @@ const AuthForm = ({
             </p>
           ) : null}
 
-          <Button type="submit" variant="primary" disabled={isLoading}>
-            {isLoading
-              ? 'Submitting...'
-              : isTwoFactorChallengeActive
-                ? 'Verify code'
-                : isAdminPortal
-                  ? isAdminSignUp
-                    ? 'Create admin account'
-                    : isAdminForgot
-                      ? 'Send reset token'
-                      : isAdminReset
-                        ? 'Apply password reset'
-                        : isAdminVerify
-                          ? 'Verify email'
-                          : 'Sign in as admin'
-                  : isEmployeeSignUp
-                    ? 'Request employee signup'
-                    : 'Sign in as employee'}
-          </Button>
+          <div className="auth-authflow-actions">
+            <Button type="submit" variant="primary" disabled={isLoading}>
+              {isLoading
+                ? 'Submitting...'
+                : isTwoFactorChallengeActive
+                  ? 'Verify code'
+                  : isAdminPortal
+                    ? isAdminSignUp
+                      ? 'Create admin account'
+                      : isAdminForgot
+                        ? 'Send reset token'
+                        : isAdminReset
+                          ? 'Apply password reset'
+                          : isAdminVerify
+                            ? 'Verify email'
+                            : 'Sign in as admin'
+                    : isEmployeeSignUp
+                      ? 'Request employee signup'
+                      : 'Sign in as employee'}
+            </Button>
 
-          <Button type="button" variant="ghost" onClick={resetToRoleSelector}>
-            Choose role again
-          </Button>
+            <Button type="button" variant="ghost" onClick={resetToRoleSelector}>
+              Choose role again
+            </Button>
+          </div>
 
           {isAdminPortal && !isTwoFactorChallengeActive ? (
             <div className="auth-secondary-actions">

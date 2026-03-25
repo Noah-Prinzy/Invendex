@@ -405,6 +405,80 @@ export const getPurchaseOrdersRequest = ({
   }).then(readData);
 };
 
+export const getInventoryActiveReorderAlertsRequest = ({
+  accessToken,
+  warehouseId = null
+}) => {
+  const query = new URLSearchParams();
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.INVENTORY_REORDER_ALERTS_ACTIVE}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const runInventoryReorderEngineRequest = ({ accessToken }) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.INVENTORY_REORDER_ALERTS_RUN,
+    accessToken
+  }).then(readData);
+
+export const createPurchaseOrderRequest = ({
+  accessToken,
+  supplier,
+  warehouse,
+  items = [],
+  expectedDeliveryDate = null,
+  notes = ''
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.PURCHASE_ORDERS,
+    accessToken,
+    body: {
+      supplier,
+      warehouse,
+      items: Array.isArray(items) ? items : [],
+      ...(String(expectedDeliveryDate || '').trim()
+        ? { expectedDeliveryDate: String(expectedDeliveryDate).trim() }
+        : {}),
+      ...(String(notes || '').trim() ? { notes: String(notes).trim() } : {})
+    }
+  }).then(readData);
+
+export const generatePurchaseOrdersFromAlertsRequest = ({
+  accessToken,
+  warehouse,
+  autoSend = false
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.PURCHASE_ORDERS_GENERATE_FROM_ALERTS,
+    accessToken,
+    body: {
+      warehouse,
+      autoSend: autoSend === true
+    }
+  }).then(readData);
+
+export const sendPurchaseOrderRequest = ({ accessToken, purchaseOrderId }) =>
+  request({
+    method: 'PATCH',
+    path: `${API_ENDPOINTS.PURCHASE_ORDERS}/${purchaseOrderId}/send`,
+    accessToken
+  }).then(readData);
+
+export const closePurchaseOrderRequest = ({ accessToken, purchaseOrderId }) =>
+  request({
+    method: 'PATCH',
+    path: `${API_ENDPOINTS.PURCHASE_ORDERS}/${purchaseOrderId}/close`,
+    accessToken
+  }).then(readData);
+
 export const getUsersRequest = (accessToken) =>
   request({
     method: 'GET',
@@ -1028,12 +1102,245 @@ export const getSuppliersRequest = (accessToken) =>
     accessToken
   }).then(readData);
 
+export const createSupplierRequest = ({
+  accessToken,
+  name,
+  email = '',
+  phone = '',
+  notes = '',
+  isActive = true
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.SUPPLIERS,
+    accessToken,
+    body: {
+      name,
+      ...(String(email || '').trim()
+        ? { email: String(email || '').trim() }
+        : {}),
+      ...(String(phone || '').trim()
+        ? { phone: String(phone || '').trim() }
+        : {}),
+      ...(String(notes || '').trim()
+        ? { notes: String(notes || '').trim() }
+        : {}),
+      isActive: isActive !== false
+    }
+  }).then(readData);
+
+export const updateSupplierRequest = ({
+  accessToken,
+  supplierId,
+  payload = {}
+}) =>
+  request({
+    method: 'PUT',
+    path: `${API_ENDPOINTS.SUPPLIERS}/${supplierId}`,
+    accessToken,
+    body: payload
+  }).then(readData);
+
+export const deleteSupplierRequest = ({ accessToken, supplierId }) =>
+  request({
+    method: 'DELETE',
+    path: `${API_ENDPOINTS.SUPPLIERS}/${supplierId}`,
+    accessToken
+  }).then(readData);
+
 export const getSupplierRankingsRequest = (accessToken) =>
   request({
     method: 'GET',
     path: API_ENDPOINTS.SUPPLIERS_RANKINGS,
     accessToken
   }).then(readData);
+
+export const getWmsBinsRequest = ({
+  accessToken,
+  warehouseId = null,
+  includeInactive = false
+}) => {
+  const query = new URLSearchParams();
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  if (includeInactive) query.set('includeInactive', 'true');
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.WMS_BINS}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const createWmsBinRequest = ({
+  accessToken,
+  warehouseId,
+  code,
+  zone = '',
+  aisle = '',
+  rack = '',
+  shelf = '',
+  binType = 'STORAGE',
+  maxCapacityUnits = null,
+  replenishmentMinUnits = null,
+  replenishmentTargetUnits = null
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.WMS_BINS,
+    accessToken,
+    body: {
+      warehouseId,
+      code,
+      ...(String(zone || '').trim() ? { zone: String(zone || '').trim() } : {}),
+      ...(String(aisle || '').trim()
+        ? { aisle: String(aisle || '').trim() }
+        : {}),
+      ...(String(rack || '').trim() ? { rack: String(rack || '').trim() } : {}),
+      ...(String(shelf || '').trim()
+        ? { shelf: String(shelf || '').trim() }
+        : {}),
+      ...(String(binType || '').trim()
+        ? {
+            binType: String(binType || '')
+              .trim()
+              .toUpperCase()
+          }
+        : {}),
+      ...(maxCapacityUnits !== null && maxCapacityUnits !== ''
+        ? { maxCapacityUnits: Number(maxCapacityUnits) }
+        : {}),
+      ...(replenishmentMinUnits !== null && replenishmentMinUnits !== ''
+        ? { replenishmentMinUnits: Number(replenishmentMinUnits) }
+        : {}),
+      ...(replenishmentTargetUnits !== null && replenishmentTargetUnits !== ''
+        ? { replenishmentTargetUnits: Number(replenishmentTargetUnits) }
+        : {})
+    }
+  }).then(readData);
+
+export const allocateWmsBinStockRequest = ({
+  accessToken,
+  warehouseId,
+  binId,
+  productId,
+  quantity,
+  reason = ''
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.WMS_BINS_ALLOCATE,
+    accessToken,
+    body: {
+      warehouseId,
+      binId,
+      productId,
+      quantity,
+      ...(String(reason || '').trim()
+        ? { reason: String(reason || '').trim() }
+        : {})
+    }
+  }).then(readData);
+
+export const transferWmsBinStockRequest = ({
+  accessToken,
+  warehouseId,
+  productId,
+  fromBinId,
+  toBinId,
+  quantity,
+  reason = ''
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.WMS_BINS_TRANSFER,
+    accessToken,
+    body: {
+      warehouseId,
+      productId,
+      fromBinId,
+      toBinId,
+      quantity,
+      ...(String(reason || '').trim()
+        ? { reason: String(reason || '').trim() }
+        : {})
+    }
+  }).then(readData);
+
+export const updateWmsBinRulesRequest = ({
+  accessToken,
+  warehouseId,
+  binId,
+  maxCapacityUnits = undefined,
+  replenishmentMinUnits = undefined,
+  replenishmentTargetUnits = undefined
+}) => {
+  const normalizedBinId = String(binId || '').trim();
+
+  return request({
+    method: 'PATCH',
+    path: `${API_ENDPOINTS.WMS_BINS}/${normalizedBinId}/rules`,
+    accessToken,
+    body: {
+      warehouseId,
+      ...(maxCapacityUnits !== undefined && maxCapacityUnits !== ''
+        ? { maxCapacityUnits: Number(maxCapacityUnits) }
+        : {}),
+      ...(replenishmentMinUnits !== undefined && replenishmentMinUnits !== ''
+        ? { replenishmentMinUnits: Number(replenishmentMinUnits) }
+        : {}),
+      ...(replenishmentTargetUnits !== undefined &&
+      replenishmentTargetUnits !== ''
+        ? { replenishmentTargetUnits: Number(replenishmentTargetUnits) }
+        : {})
+    }
+  }).then(readData);
+};
+
+export const createWmsPickTicketRequest = ({
+  accessToken,
+  warehouseId,
+  items = [],
+  notes = ''
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.WMS_PICK_TICKETS,
+    accessToken,
+    body: {
+      warehouseId,
+      items: Array.isArray(items) ? items : [],
+      ...(String(notes || '').trim()
+        ? { notes: String(notes || '').trim() }
+        : {})
+    }
+  }).then(readData);
+
+export const startWmsPickTicketRequest = ({ accessToken, ticketId }) =>
+  request({
+    method: 'PATCH',
+    path: `${API_ENDPOINTS.WMS_PICK_TICKETS}/${ticketId}/start`,
+    accessToken
+  }).then(readData);
+
+export const completeWmsPickTicketRequest = ({ accessToken, ticketId }) =>
+  request({
+    method: 'PATCH',
+    path: `${API_ENDPOINTS.WMS_PICK_TICKETS}/${ticketId}/complete`,
+    accessToken
+  }).then(readData);
+
+export const getWmsReplenishmentRequest = ({ accessToken, warehouseId }) => {
+  const query = new URLSearchParams();
+  query.set('warehouseId', String(warehouseId));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.WMS_REPLENISHMENT}${suffix}`,
+    accessToken
+  }).then(readData);
+};
 
 export const getWmsMovementLedgerRequest = ({
   accessToken,
@@ -1052,6 +1359,60 @@ export const getWmsMovementLedgerRequest = ({
   return request({
     method: 'GET',
     path: `${API_ENDPOINTS.WMS_MOVEMENTS}${suffix}`,
+    accessToken
+  }).then(readData);
+};
+
+export const transferWmsWarehouseStockRequest = ({
+  accessToken,
+  productId,
+  fromWarehouseId,
+  toWarehouseId,
+  quantity,
+  reason = '',
+  notes = '',
+  idempotencyKey = null
+}) =>
+  request({
+    method: 'POST',
+    path: API_ENDPOINTS.WMS_WAREHOUSE_TRANSFER,
+    accessToken,
+    idempotencyKey,
+    body: {
+      productId,
+      fromWarehouseId,
+      toWarehouseId,
+      quantity,
+      ...(String(reason || '').trim()
+        ? { reason: String(reason || '').trim() }
+        : {}),
+      ...(String(notes || '').trim()
+        ? { notes: String(notes || '').trim() }
+        : {})
+    }
+  }).then(readData);
+
+export const getWmsWarehouseTransfersRequest = ({
+  accessToken,
+  warehouseId = null,
+  fromWarehouseId = null,
+  toWarehouseId = null,
+  productId = null,
+  status = null,
+  limit = 50
+}) => {
+  const query = new URLSearchParams();
+  if (warehouseId) query.set('warehouseId', String(warehouseId));
+  if (fromWarehouseId) query.set('fromWarehouseId', String(fromWarehouseId));
+  if (toWarehouseId) query.set('toWarehouseId', String(toWarehouseId));
+  if (productId) query.set('productId', String(productId));
+  if (status) query.set('status', String(status).toUpperCase());
+  query.set('limit', String(limit));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  return request({
+    method: 'GET',
+    path: `${API_ENDPOINTS.WMS_WAREHOUSE_TRANSFERS}${suffix}`,
     accessToken
   }).then(readData);
 };
@@ -1430,6 +1791,12 @@ export default {
   updateUserStatusRequest,
   updateUserRoleRequest,
   getPurchaseOrdersRequest,
+  getInventoryActiveReorderAlertsRequest,
+  runInventoryReorderEngineRequest,
+  createPurchaseOrderRequest,
+  generatePurchaseOrdersFromAlertsRequest,
+  sendPurchaseOrderRequest,
+  closePurchaseOrderRequest,
   getProductsRequest,
   getDeletedProductsRequest,
   getProductsHealthScoreRequest,
@@ -1467,10 +1834,24 @@ export default {
   archiveWarehouseRequest,
   restoreWarehouseRequest,
   getSuppliersRequest,
+  createSupplierRequest,
+  updateSupplierRequest,
+  deleteSupplierRequest,
   getSupplierRankingsRequest,
+  getWmsBinsRequest,
+  createWmsBinRequest,
+  allocateWmsBinStockRequest,
+  transferWmsBinStockRequest,
+  updateWmsBinRulesRequest,
+  createWmsPickTicketRequest,
+  startWmsPickTicketRequest,
+  completeWmsPickTicketRequest,
+  getWmsReplenishmentRequest,
+  transferWmsWarehouseStockRequest,
   getWmsBinInventoryRequest,
   getWmsBinMovementsRequest,
   getWmsMovementLedgerRequest,
+  getWmsWarehouseTransfersRequest,
   getAuditLogsRequest,
   getReportPurchaseOrderStatusSummaryRequest,
   getReportSpendSummaryRequest,

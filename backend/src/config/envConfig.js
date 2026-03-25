@@ -640,6 +640,25 @@ const validateFxProviderConfig = (issues) => {
   }
 };
 
+const validateDesktopRuntimeConfig = (issues, warnings, nodeEnv) => {
+  const desktopRuntimeEnabled = asBoolean(process.env.INVENDEX_DESKTOP_RUNTIME);
+  const desktopFrontendDir = asString(
+    process.env.INVENDEX_DESKTOP_FRONTEND_DIR
+  );
+
+  if (desktopRuntimeEnabled && nodeEnv !== 'desktop') {
+    warnings.push(
+      'INVENDEX_DESKTOP_RUNTIME=true outside NODE_ENV=desktop; verify this backend instance is intended to serve bundled desktop assets'
+    );
+  }
+
+  if (desktopFrontendDir && !desktopRuntimeEnabled) {
+    warnings.push(
+      'INVENDEX_DESKTOP_FRONTEND_DIR is set without INVENDEX_DESKTOP_RUNTIME=true; bundled desktop assets will not be served'
+    );
+  }
+};
+
 const warnUnsafeFlags = () => {
   const nodeEnv = asString(process.env.NODE_ENV || 'development');
   const authBypass = asBoolean(process.env.AUTH_TEST_BYPASS);
@@ -685,6 +704,7 @@ export const validateRuntimeEnv = () => {
   validateSubscriptionRateLimitConfig(issues);
   validateApiCacheConfig(issues);
   validateFxProviderConfig(issues);
+  validateDesktopRuntimeConfig(issues, warnings, nodeEnv);
   warnUnsafeFlags();
 
   if (warnings.length) {

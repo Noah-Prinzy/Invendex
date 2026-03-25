@@ -1,37 +1,62 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  createSupplierRequest,
+  deleteSupplierRequest,
   getSupplierRankingsRequest,
-  getSuppliersRequest
+  getSuppliersRequest,
+  updateSupplierRequest
 } from '../../api/client.js';
 import { SectionHint } from '../../components/PageGuide.js';
 
 const DIRECTORY_PAGE_SIZE = 8;
 const RANKING_PAGE_SIZE = 6;
 const SUPPLIERS_QUERY_STALE_TIME_MS = 45 * 1000;
+const SUPPLIER_MANAGE_ROLES = new Set(['owner', 'admin']);
+const SUPPLIER_FORM_INITIAL_STATE = Object.freeze({
+  name: '',
+  email: '',
+  phone: '',
+  isActive: true,
+  notes: ''
+});
+
+const resolveSupplierId = (supplier) =>
+  String(supplier?._id || supplier?.id || '').trim();
 
 const Suppliers = ({ accessToken, userRole = null }) => {
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortKey, setSortKey] = useState('name');
   const [sortDirection, setSortDirection] = useState('asc');
   const [directoryPage, setDirectoryPage] = useState(1);
   const [rankingPage, setRankingPage] = useState(1);
-  const isAdmin = String(userRole || '') === 'admin';
+  const [supplierForm, setSupplierForm] = useState(SUPPLIER_FORM_INITIAL_STATE);
+  const [editingSupplierId, setEditingSupplierId] = useState('');
+  const [managementNotice, setManagementNotice] = useState('');
+  const normalizedRole = String(userRole || '')
+    .trim()
+    .toLowerCase();
+  const canManageSuppliers = SUPPLIER_MANAGE_ROLES.has(normalizedRole);
   const suppliersQueryKey = useMemo(
-    () => ['suppliers:index', String(accessToken || ''), String(isAdmin)],
-    [accessToken, isAdmin]
+    () => [
+      'suppliers:index',
+      String(accessToken || ''),
+      String(canManageSuppliers)
+    ],
+    [accessToken, canManageSuppliers]
   );
 
   useEffect(() => {
-    if (isAdmin) return;
+    if (canManageSuppliers) return;
     setDirectoryPage(1);
     setRankingPage(1);
-  }, [isAdmin]);
+  }, [canManageSuppliers]);
 
   const { data, error, isLoading, isFetching, refetch } = useQuery({
     queryKey: suppliersQueryKey,
-    enabled: Boolean(accessToken) && isAdmin,
+    enabled: Boolean(accessToken) && canManageSuppliers,
     staleTime: SUPPLIERS_QUERY_STALE_TIME_MS,
     queryFn: async () => {
       const [suppliersData, rankingsData] = await Promise.all([
@@ -44,6 +69,38 @@ const Suppliers = ({ accessToken, userRole = null }) => {
         rankings: Array.isArray(rankingsData) ? rankingsData : []
       };
     }
+  });
+
+  const refreshSuppliers = async () => {
+    await queryClient.invalidateQueries({
+      queryKey: ['suppliers:index']
+    });
+    await refetch();
+  };
+
+  const createSupplierMutation = useMutation({
+    mutationFn: (payload) =>
+      createSupplierRequest({
+        accessToken,
+        ...payload
+      })
+  });
+
+  const updateSupplierMutation = useMutation({
+    mutationFn: ({ supplierId, payload }) =>
+      updateSupplierRequest({
+        accessToken,
+        supplierId,
+        payload
+      })
+  });
+
+  const deleteSupplierMutation = useMutation({
+    mutationFn: (supplierId) =>
+      deleteSupplierRequest({
+        accessToken,
+        supplierId
+      })
   });
 
   const suppliers = useMemo(
@@ -75,7 +132,7 @@ const Suppliers = ({ accessToken, userRole = null }) => {
     const rows = suppliers.filter((row) => {
       if (normalizedSearch) {
         const haystack =
-          `${row.name || ''} ${row.email || ''} ${row.phone || ''}`.toLowerCase();
+          `${row.name || ''} ${row.email || ''} ${row.phone || ''} ${row.notes || ''}`.toLowerCase();
         if (!haystack.includes(normalizedSearch)) return false;
       }
 
@@ -149,22 +206,117 @@ const Suppliers = ({ accessToken, userRole = null }) => {
     return filteredRankings.slice(start, start + RANKING_PAGE_SIZE);
   }, [filteredRankings, rankingPage]);
 
-  if (!isAdmin) {
+  const resetSupplierForm = () => {
+    setSupplierForm(SUPPLIER_FORM_INITIAL_STATE);
+    setEditingSupplierId('');
+  };
+
+  const handleSupplierFormChange = (field) => (event) => {
+    const nextValue =
+      field === 'isActive' ? event.target.value === 'true' : event.target.value;
+    setSupplierForm((current) => ({
+      ...current,
+      [field]: nextValue
+    }));
+  };
+
+  const handleEditSupplier = (supplier) => {
+    setManagementNotice('');
+    setEditingSupplierId(resolveSupplierId(supplier));
+    setSupplierForm({
+      name: String(supplier?.name || ''),
+      email: String(supplier?.email || ''),
+      phone: String(supplier?.phone || ''),
+      isActive: supplier?.isActive !== false,
+      notes: String(supplier?.notes || '')
+    });
+  };
+
+  const handleDeleteSupplier = async (supplierId) => {
+    if (!supplierId) return;
+
+    setManagementNotice('');
+
+    try {
+      await deleteSupplierMutation.mutateAsync(supplierId);
+      setManagementNotice('Supplier deleted successfully.');
+      if (editingSupplierId === supplierId) {
+        resetSupplierForm();
+      }
+      await refreshSuppliers();
+    } catch (mutationError) {
+      setManagementNotice(
+        String(mutationError?.message || 'Unable to delete supplier')
+      );
+    }
+  };
+
+  const handleSupplierSubmit = async (event) => {
+    event.preventDefault();
+    const name = String(supplierForm.name || '').trim();
+
+    setManagementNotice('');
+
+    if (!name) {
+      setManagementNotice('Supplier name is required.');
+      return;
+    }
+
+    const payload = {
+      name,
+      email: String(supplierForm.email || '').trim(),
+      phone: String(supplierForm.phone || '').trim(),
+      notes: String(supplierForm.notes || '').trim(),
+      isActive: supplierForm.isActive !== false
+    };
+
+    try {
+      if (editingSupplierId) {
+        await updateSupplierMutation.mutateAsync({
+          supplierId: editingSupplierId,
+          payload
+        });
+        setManagementNotice('Supplier updated successfully.');
+      } else {
+        await createSupplierMutation.mutateAsync(payload);
+        setManagementNotice('Supplier created successfully.');
+      }
+
+      resetSupplierForm();
+      await refreshSuppliers();
+    } catch (mutationError) {
+      setManagementNotice(
+        String(
+          mutationError?.message ||
+            (editingSupplierId
+              ? 'Unable to update supplier'
+              : 'Unable to create supplier')
+        )
+      );
+    }
+  };
+
+  const isSubmitting =
+    createSupplierMutation.isPending || updateSupplierMutation.isPending;
+
+  if (!canManageSuppliers) {
     return (
       <section className="panel">
         <header className="panel-head">
           <div>
             <h2>Suppliers</h2>
-            <p>Supplier analytics are restricted by backend role policy.</p>
+            <p>
+              Supplier management is restricted by backend permission policy.
+            </p>
           </div>
         </header>
         <article className="access-card">
           <p className="metric-label">Permission required</p>
-          <h3>Admin role needed</h3>
+          <h3>Owner or admin role needed</h3>
           <p className="muted">
             Your current role is `{userRole || 'unknown'}`. The
-            `/api/suppliers/*` endpoints are currently protected with
-            `requireRoles('admin')`.
+            `/api/suppliers/*` endpoints currently require the
+            `suppliers:manage` permission.
           </p>
         </article>
       </section>
@@ -177,7 +329,8 @@ const Suppliers = ({ accessToken, userRole = null }) => {
         <div>
           <h2>Suppliers</h2>
           <p>
-            Supplier directory and reliability ranking from backend analytics.
+            Manage supplier records and compare reliability scores from the same
+            workspace.
           </p>
         </div>
         <button
@@ -206,13 +359,102 @@ const Suppliers = ({ accessToken, userRole = null }) => {
       </div>
 
       {errorMessage ? <p className="form-error">{errorMessage}</p> : null}
+      {managementNotice ? (
+        <p className="section-note">{managementNotice}</p>
+      ) : null}
 
       <div className="data-grid">
+        <article className="data-card">
+          <h3>{editingSupplierId ? 'Edit supplier' : 'Add supplier'}</h3>
+          <SectionHint>
+            Keep supplier contact data current here so purchasing and reorder
+            decisions have usable supplier records.
+          </SectionHint>
+          <form className="control-row" onSubmit={handleSupplierSubmit}>
+            <label className="control-field">
+              <span>Name</span>
+              <input
+                type="text"
+                value={supplierForm.name}
+                onChange={handleSupplierFormChange('name')}
+                placeholder="Supplier name"
+                disabled={isSubmitting}
+              />
+            </label>
+            <label className="control-field">
+              <span>Email</span>
+              <input
+                type="email"
+                value={supplierForm.email}
+                onChange={handleSupplierFormChange('email')}
+                placeholder="supplier@example.com"
+                disabled={isSubmitting}
+              />
+            </label>
+            <label className="control-field">
+              <span>Phone</span>
+              <input
+                type="text"
+                value={supplierForm.phone}
+                onChange={handleSupplierFormChange('phone')}
+                placeholder="+254..."
+                disabled={isSubmitting}
+              />
+            </label>
+            <label className="control-field">
+              <span>Status</span>
+              <select
+                value={String(supplierForm.isActive)}
+                onChange={handleSupplierFormChange('isActive')}
+                disabled={isSubmitting}
+              >
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+            </label>
+            <label className="control-field">
+              <span>Notes</span>
+              <input
+                type="text"
+                value={supplierForm.notes}
+                onChange={handleSupplierFormChange('notes')}
+                placeholder="Optional notes"
+                disabled={isSubmitting}
+              />
+            </label>
+            <div className="action-row">
+              <button
+                type="submit"
+                className="btn-ghost"
+                disabled={isSubmitting}
+              >
+                {editingSupplierId
+                  ? updateSupplierMutation.isPending
+                    ? 'Saving...'
+                    : 'Save supplier'
+                  : createSupplierMutation.isPending
+                    ? 'Creating...'
+                    : 'Add supplier'}
+              </button>
+              {editingSupplierId ? (
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={resetSupplierForm}
+                  disabled={isSubmitting}
+                >
+                  Cancel edit
+                </button>
+              ) : null}
+            </div>
+          </form>
+        </article>
+
         <article className="data-card" data-tutorial-id="suppliers-directory">
           <h3>Supplier Directory</h3>
           <SectionHint>
-            This table is your contact and status reference for suppliers in the
-            organization.
+            Search the directory, then edit or remove supplier records from the
+            same table.
           </SectionHint>
           <div className="control-row">
             <label className="control-field">
@@ -281,19 +523,45 @@ const Suppliers = ({ accessToken, userRole = null }) => {
                     <th>Email</th>
                     <th>Phone</th>
                     <th>Status</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedDirectory.map((supplier) => (
-                    <tr key={supplier._id || supplier.id}>
-                      <td>{supplier.name || '-'}</td>
-                      <td>{supplier.email || '-'}</td>
-                      <td>{supplier.phone || '-'}</td>
-                      <td>
-                        {supplier.isActive === false ? 'Inactive' : 'Active'}
-                      </td>
-                    </tr>
-                  ))}
+                  {paginatedDirectory.map((supplier) => {
+                    const supplierId = resolveSupplierId(supplier);
+                    return (
+                      <tr key={supplierId}>
+                        <td>{supplier.name || '-'}</td>
+                        <td>{supplier.email || '-'}</td>
+                        <td>{supplier.phone || '-'}</td>
+                        <td>
+                          {supplier.isActive === false ? 'Inactive' : 'Active'}
+                        </td>
+                        <td>
+                          <div className="action-row">
+                            <button
+                              type="button"
+                              className="btn-ghost"
+                              onClick={() => handleEditSupplier(supplier)}
+                              disabled={deleteSupplierMutation.isPending}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-ghost"
+                              onClick={() => handleDeleteSupplier(supplierId)}
+                              disabled={deleteSupplierMutation.isPending}
+                            >
+                              {deleteSupplierMutation.isPending
+                                ? 'Deleting...'
+                                : 'Delete'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

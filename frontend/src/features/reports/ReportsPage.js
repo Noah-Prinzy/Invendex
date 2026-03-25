@@ -16,8 +16,12 @@ import {
   getReportSpendBySupplierRequest,
   getReportSpendSummaryRequest
 } from '../../api/client.js';
+import StockLevelChart from '../../charts/StockLevelChart.js';
+import Chart from '../../components/Chart.js';
 import { SectionHint } from '../../components/PageGuide.js';
 import useOrganizationCurrency from '../../hooks/finance/useOrganizationCurrency.js';
+import { downloadBlobFile, downloadCsvFile } from '../../reports/csvExport.js';
+import { openPrintablePdf } from '../../reports/pdfExport.js';
 
 const SPEND_PAGE_SIZE = 8;
 const REPORTS_QUERY_STALE_TIME_MS = 45 * 1000;
@@ -44,44 +48,6 @@ const resolveUserDisplayName = (user, fallback = 'system') =>
       emailToUsernameFallback(user?.email) ||
       fallback
   ).trim() || fallback;
-
-const sanitizeCsvCell = (value) => {
-  let normalized = String(value ?? '');
-  if (/^[=+\-@]/.test(normalized)) {
-    normalized = `'${normalized}`;
-  }
-  if (/[",\n]/.test(normalized)) {
-    return `"${normalized.replace(/"/g, '""')}"`;
-  }
-  return normalized;
-};
-
-const toCsv = (headers = [], rows = []) => {
-  const headerLine = headers.map(sanitizeCsvCell).join(',');
-  const bodyLines = rows.map((row) =>
-    row.map((value) => sanitizeCsvCell(value)).join(',')
-  );
-  return [headerLine, ...bodyLines].join('\n');
-};
-
-const downloadFile = ({ filename, content, mimeType }) => {
-  const blob = new Blob([content], {
-    type: mimeType || 'text/plain;charset=utf-8'
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-};
-
-const buildReportFilename = (prefix, extension) => {
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  return `invendex-${prefix}-${stamp}.${extension}`;
-};
 
 const Reports = ({
   accessToken,
@@ -112,6 +78,7 @@ const Reports = ({
     baseCurrencyCode,
     conversionRate,
     formatDisplayAmount,
+    localeCode,
     isLoading: currencyLoading
   } = useOrganizationCurrency({
     accessToken
@@ -334,6 +301,36 @@ const Reports = ({
       maximumFractionDigits: 2
     });
 
+  const formatCompactCurrency = (value) => {
+    const amount = Number(value || 0);
+    if (!Number.isFinite(amount)) {
+      return formatCurrency(0);
+    }
+    if (Math.abs(amount) < 1000) {
+      return formatCurrency(amount);
+    }
+
+    try {
+      return new Intl.NumberFormat(localeCode || 'en-US', {
+        style: 'currency',
+        currency: activeCurrencyCode || baseCurrencyCode || 'UGX',
+        currencyDisplay: 'narrowSymbol',
+        notation: 'compact',
+        compactDisplay: 'short',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 1
+      }).format(amount);
+    } catch {
+      return `${String(activeCurrencyCode || baseCurrencyCode || 'UGX').trim()} ${new Intl.NumberFormat(
+        localeCode || 'en-US',
+        {
+          notation: 'compact',
+          maximumFractionDigits: 1
+        }
+      ).format(amount)}`;
+    }
+  };
+
   const totalOpenPurchaseOrders = useMemo(() => {
     if (!statusSummary) return 0;
     return Number(statusSummary.draft || 0) + Number(statusSummary.sent || 0);
@@ -412,19 +409,42 @@ const Reports = ({
     [deadStockRows]
   );
 
+  const supplierChartRows = useMemo(
+    () =>
+      filteredSpendRows.slice(0, 6).map((row, index) => ({
+        id: row._id || row.supplierName || `supplier-${index + 1}`,
+        label: row.supplierName || `Supplier ${index + 1}`,
+        value: Number(row.totalSpend || 0),
+        note: formatCurrency(row.totalSpend)
+      })),
+    [filteredSpendRows, formatCurrency]
+  );
+
+  const financeTrendRows = useMemo(() => {
+    const rows = Array.isArray(grossMargin?.items) ? grossMargin.items : [];
+    return rows.slice(-6).map((row, index) => ({
+      id:
+        row?.period ||
+        row?.date ||
+        row?._id ||
+        `gross-margin-period-${index + 1}`,
+      label:
+        String(
+          row?.label || row?.period || row?.date || `Period ${index + 1}`
+        ).trim() || `Period ${index + 1}`,
+      value: Number(row?.grossMargin ?? row?.value ?? 0),
+      note: `${Number(row?.grossMarginPct || 0).toFixed(1)}% margin`
+    }));
+  }, [grossMargin]);
+
   const handleDownloadSpendBySupplier = () => {
-    const csv = toCsv(
-      ['supplierName', 'totalSpend'],
-      filteredSpendRows.map((row) => [
+    downloadCsvFile({
+      prefix: 'spend-by-supplier',
+      headers: ['supplierName', 'totalSpend'],
+      rows: filteredSpendRows.map((row) => [
         row.supplierName || 'Unknown supplier',
         Number(row.totalSpend || 0).toFixed(2)
       ])
-    );
-
-    downloadFile({
-      filename: buildReportFilename('spend-by-supplier', 'csv'),
-      content: csv,
-      mimeType: 'text/csv;charset=utf-8'
     });
   };
 
@@ -432,8 +452,9 @@ const Reports = ({
     const byProduct = Array.isArray(valuation?.byProduct)
       ? valuation.byProduct
       : [];
-    const csv = toCsv(
-      [
+    downloadCsvFile({
+      prefix: 'inventory-valuation',
+      headers: [
         'method',
         'productName',
         'sku',
@@ -442,7 +463,7 @@ const Reports = ({
         'unitCost',
         'value'
       ],
-      byProduct.map((row) => [
+      rows: byProduct.map((row) => [
         valuation?.method || '',
         row.productName || '',
         row.sku || '',
@@ -451,18 +472,13 @@ const Reports = ({
         Number(row.unitCost || 0).toFixed(2),
         Number(row.value || 0).toFixed(2)
       ])
-    );
-
-    downloadFile({
-      filename: buildReportFilename('inventory-valuation', 'csv'),
-      content: csv,
-      mimeType: 'text/csv;charset=utf-8'
     });
   };
 
   const handleDownloadDeadStockCsv = () => {
-    const csv = toCsv(
-      [
+    downloadCsvFile({
+      prefix: 'dead-stock',
+      headers: [
         'sku',
         'productName',
         'warehouseCode',
@@ -471,7 +487,7 @@ const Reports = ({
         'ageDays',
         'lastMovementAt'
       ],
-      deadStockRows.map((row) => [
+      rows: deadStockRows.map((row) => [
         row.sku || '',
         row.productName || '',
         row.warehouseCode || '',
@@ -480,18 +496,13 @@ const Reports = ({
         Number(row.ageDays || 0),
         row.lastMovementAt || ''
       ])
-    );
-
-    downloadFile({
-      filename: buildReportFilename('dead-stock', 'csv'),
-      content: csv,
-      mimeType: 'text/csv;charset=utf-8'
     });
   };
 
   const handleDownloadMovementCsv = () => {
-    const csv = toCsv(
-      [
+    downloadCsvFile({
+      prefix: 'stock-movements',
+      headers: [
         'movedAt',
         'movementType',
         'sku',
@@ -502,7 +513,7 @@ const Reports = ({
         'reason',
         'referenceType'
       ],
-      movementRows.map((row) => [
+      rows: movementRows.map((row) => [
         row.movedAt || row.createdAt || '',
         row.movementType || '',
         row.product?.sku || '',
@@ -513,19 +524,22 @@ const Reports = ({
         row.reason || '',
         row.referenceType || ''
       ])
-    );
-
-    downloadFile({
-      filename: buildReportFilename('stock-movements', 'csv'),
-      content: csv,
-      mimeType: 'text/csv;charset=utf-8'
     });
   };
 
   const handleDownloadAuditCsv = () => {
-    const csv = toCsv(
-      ['createdAt', 'action', 'entity', 'success', 'username', 'path', 'ip'],
-      auditRows.map((row) => [
+    downloadCsvFile({
+      prefix: 'audit-log',
+      headers: [
+        'createdAt',
+        'action',
+        'entity',
+        'success',
+        'username',
+        'path',
+        'ip'
+      ],
+      rows: auditRows.map((row) => [
         row.createdAt || '',
         row.action || '',
         row.entity || '',
@@ -534,12 +548,71 @@ const Reports = ({
         row.path || '',
         row.ip || ''
       ])
-    );
+    });
+  };
 
-    downloadFile({
-      filename: buildReportFilename('audit-log', 'csv'),
-      content: csv,
-      mimeType: 'text/csv;charset=utf-8'
+  const handlePrintSummaryPdf = () => {
+    openPrintablePdf({
+      title: 'Invendex Summary Report',
+      subtitle: `Scope: ${activeWarehouseLabel || 'All warehouses'} | Currency: ${activeCurrencyCode}`,
+      sections: [
+        {
+          heading: 'PO Status Summary',
+          description: 'Current purchase order counts by workflow stage.',
+          columns: ['Status', 'Count'],
+          rows: sortedStatusRows.map((row) => [row.status, row.count])
+        },
+        {
+          heading: 'Spend by Supplier',
+          description:
+            'Top supplier spend rows from the current filtered result set.',
+          columns: ['Supplier', 'Total spend'],
+          rows: filteredSpendRows
+            .slice(0, 12)
+            .map((row) => [
+              row.supplierName || 'Unknown supplier',
+              formatCurrency(row.totalSpend)
+            ])
+        },
+        {
+          heading: 'Finance Snapshot',
+          description: 'Current valuation and gross margin summary.',
+          columns: ['Metric', 'Value'],
+          rows: [
+            ['Valuation method', valuation?.method || 'n/a'],
+            ['Valued inventory items', Number(valuation?.itemCount || 0)],
+            [
+              'Total inventory value',
+              formatCurrency(valuation?.totalInventoryValue)
+            ],
+            ['Gross margin', formatCurrency(grossMargin?.totals?.grossMargin)],
+            [
+              'Gross margin %',
+              `${Number(grossMargin?.totals?.grossMarginPct || 0).toFixed(2)}%`
+            ]
+          ]
+        },
+        {
+          heading: 'Dead Stock',
+          description: `Top ${Math.min(topDeadStockRows.length, 8)} dead stock rows for the active threshold.`,
+          columns: [
+            'SKU',
+            'Product',
+            'Warehouse',
+            'Qty',
+            'Age (days)',
+            'Value'
+          ],
+          rows: topDeadStockRows.map((row) => [
+            row.sku || '-',
+            row.productName || '-',
+            row.warehouseCode || '-',
+            Number(row.quantityOnHand || 0),
+            Number(row.ageDays || 0),
+            formatCurrency(row.inventoryValue)
+          ])
+        }
+      ].filter((section) => Array.isArray(section.rows) && section.rows.length)
     });
   };
 
@@ -596,15 +669,10 @@ const Reports = ({
         accessToken,
         jobId
       });
-
-      const objectUrl = URL.createObjectURL(file.blob);
-      const link = document.createElement('a');
-      link.href = objectUrl;
-      link.download = file.fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(objectUrl);
+      downloadBlobFile({
+        blob: file.blob,
+        fileName: file.fileName
+      });
     } catch (error) {
       setReportExportError(String(error?.message || 'Failed to export report'));
     } finally {
@@ -672,14 +740,10 @@ const Reports = ({
         accessToken,
         jobId
       });
-      const objectUrl = URL.createObjectURL(file.blob);
-      const link = document.createElement('a');
-      link.href = objectUrl;
-      link.download = file.fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(objectUrl);
+      downloadBlobFile({
+        blob: file.blob,
+        fileName: file.fileName
+      });
     } catch (error) {
       setInventoryExportError(
         String(error?.message || 'Failed to download inventory export')
@@ -735,6 +799,17 @@ const Reports = ({
         action: handleDownloadAuditCsv
       },
       {
+        id: 'print-summary-pdf',
+        label: 'Print summary PDF',
+        disabled:
+          !sortedStatusRows.length &&
+          !filteredSpendRows.length &&
+          !topDeadStockRows.length &&
+          !valuation &&
+          !grossMargin,
+        action: handlePrintSummaryPdf
+      },
+      {
         id: 'full-summary-excel',
         label: 'Full summary Excel',
         disabled:
@@ -774,6 +849,7 @@ const Reports = ({
       auditRows.length,
       deadStockRows.length,
       filteredSpendRows.length,
+      grossMargin,
       inventoryExportBusy,
       inventoryExportJob?.status,
       movementRows.length,
@@ -781,6 +857,8 @@ const Reports = ({
       sortedStatusRows.length,
       spendBySupplier.length,
       statusSummary,
+      topDeadStockRows.length,
+      valuation,
       valuation?.byProduct
     ]
   );
@@ -881,8 +959,11 @@ const Reports = ({
         </article>
         <article className="metric-card">
           <p className="metric-label">Inventory valuation</p>
-          <p className="metric-value">
-            {formatCurrency(valuation?.totalInventoryValue)}
+          <p
+            className="metric-value"
+            title={formatCurrency(valuation?.totalInventoryValue)}
+          >
+            {formatCompactCurrency(valuation?.totalInventoryValue)}
           </p>
         </article>
         <article className="metric-card">
@@ -928,11 +1009,24 @@ const Reports = ({
         <article className="data-card" data-tutorial-id="reports-summary">
           <h3>PO Status Summary</h3>
           <SectionHint>
-            This block shows where purchase orders are sitting in the workflow so
-            you can spot delays before they affect stock.
+            This block shows where purchase orders are sitting in the workflow
+            so you can spot delays before they affect stock.
           </SectionHint>
           {statusSummary ? (
             <>
+              <StockLevelChart
+                eyebrow="Workflow Signal"
+                badge={`${sortedStatusRows.length} active states`}
+                rows={sortedStatusRows.map((row) => ({
+                  ...row,
+                  label: row.status,
+                  value: row.count
+                }))}
+                title="Workflow Pressure"
+                subtitle="Purchase orders grouped by current status"
+                emptyTitle="No workflow pressure detected"
+                footer="Large bars point to stages that may need operational attention."
+              />
               <div className="control-row compact">
                 <label className="control-field">
                   <span>Sort by count</span>
@@ -969,6 +1063,18 @@ const Reports = ({
           </SectionHint>
           {spendBySupplier.length ? (
             <>
+              <Chart
+                eyebrow="Spend Signal"
+                badge={`${Math.min(filteredSpendRows.length, 6)} suppliers in focus`}
+                title="Supplier Spend Concentration"
+                subtitle="Top suppliers by spend from the current filtered set"
+                className="mini-chart-finance"
+                ariaLabel="Supplier spend concentration chart"
+                data={supplierChartRows}
+                valueFormatter={formatCurrency}
+                emptyTitle="No supplier spend in scope"
+                footer="This view makes it easier to spot supplier concentration risk."
+              />
               <div className="control-row">
                 <label className="control-field">
                   <span>Search</span>
@@ -1072,30 +1178,54 @@ const Reports = ({
         <article className="data-card">
           <h3>Finance Snapshot</h3>
           {valuation || grossMargin ? (
-            <ul className="rank-list">
-              <li className="rank-item">
-                <p>Valuation method</p>
-                <span>{valuation?.method || 'n/a'}</span>
-              </li>
-              <li className="rank-item">
-                <p>Valued inventory items</p>
-                <span>{Number(valuation?.itemCount || 0)}</span>
-              </li>
-              <li className="rank-item">
-                <p>Total inventory value</p>
-                <span>{formatCurrency(valuation?.totalInventoryValue)}</span>
-              </li>
-              <li className="rank-item">
-                <p>Gross margin</p>
-                <span>{formatCurrency(grossMargin?.totals?.grossMargin)}</span>
-              </li>
-              <li className="rank-item">
-                <p>Gross margin %</p>
-                <span>
-                  {Number(grossMargin?.totals?.grossMarginPct || 0).toFixed(2)}%
-                </span>
-              </li>
-            </ul>
+            <>
+              <Chart
+                eyebrow="Margin Signal"
+                badge={
+                  financeTrendRows.length
+                    ? `${financeTrendRows.length} recent periods`
+                    : 'Awaiting trend points'
+                }
+                title="Margin Trend"
+                subtitle="Most recent gross margin periods returned by the finance report"
+                className="mini-chart-finance"
+                ariaLabel="Gross margin trend chart"
+                data={financeTrendRows}
+                valueFormatter={formatCurrency}
+                emptyTitle="No margin trend available yet"
+                emptyMessage="No gross margin trend points are available yet."
+                footer="Gross margin trend bars use absolute margin values, with each note showing the margin percentage."
+              />
+              <ul className="rank-list">
+                <li className="rank-item">
+                  <p>Valuation method</p>
+                  <span>{valuation?.method || 'n/a'}</span>
+                </li>
+                <li className="rank-item">
+                  <p>Valued inventory items</p>
+                  <span>{Number(valuation?.itemCount || 0)}</span>
+                </li>
+                <li className="rank-item">
+                  <p>Total inventory value</p>
+                  <span>{formatCurrency(valuation?.totalInventoryValue)}</span>
+                </li>
+                <li className="rank-item">
+                  <p>Gross margin</p>
+                  <span>
+                    {formatCurrency(grossMargin?.totals?.grossMargin)}
+                  </span>
+                </li>
+                <li className="rank-item">
+                  <p>Gross margin %</p>
+                  <span>
+                    {Number(grossMargin?.totals?.grossMarginPct || 0).toFixed(
+                      2
+                    )}
+                    %
+                  </span>
+                </li>
+              </ul>
+            </>
           ) : (
             <p className="muted">Finance summary is not available.</p>
           )}

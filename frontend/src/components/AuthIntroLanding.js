@@ -5,36 +5,42 @@ import '../styles/authIntro.css';
 
 const STORY_SECTIONS = Object.freeze([
   {
-    eyebrow: 'Start Here',
-    title: 'Welcome to Invendex',
+    eyebrow: 'Operational Visibility',
+    title: 'Start with one clear view of the business.',
     description:
-      'See stock clearly, keep teams aligned, and run daily inventory work from one focused workspace.',
+      'Bring inventory, purchasing, and finance into one operating view so decisions are based on the same live numbers.',
+    highlights: ['Shared visibility', 'Live inventory'],
     visualKey: 'overview'
   },
   {
-    eyebrow: 'Watch Operations',
-    title: 'See what each warehouse is doing now.',
+    eyebrow: 'Warehouse Activity',
+    title: 'Follow movement across warehouses in real time.',
     description:
-      'Track stock movement, purchase updates, and warehouse activity in one live control layer built for fast decisions.',
+      'Track receipts, transfers, and purchase-order progress with a workspace designed for fast operational follow-through.',
+    highlights: ['Movement tracking', 'Purchase flow'],
     visualKey: 'operations'
   },
   {
-    eyebrow: 'Spot Issues Early',
-    title: 'Know what needs attention next.',
+    eyebrow: 'Decision Signals',
+    title: 'Spot risk before it slows the operation.',
     description:
-      'Spot low stock, dead stock, and supplier issues early so you can act before they slow the business down.',
+      'Surface low stock, stagnant inventory, and supplier pressure early so teams can respond before service or cash flow is affected.',
+    highlights: ['Early alerts', 'Inventory health'],
     visualKey: 'signals'
   },
   {
-    eyebrow: 'Work By Role',
-    title: 'Give each person the right level of control.',
+    eyebrow: 'Role Control',
+    title: 'Give every team member the right level of access.',
     description:
-      'Admins lead the operation, managers coordinate work, and staff handle daily tasks with clear permission boundaries.',
+      'Keep leadership, managers, and frontline staff aligned with permissions that match responsibility and protect critical workflows.',
+    highlights: ['Structured access', 'Safer workflows'],
     visualKey: 'roles'
   }
 ]);
 
 const AuthIntroLanding = ({
+  eyebrow = '',
+  title = 'Welcome to Invendex',
   description = '',
   onGetStarted = () => {},
   skipStoryScreen = false
@@ -58,6 +64,11 @@ const AuthIntroLanding = ({
         : section
     );
   }, [description]);
+
+  const stageDescription =
+    String(description || '').trim() ||
+    'Inventory, purchasing, and finance in one focused workspace.';
+  const stageEyebrow = String(eyebrow || '').trim();
 
   useEffect(() => {
     if (!showStoryScreen) return undefined;
@@ -123,6 +134,20 @@ const AuthIntroLanding = ({
     setShowStoryScreen(true);
   };
 
+  const handleJumpToStorySection = (index) => {
+    setActiveIndex(index);
+
+    const targetSection = sectionRefs.current[index];
+    if (!targetSection || typeof targetSection.scrollIntoView !== 'function') {
+      return;
+    }
+
+    targetSection.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center'
+    });
+  };
+
   return (
     <main className="auth-landing-experience">
       {!showStoryScreen ? (
@@ -142,27 +167,42 @@ const AuthIntroLanding = ({
           <div className="auth-landing-stage-orb auth-landing-stage-orb-a" />
           <div className="auth-landing-stage-orb auth-landing-stage-orb-b" />
           <div className="auth-landing-stage-grid" />
-          <img
-            src="/logo600.png"
-            alt="Invendex logo"
-            className="auth-landing-stage-logo"
-            loading="eager"
-          />
-          <h1 className="auth-landing-stage-title">Invendex</h1>
-          <div className="auth-landing-stage-pills" aria-hidden="true">
-            <span>Inventory Intelligence</span>
-            <span>Warehouse Control</span>
-            <span>Finance Visibility</span>
+          <div className="auth-landing-stage-shell">
+            <div className="auth-landing-stage-brand">
+              <div className="auth-landing-stage-logo-wrap" aria-hidden="true">
+                <span className="auth-landing-stage-logo-glow" />
+                <img
+                  src="/logo600.png"
+                  alt="Invendex logo"
+                  className="auth-landing-stage-logo"
+                  loading="eager"
+                />
+              </div>
+              <div className="auth-landing-stage-copy">
+                {stageEyebrow ? (
+                  <p className="auth-landing-stage-eyebrow">{stageEyebrow}</p>
+                ) : null}
+                <h1 className="auth-landing-stage-title">{title}</h1>
+                <p className="auth-landing-stage-description">
+                  {stageDescription}
+                </p>
+              </div>
+            </div>
+            <div className="auth-landing-stage-pills" aria-hidden="true">
+              <span>Inventory Intelligence</span>
+              <span>Warehouse Control</span>
+              <span>Finance Visibility</span>
+            </div>
+            <button
+              type="button"
+              className={`auth-landing-stage-continue ${
+                hasRevealedContinuePrompt ? 'is-visible' : ''
+              }`}
+              onClick={handleContinueToStory}
+            >
+              Tap to Continue
+            </button>
           </div>
-          <button
-            type="button"
-            className={`auth-landing-stage-continue ${
-              hasRevealedContinuePrompt ? 'is-visible' : ''
-            }`}
-            onClick={handleContinueToStory}
-          >
-            Tap to Continue
-          </button>
         </section>
       ) : (
         <section className="auth-storyscape" aria-label="Invendex introduction">
@@ -176,6 +216,53 @@ const AuthIntroLanding = ({
             <span className="storyscape-dots" />
           </div>
           <div className="auth-storyscape-inner">
+            <header className="auth-storyscape-overview">
+              <div className="auth-storyscape-overview-copy">
+                <p className="auth-storyscape-overview-eyebrow">
+                  Platform Tour
+                </p>
+                <h2 className="auth-storyscape-overview-title">
+                  See how Invendex keeps inventory, purchasing, and finance
+                  aligned.
+                </h2>
+                <p className="auth-storyscape-overview-description">
+                  A quick walkthrough of how the workspace is structured, what
+                  it surfaces, and how teams stay coordinated inside it.
+                </p>
+              </div>
+              <nav
+                className="auth-storyscape-nav"
+                aria-label="Introduction sections"
+              >
+                {introSections.map((section, index) => {
+                  const stepNumber = String(index + 1).padStart(2, '0');
+                  const isActive = index === activeIndex;
+
+                  return (
+                    <button
+                      key={section.title}
+                      type="button"
+                      className={`auth-storyscape-nav-item ${
+                        isActive ? 'is-active' : ''
+                      }`}
+                      onClick={() => handleJumpToStorySection(index)}
+                    >
+                      <span className="auth-storyscape-nav-step">
+                        {stepNumber}
+                      </span>
+                      <span className="auth-storyscape-nav-copy">
+                        <span className="auth-storyscape-nav-label">
+                          {section.eyebrow}
+                        </span>
+                        <span className="auth-storyscape-nav-title">
+                          {section.title}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </nav>
+            </header>
             {introSections.map((section, index) => {
               const alignmentClass =
                 index % 2 === 0 ? 'story-align-right' : 'story-align-left';
@@ -211,8 +298,11 @@ const AuthIntroLanding = ({
                       <h2>{section.title}</h2>
                       <p>{section.description}</p>
                       <div className="auth-storyscape-meta" aria-hidden="true">
-                        <span className="story-meta-chip">Live control</span>
-                        <span className="story-meta-chip">Audit ready</span>
+                        {section.highlights.map((highlight) => (
+                          <span key={highlight} className="story-meta-chip">
+                            {highlight}
+                          </span>
+                        ))}
                       </div>
                     </div>
                     <div
@@ -220,10 +310,16 @@ const AuthIntroLanding = ({
                       aria-hidden="true"
                     >
                       <span className="visual-grid" />
+                      <span className="visual-header" />
                       <span className="visual-panel" />
                       <span className="visual-ring" />
                       <span className="visual-marker" />
                       <span className="visual-beacon" />
+                      <span className="visual-card card-a" />
+                      <span className="visual-card card-b" />
+                      <span className="visual-card card-c" />
+                      <span className="visual-line line-a" />
+                      <span className="visual-line line-b" />
                       <span className="visual-slab visual-slab-a" />
                       <span className="visual-slab visual-slab-b" />
                       <span className="visual-pillar pillar-a" />
@@ -241,18 +337,45 @@ const AuthIntroLanding = ({
                   <span className="pulse pulse-b" />
                   <span className="pulse pulse-c" />
                 </div>
-                <Button
-                  type="button"
-                  variant="primary"
-                  className="auth-storyscape-get-started-btn"
-                  onClick={onGetStarted}
-                >
-                  Continue
-                </Button>
+                <div className="auth-storyscape-cta-content">
+                  <div className="auth-storyscape-cta-copy">
+                    <p className="auth-storyscape-cta-eyebrow">
+                      Ready to Enter Invendex?
+                    </p>
+                    <h2 className="auth-storyscape-cta-title">
+                      Step into the workspace with the same clarity you just
+                      explored.
+                    </h2>
+                    <p className="auth-storyscape-cta-description">
+                      Continue to sign in or create your account, then bring
+                      inventory, purchasing, and finance into one coordinated
+                      operating flow.
+                    </p>
+                  </div>
+                  <div className="auth-storyscape-cta-actions">
+                    <div
+                      className="auth-storyscape-cta-highlights"
+                      aria-hidden="true"
+                    >
+                      <span>Secure sign-in</span>
+                      <span>Role-based access</span>
+                      <span>Fast workspace setup</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      className="auth-storyscape-get-started-btn"
+                      aria-label="Continue"
+                      onClick={onGetStarted}
+                    >
+                      Continue to Workspace
+                    </Button>
+                    <p className="auth-storyscape-cta-note">
+                      Sign in or create your workspace account.
+                    </p>
+                  </div>
+                </div>
               </div>
-              <p className="auth-storyscape-cta-note">
-                Sign in or create your workspace account.
-              </p>
             </section>
           </div>
         </section>

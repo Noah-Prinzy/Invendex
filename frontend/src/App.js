@@ -152,7 +152,6 @@ const App = () => {
   ) : (
     <Suspense fallback={authIntroFallback}>
       <AuthIntroLanding
-        eyebrow={t('app.brand')}
         title="Welcome to Invendex"
         description={t('app.authIntroDescription')}
         onGetStarted={handleGetStarted}

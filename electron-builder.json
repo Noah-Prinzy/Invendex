@@ -1,0 +1,41 @@
+{
+  "appId": "com.noahprinzy.invendex",
+  "productName": "Invendex",
+  "asar": true,
+  "directories": {
+    "output": "desktop-dist"
+  },
+  "files": ["desktop/**/*", "package.json"],
+  "extraResources": [
+    {
+      "from": "desktop-resources",
+      "to": "desktop-resources",
+      "filter": ["**/*"]
+    }
+  ],
+  "electronUpdaterCompatibility": ">=2.16",
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "frontend/public/logo1024.png",
+    "artifactName": "Invendex-${version}-${arch}.${ext}",
+    "signAndEditExecutable": false,
+    "verifyUpdateCodeSignature": false
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowElevation": true,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": "always",
+    "createStartMenuShortcut": true,
+    "shortcutName": "Invendex",
+    "artifactName": "Invendex-Setup-${version}.${ext}",
+    "runAfterFinish": true,
+    "deleteAppDataOnUninstall": false
+  }
+}
