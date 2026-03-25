@@ -17,11 +17,11 @@ const iconPath = path.join(
   'invendex-desktop.ico'
 );
 const builderConfigPath = path.join(workspaceRoot, 'electron-builder.json');
-const electronBuilderBin = path.join(
+const electronBuilderCliPath = path.join(
   workspaceRoot,
   'node_modules',
-  '.bin',
-  process.platform === 'win32' ? 'electron-builder.cmd' : 'electron-builder'
+  'electron-builder',
+  'cli.js'
 );
 
 const ensureDesktopInputsExist = () => {
@@ -32,7 +32,7 @@ const ensureDesktopInputsExist = () => {
     path.join(workspaceRoot, 'desktop', 'preload.mjs'),
     iconPath,
     builderConfigPath,
-    electronBuilderBin
+    electronBuilderCliPath
   ];
 
   const missingPath = requiredPaths.find((candidate) => !existsSync(candidate));
@@ -47,8 +47,17 @@ const runElectronBuilder = () => {
   rmSync(outputDir, { recursive: true, force: true });
 
   execFileSync(
-    electronBuilderBin,
-    ['--config', builderConfigPath, '--win', 'nsis', '--x64', '--publish', 'never'],
+    process.execPath,
+    [
+      electronBuilderCliPath,
+      '--config',
+      builderConfigPath,
+      '--win',
+      'nsis',
+      '--x64',
+      '--publish',
+      'never'
+    ],
     {
       cwd: workspaceRoot,
       stdio: 'inherit'
