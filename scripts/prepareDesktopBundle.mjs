@@ -21,6 +21,20 @@ const copyTree = (source, target) => {
 };
 
 const pruneBackendDependencies = () => {
+  const npmExecPath = String(process.env.npm_execpath || '').trim();
+
+  if (npmExecPath) {
+    execFileSync(
+      process.execPath,
+      [npmExecPath, 'prune', '--omit=dev', '--no-audit', '--no-fund'],
+      {
+        cwd: desktopBackendDir,
+        stdio: 'inherit'
+      }
+    );
+    return;
+  }
+
   const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
   execFileSync(
