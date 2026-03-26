@@ -1261,19 +1261,27 @@ const Products = ({
                 disabled={createProductMutation.isPending}
               />
             </label>
-            <label className="control-field">
-              <span>Is variant</span>
-              <input
-                type="checkbox"
-                checked={createForm.isVariant}
-                onChange={(event) =>
-                  setCreateForm((current) => ({
-                    ...current,
-                    isVariant: event.target.checked
-                  }))
-                }
-                disabled={createProductMutation.isPending}
-              />
+            <label className="control-toggle">
+              <div className="control-toggle-head">
+                <input
+                  type="checkbox"
+                  checked={createForm.isVariant}
+                  onChange={(event) =>
+                    setCreateForm((current) => ({
+                      ...current,
+                      isVariant: event.target.checked
+                    }))
+                  }
+                  disabled={createProductMutation.isPending}
+                />
+                <div className="control-toggle-copy">
+                  <span className="control-toggle-label">Is variant</span>
+                  <p className="control-toggle-hint">
+                    Turn this on only when the item belongs under a parent
+                    product.
+                  </p>
+                </div>
+              </div>
             </label>
             <label className="control-field">
               <span>Parent product</span>

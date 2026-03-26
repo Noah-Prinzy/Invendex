@@ -400,11 +400,8 @@ const WarehouseStocktakePanel = ({
                 return (
                   <tr
                     key={sessionId}
+                    className={`table-row-interactive${isSelected ? ' is-selected' : ''}`}
                     onClick={() => setSelectedSessionId(sessionId)}
-                    style={{
-                      cursor: 'pointer',
-                      opacity: isSelected ? 1 : 0.92
-                    }}
                   >
                     <td>{row?.title || '-'}</td>
                     <td>{row?.status || '-'}</td>

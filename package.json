@@ -1,7 +1,7 @@
 {
   "name": "invendex-workspace",
   "private": true,
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Invendex desktop and web workspace",
   "author": "Noah Prinzy",
   "main": "desktop/main.mjs",

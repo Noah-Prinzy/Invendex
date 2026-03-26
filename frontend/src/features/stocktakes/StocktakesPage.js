@@ -934,11 +934,8 @@ const StocktakesPage = ({
                   return (
                     <tr
                       key={sessionId}
+                      className={`table-row-interactive${isSelected ? ' is-selected' : ''}`}
                       onClick={() => setSelectedSessionId(sessionId)}
-                      style={{
-                        cursor: 'pointer',
-                        opacity: isSelected ? 1 : 0.92
-                      }}
                     >
                       <td>{session.title || '-'}</td>
                       <td>{session.status || '-'}</td>
@@ -1176,13 +1173,13 @@ const StocktakesPage = ({
           >
             Capture frame
           </button>
-          <label className="btn-ghost" style={{ display: 'inline-flex' }}>
+          <label className="btn-ghost control-file-trigger">
             Upload image
             <input
+              className="inline-file-input"
               type="file"
               accept="image/*"
               onChange={handleVisionFileSelected}
-              style={{ display: 'none' }}
               disabled={visionScanMutation.isPending}
             />
           </label>

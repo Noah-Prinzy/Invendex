@@ -572,14 +572,21 @@ const ProductsBulkImportPanel = ({
             ))}
           </select>
         </label>
-        <label className="control-field">
-          <span>Atomic mode</span>
-          <input
-            type="checkbox"
-            checked={options.atomic}
-            onChange={handleBulkImportOptionChange('atomic')}
-            disabled={isBulkImportBusy}
-          />
+        <label className="control-toggle">
+          <div className="control-toggle-head">
+            <input
+              type="checkbox"
+              checked={options.atomic}
+              onChange={handleBulkImportOptionChange('atomic')}
+              disabled={isBulkImportBusy}
+            />
+            <div className="control-toggle-copy">
+              <span className="control-toggle-label">Atomic mode</span>
+              <p className="control-toggle-hint">
+                Fail the whole import if any row in the CSV is invalid.
+              </p>
+            </div>
+          </div>
         </label>
         <button
           type="button"

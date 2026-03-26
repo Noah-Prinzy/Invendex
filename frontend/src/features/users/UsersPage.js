@@ -38,7 +38,7 @@ const normalizeUsersPayload = (payload) => ({
             admin: [],
             owner: []
           }
-          }
+        }
 });
 
 const emailToUsernameFallback = (value) => {
@@ -613,8 +613,8 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
       <article className="data-card" data-tutorial-id="users-manage">
         <h3>Organization users</h3>
         <SectionHint>
-          Use this table to manage who can enter the workspace and what role each
-          person should have.
+          Use this table to manage who can enter the workspace and what role
+          each person should have.
         </SectionHint>
 
         <div className="control-row">
@@ -668,7 +668,7 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
                       <td>{user.role}</td>
                       <td>{user.isVerified ? 'Yes' : 'No'}</td>
                       <td>{isActive ? 'Active' : 'Inactive'}</td>
-                      <td>
+                      <td className="table-cell-actions">
                         <button
                           type="button"
                           className="btn-ghost"
@@ -681,8 +681,9 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
                           {isActive ? 'Deactivate' : 'Activate'}
                         </button>
                       </td>
-                      <td>
+                      <td className="table-cell-control">
                         <select
+                          className="table-inline-select"
                           value={userRoleValue}
                           disabled={roleChangeDisabled}
                           onChange={(event) =>
@@ -724,9 +725,9 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
               <thead>
                 <tr>
                   <th>Permission</th>
-                  <th>Staff</th>
-                  <th>Manager</th>
-                  <th>Admin</th>
+                  <th className="table-cell-center">Staff</th>
+                  <th className="table-cell-center">Manager</th>
+                  <th className="table-cell-center">Admin</th>
                 </tr>
               </thead>
               <tbody>
@@ -741,8 +742,12 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
                         : [];
                       const enabled = rolePermissions.includes(permission);
                       return (
-                        <td key={`${permission}-${role}`}>
+                        <td
+                          key={`${permission}-${role}`}
+                          className="table-cell-center"
+                        >
                           <input
+                            className="table-checkbox"
                             type="checkbox"
                             checked={enabled}
                             disabled={pendingMatrixRoles.has(role)}
@@ -850,7 +855,7 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
                         ? new Date(invite.expiresAt).toLocaleString()
                         : '-'}
                     </td>
-                    <td>
+                    <td className="table-cell-actions">
                       <button
                         type="button"
                         className="btn-ghost"
