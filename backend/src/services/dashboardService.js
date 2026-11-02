@@ -246,51 +246,18 @@ export const getStockAgingBuckets = async ({
 }) => {
   const now = new Date();
   const warehouseObjectId = warehouseId ? toObjectId(warehouseId) : null;
-  const latestMovements = await Inventory.aggregate([
-    {
-      $match: {
-        organization: toObjectId(organizationId),
-        ...(warehouseObjectId ? { warehouse: warehouseObjectId } : {})
-      }
-    },
-    { $sort: { product: 1, lastMovementAt: -1 } },
-    {
-      $group: {
-        _id: '$product',
-        lastMovementAt: { $first: '$lastMovementAt' }
-      }
-    }
-  ]);
-  const movementByProduct = new Map(
-    latestMovements.map((row) => [String(row._id), row.lastMovementAt])
-  );
-  const rows = await Inventory.aggregate([
-    {
-      $match: {
-        organization: toObjectId(organizationId),
-        ...(warehouseObjectId ? { warehouse: warehouseObjectId } : {}),
-        quantityOnHand: { $gt: 0 }
-      }
-    },
-    {
-      $lookup: {
-        from: 'products',
-        localField: 'product',
-        foreignField: '_id',
-        as: 'product'
-      }
-    },
-    { $unwind: '$product' },
-    {
-      $project: {
-        productId: '$product._id',
-        sku: '$product.sku',
-        name: '$product.name',
-        quantityOnHand: 1,
-        lastMovementAt: 1
-      }
-    }
-  ]);
+
+  const query = {
+    organization: toObjectId(organizationId),
+    quantityOnHand: { $gt: 0 }
+  };
+  if (warehouseObjectId) {
+    query.warehouse = warehouseObjectId;
+  }
+
+  const rows = await Inventory.find(query)
+    .populate('product', 'name sku')
+    .lean();
 
   const summary = {
     bucket0to30: { skuCount: 0, quantity: 0 },
@@ -299,31 +266,31 @@ export const getStockAgingBuckets = async ({
     bucket90plus: { skuCount: 0, quantity: 0 }
   };
 
-  const items = rows.map((row) => {
-    const movementDate = movementByProduct.get(String(row.productId))
-      ? new Date(movementByProduct.get(String(row.productId)))
-      : row.lastMovementAt
+  const items = rows
+    .filter((row) => row.product)
+    .map((row) => {
+      const movementDate = row.lastMovementAt
         ? new Date(row.lastMovementAt)
         : now;
-    const ageDays = Math.floor((now - movementDate) / (1000 * 60 * 60 * 24));
+      const ageDays = Math.floor((now - movementDate) / (1000 * 60 * 60 * 24));
 
-    let bucket = 'bucket0to30';
-    if (ageDays > 90) bucket = 'bucket90plus';
-    else if (ageDays > 60) bucket = 'bucket61to90';
-    else if (ageDays > 30) bucket = 'bucket31to60';
+      let bucket = 'bucket0to30';
+      if (ageDays > 90) bucket = 'bucket90plus';
+      else if (ageDays > 60) bucket = 'bucket61to90';
+      else if (ageDays > 30) bucket = 'bucket31to60';
 
-    summary[bucket].skuCount += 1;
-    summary[bucket].quantity += row.quantityOnHand;
+      summary[bucket].skuCount += 1;
+      summary[bucket].quantity += row.quantityOnHand;
 
-    return {
-      productId: row.productId,
-      sku: row.sku,
-      name: row.name,
-      quantityOnHand: row.quantityOnHand,
-      ageDays,
-      bucket
-    };
-  });
+      return {
+        productId: row.product._id,
+        sku: row.product.sku,
+        name: row.product.name,
+        quantityOnHand: row.quantityOnHand,
+        ageDays,
+        bucket
+      };
+    });
 
   return {
     summary,
