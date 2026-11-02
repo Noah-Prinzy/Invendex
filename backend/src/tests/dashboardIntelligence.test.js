@@ -121,7 +121,7 @@ describe('dashboard intelligence', () => {
         warehouse: warehouseA._id,
         quantityOnHand: 5,
         quantityReserved: 0,
-        lastMovementAt: new Date('2026-02-20')
+        lastMovementAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000)
       },
       {
         organization: organization._id,
@@ -129,7 +129,7 @@ describe('dashboard intelligence', () => {
         warehouse: warehouseB._id,
         quantityOnHand: 9,
         quantityReserved: 0,
-        lastMovementAt: new Date('2025-10-01')
+        lastMovementAt: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000)
       }
     ]);
 
