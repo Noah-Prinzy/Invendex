@@ -249,7 +249,7 @@ export const getStockAgingBuckets = async ({
   const rows = await Inventory.aggregate([
     {
       $match: {
-        organization: new mongoose.Types.ObjectId(organizationId),
+        organization: toObjectId(organizationId),
         ...(warehouseObjectId ? { warehouse: warehouseObjectId } : {}),
         quantityOnHand: { $gt: 0 }
       }
