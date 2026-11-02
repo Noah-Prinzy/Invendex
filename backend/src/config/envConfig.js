@@ -370,7 +370,7 @@ const validateErrorTracking = (issues) => {
     .toLowerCase()
     .trim();
 
-  if (!provider) return;
+  if (!provider || provider === 'none') return;
 
   const allowedProviders = new Set(['none', 'webhook', 'sentry', 'both']);
   if (!allowedProviders.has(provider)) {

@@ -193,7 +193,7 @@ app.get('/health', async (req, res, next) => {
 });
 
 app.get('/health/live', (req, res) => {
-  res.status(200).json({ status: getLivenessHealth().status });
+  res.status(200).json(getLivenessHealth());
 });
 
 app.get('/health/ready', async (req, res, next) => {
