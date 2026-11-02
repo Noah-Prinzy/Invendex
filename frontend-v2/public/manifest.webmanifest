@@ -1,0 +1,10 @@
+{
+  "name": "Invendex",
+  "short_name": "Invendex",
+  "description": "AI-powered multi-warehouse inventory and purchasing for African businesses",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b6fd4",
+  "icons": []
+}

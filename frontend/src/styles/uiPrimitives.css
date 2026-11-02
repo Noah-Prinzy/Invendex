@@ -25,9 +25,9 @@
   line-height: 1.45;
 }
 
-.data-card>.muted:last-child,
-.access-card>.muted:last-child,
-.panel>.muted:last-child,
+.data-card > .muted:last-child,
+.access-card > .muted:last-child,
+.panel > .muted:last-child,
 .event-empty,
 .notification-empty,
 .table-wrap td[colspan] {
@@ -50,9 +50,9 @@
 }
 
 [aria-busy='true'],
-.panel>.event-sub:only-child,
-.panel>.form-copy:only-child,
-.data-card>.event-sub:only-child {
+.panel > .event-sub:only-child,
+.panel > .form-copy:only-child,
+.data-card > .event-sub:only-child {
   position: relative;
   overflow: hidden;
   border: 1px solid var(--border-soft);
@@ -60,9 +60,9 @@
   background: var(--state-surface);
 }
 
-.panel>.event-sub:only-child,
-.panel>.form-copy:only-child,
-.data-card>.event-sub:only-child {
+.panel > .event-sub:only-child,
+.panel > .form-copy:only-child,
+.data-card > .event-sub:only-child {
   min-height: 4.5rem;
   display: grid;
   place-items: center;
@@ -71,16 +71,18 @@
 }
 
 [aria-busy='true']::after,
-.panel>.event-sub:only-child::after,
-.panel>.form-copy:only-child::after,
-.data-card>.event-sub:only-child::after {
+.panel > .event-sub:only-child::after,
+.panel > .form-copy:only-child::after,
+.data-card > .event-sub:only-child::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(100deg,
-      transparent 20%,
-      color-mix(in srgb, var(--surface-1) 72%, transparent) 50%,
-      transparent 80%);
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in srgb, var(--surface-1) 72%, transparent) 50%,
+    transparent 80%
+  );
   transform: translateX(-100%);
   animation: state-shimmer 1.35s ease-in-out infinite;
   pointer-events: none;
@@ -191,11 +193,10 @@ textarea:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-
   [aria-busy='true']::after,
-  .panel>.event-sub:only-child::after,
-  .panel>.form-copy:only-child::after,
-  .data-card>.event-sub:only-child::after {
+  .panel > .event-sub:only-child::after,
+  .panel > .form-copy:only-child::after,
+  .data-card > .event-sub:only-child::after {
     animation: none;
   }
 
@@ -225,7 +226,6 @@ textarea:focus-visible {
 }
 
 @media (forced-colors: active) {
-
   .btn-primary,
   .btn-ghost,
   .btn-danger,
@@ -243,7 +243,7 @@ textarea:focus-visible {
   box-shadow: var(--shadow-sm);
 }
 
-.workflow-disclosure>summary {
+.workflow-disclosure > summary {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -254,15 +254,15 @@ textarea:focus-visible {
   font-weight: 700;
 }
 
-.workflow-disclosure>summary small {
+.workflow-disclosure > summary small {
   color: var(--ink-muted);
   font-weight: 500;
 }
 
-.workflow-disclosure[open]>summary {
+.workflow-disclosure[open] > summary {
   border-bottom: 1px solid var(--border-soft);
 }
 
-.workflow-disclosure>.event-grid {
+.workflow-disclosure > .event-grid {
   padding: 1rem;
 }

@@ -153,10 +153,7 @@ mountApiRoutes(API_V1_BASE_PATH);
 if (legacyApiEnabled) {
   app.use(LEGACY_API_BASE_PATH, (req, res, next) => {
     res.setHeader('Deprecation', 'true');
-    res.setHeader(
-      'Sunset',
-      runtimeConfig.legacyApi.sunset
-    );
+    res.setHeader('Sunset', runtimeConfig.legacyApi.sunset);
     res.setHeader('Link', '</api/v1>; rel="successor-version"');
     next();
   });
@@ -196,7 +193,7 @@ app.get('/health', async (req, res, next) => {
 });
 
 app.get('/health/live', (req, res) => {
-  res.status(200).json({ status: getLivenessHealth().status });
+  res.status(200).json(getLivenessHealth());
 });
 
 app.get('/health/ready', async (req, res, next) => {

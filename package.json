@@ -6,7 +6,7 @@
     "prepare": "husky",
     "check:repo-hygiene": "node ./scripts/checkRepoHygiene.mjs",
     "dev": "concurrently -k -n backend,frontend -c cyan,magenta \"npm --prefix backend run dev\" \"npm --prefix frontend run start\"",
-    "dev:e2e": "concurrently -k -n backend,frontend -c cyan,magenta \"cross-env NODE_ENV=test AUTH_TEST_BYPASS=false PORT=4100 DB_URL=mongodb://127.0.0.1:27017/invendex_e2e JWT_ACCESS_SECRET=test_access_secret_123456789 JWT_REFRESH_SECRET=test_refresh_secret_123456789 COOKIE_SECURE=false CORS_ORIGIN=http://127.0.0.1:3100,http://localhost:3100 SOCKET_CORS_ORIGIN=http://127.0.0.1:3100,http://localhost:3100 APP_WEB_URL=http://127.0.0.1:3100 EMAIL_NOTIFICATIONS_ENABLED=false SMS_PROVIDER=none WHATSAPP_PROVIDER=none npm --prefix backend run dev\" \"cross-env PORT=3100 BROWSER=none REACT_APP_API_BASE_URL=http://127.0.0.1:4100 REACT_APP_SOCKET_BASE_URL=http://127.0.0.1:4100 npm --prefix frontend run start\"",
+    "dev:e2e": "concurrently -k -n backend,frontend -c cyan,magenta \"cross-env NODE_ENV=test RATE_LIMIT_E2E_SCALE=1000 AUTH_TEST_BYPASS=false PORT=4100 DB_URL=mongodb://127.0.0.1:27017/invendex_e2e JWT_ACCESS_SECRET=test_access_secret_123456789 JWT_REFRESH_SECRET=test_refresh_secret_123456789 COOKIE_SECURE=false CORS_ORIGIN=http://127.0.0.1:3100,http://localhost:3100 SOCKET_CORS_ORIGIN=http://127.0.0.1:3100,http://localhost:3100 APP_WEB_URL=http://127.0.0.1:3100 EMAIL_NOTIFICATIONS_ENABLED=false SMS_PROVIDER=none WHATSAPP_PROVIDER=none npm --prefix backend run dev\" \"cross-env PORT=3100 BROWSER=none REACT_APP_API_BASE_URL=http://127.0.0.1:4100 REACT_APP_SOCKET_BASE_URL=http://127.0.0.1:4100 npm --prefix frontend run start\"",
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run start",
     "dev:worker": "npm --prefix backend run worker:background-jobs",
@@ -17,7 +17,11 @@
     "release:bundle": "node scripts/createReleaseBundle.mjs",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
-    "test:e2e:debug": "playwright test --debug"
+    "test:e2e:debug": "playwright test --debug",
+    "dev:v2": "cross-env PORT=3100 npm --prefix frontend-v2 run dev",
+    "build:v2": "npm --prefix frontend-v2 run build",
+    "test:v2": "npm --prefix frontend-v2 test",
+    "lint:v2": "npm --prefix frontend-v2 run lint"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

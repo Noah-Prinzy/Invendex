@@ -106,7 +106,9 @@ const TabBar = ({ tabs = [], activeTab, onChange = () => {} }) => {
         onClick={() => setIsOpen((open) => !open)}
       >
         <span>{activeLabel}</span>
-        <span className="nav-toggle-icon" aria-hidden="true">{isOpen ? 'Close' : 'Menu'}</span>
+        <span className="nav-toggle-icon" aria-hidden="true">
+          {isOpen ? 'Close' : 'Menu'}
+        </span>
       </Button>
 
       <nav
@@ -126,7 +128,11 @@ const TabBar = ({ tabs = [], activeTab, onChange = () => {} }) => {
               ref={(element) => {
                 buttonRefs.current[index] = element;
               }}
-              className={'tab ' + (isActive ? 'active ' : '') + (tab.disabled ? 'disabled' : '')}
+              className={
+                'tab ' +
+                (isActive ? 'active ' : '') +
+                (tab.disabled ? 'disabled' : '')
+              }
               onClick={() => !tab.disabled && selectTab(tab.key)}
               onKeyDown={(event) => handleKeyDown(event, index)}
               disabled={tab.disabled}
@@ -139,7 +145,9 @@ const TabBar = ({ tabs = [], activeTab, onChange = () => {} }) => {
                 {tab.icon || TAB_ICONS[tab.key] || '•'}
               </span>
               <span className="tab-label">{tab.label}</span>
-              {tab.badge !== undefined && tab.badge !== null && tab.badge !== '' ? (
+              {tab.badge !== undefined &&
+              tab.badge !== null &&
+              tab.badge !== '' ? (
                 <span className="tab-badge">{tab.badge}</span>
               ) : null}
             </Button>

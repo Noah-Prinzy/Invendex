@@ -48,8 +48,6 @@ const LEGACY_TUTORIAL_COMPLETED_STORAGE_KEY_PREFIXES = Object.freeze([
   'Invendex:tutorial_completed:'
 ]);
 
-
-
 const sanitizeBaseUrl = (value) =>
   String(value || '')
     .trim()

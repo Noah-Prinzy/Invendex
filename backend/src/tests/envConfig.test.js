@@ -29,10 +29,12 @@ describe('runtime env validation', () => {
   it('does not warn about secure cookies in local development', () => {
     const previousNodeEnv = process.env.NODE_ENV;
     const previousCookieSecure = process.env.COOKIE_SECURE;
+    const previousProvider = process.env.ERROR_TRACKING_PROVIDER;
     const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
 
     process.env.NODE_ENV = 'development';
     process.env.COOKIE_SECURE = '';
+    process.env.ERROR_TRACKING_PROVIDER = 'none';
 
     try {
       validateRuntimeEnv();
@@ -48,6 +50,7 @@ describe('runtime env validation', () => {
       warnSpy.mockRestore();
       process.env.NODE_ENV = previousNodeEnv;
       process.env.COOKIE_SECURE = previousCookieSecure;
+      process.env.ERROR_TRACKING_PROVIDER = previousProvider;
     }
   });
 });

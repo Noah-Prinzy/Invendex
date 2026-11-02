@@ -7,7 +7,6 @@ import {
 import { createIdempotencyKey } from '../../api/idempotency.js';
 import { SectionHint } from '../../components/PageGuide.js';
 
-
 const formatWhen = (iso) => {
   if (!iso) return 'n/a';
   const date = new Date(iso);
@@ -135,10 +134,7 @@ const PurchaseOrders = ({
         </button>
       </header>
 
-      <div
-        className="metric-grid"
-        data-tutorial-id="purchase-orders-metrics"
-      >
+      <div className="metric-grid" data-tutorial-id="purchase-orders-metrics">
         <article className="metric-card">
           <p className="metric-label">Created</p>
           <p className="metric-value">{createdCount}</p>
@@ -164,15 +160,22 @@ const PurchaseOrders = ({
       </div>
 
       {queryErrorMessage ? (
-        <p className="form-error" role="alert">{queryErrorMessage}</p>
+        <p className="form-error" role="alert">
+          {queryErrorMessage}
+        </p>
       ) : null}
-      {actionError ? <p className="form-error" role="alert">{actionError}</p> : null}
-      {actionNotice ? <p className="section-note" role="status" aria-live="polite">{actionNotice}</p> : null}
+      {actionError ? (
+        <p className="form-error" role="alert">
+          {actionError}
+        </p>
+      ) : null}
+      {actionNotice ? (
+        <p className="section-note" role="status" aria-live="polite">
+          {actionNotice}
+        </p>
+      ) : null}
 
-      <article
-        className="data-card"
-        data-tutorial-id="purchase-orders-manage"
-      >
+      <article className="data-card" data-tutorial-id="purchase-orders-manage">
         <h3>Manage purchase orders</h3>
         <SectionHint>
           Review supplier, warehouse, and status before receiving an order. A

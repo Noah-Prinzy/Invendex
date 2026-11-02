@@ -9,8 +9,7 @@ const rateLimitStoreState = {
   reason: 'memory_store_default'
 };
 
-const isRedisRateLimitEnabled = () =>
-  getRuntimeConfig().rateLimitRedis.enabled;
+const isRedisRateLimitEnabled = () => getRuntimeConfig().rateLimitRedis.enabled;
 
 const isProduction = () => getRuntimeConfig().isProduction;
 
@@ -43,7 +42,9 @@ const initializeRateLimitStore = async () => {
       source: 'rate_limit_store'
     }).catch(() => {});
     if (isProduction()) {
-      throw new Error('Distributed Redis rate limiting requires a Redis URL in production');
+      throw new Error(
+        'Distributed Redis rate limiting requires a Redis URL in production'
+      );
     }
     return {
       store: null,
