@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it } from "vitest"
 import JarvisDock from "./JarvisDock"
@@ -21,7 +21,9 @@ describe("JarvisDock", () => {
 
   it("opens via the jarvis:open event (command palette)", async () => {
     render(<JarvisDock />)
-    window.dispatchEvent(new CustomEvent("jarvis:open"))
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("jarvis:open"))
+    })
     expect(
       await screen.findByLabelText(/jarvis ai assistant/i),
     ).toBeInTheDocument()
