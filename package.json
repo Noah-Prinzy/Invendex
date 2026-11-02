@@ -17,7 +17,11 @@
     "release:bundle": "node scripts/createReleaseBundle.mjs",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
-    "test:e2e:debug": "playwright test --debug"
+    "test:e2e:debug": "playwright test --debug",
+    "dev:v2": "cross-env PORT=3100 npm --prefix frontend-v2 run dev",
+    "build:v2": "npm --prefix frontend-v2 run build",
+    "test:v2": "npm --prefix frontend-v2 test",
+    "lint:v2": "npm --prefix frontend-v2 run lint"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
