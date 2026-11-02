@@ -3,7 +3,7 @@ const OFFLINE_URLS = [
   "/",
   "/index.html",
   "/manifest.webmanifest",
-  "/favicon.svg",
+  "/favicon-32.png",
 ]
 
 self.addEventListener("install", (event) => {
