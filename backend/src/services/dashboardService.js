@@ -246,6 +246,24 @@ export const getStockAgingBuckets = async ({
 }) => {
   const now = new Date();
   const warehouseObjectId = warehouseId ? toObjectId(warehouseId) : null;
+  const latestMovements = await Inventory.aggregate([
+    {
+      $match: {
+        organization: toObjectId(organizationId),
+        ...(warehouseObjectId ? { warehouse: warehouseObjectId } : {})
+      }
+    },
+    { $sort: { product: 1, lastMovementAt: -1 } },
+    {
+      $group: {
+        _id: '$product',
+        lastMovementAt: { $first: '$lastMovementAt' }
+      }
+    }
+  ]);
+  const movementByProduct = new Map(
+    latestMovements.map((row) => [String(row._id), row.lastMovementAt])
+  );
   const rows = await Inventory.aggregate([
     {
       $match: {
@@ -282,9 +300,11 @@ export const getStockAgingBuckets = async ({
   };
 
   const items = rows.map((row) => {
-    const movementDate = row.lastMovementAt
-      ? new Date(row.lastMovementAt)
-      : now;
+    const movementDate = movementByProduct.get(String(row.productId))
+      ? new Date(movementByProduct.get(String(row.productId)))
+      : row.lastMovementAt
+        ? new Date(row.lastMovementAt)
+        : now;
     const ageDays = Math.floor((now - movementDate) / (1000 * 60 * 60 * 24));
 
     let bucket = 'bucket0to30';
