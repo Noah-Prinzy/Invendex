@@ -126,6 +126,35 @@ export const handlers = [
       skuCount: demoProducts.length,
     }),
   ),
+  http.post("*/api/v1/ai/chat", async ({ request }) => {
+    const body = (await request.json()) as { message: string }
+    const q = body.message.toLowerCase()
+    let answer: string
+    if (
+      q.includes("stock out") ||
+      q.includes("run out") ||
+      q.includes("reorder")
+    ) {
+      answer =
+        "Based on current stock and 30-day demand: **Cooking Oil 1L** will stock out in ~5 days at the current rate. Suggested reorder: 24 units from Kampala Wholesalers Ltd (3-day lead time). Want me to draft the purchase order?"
+    } else if (q.includes("supplier") || q.includes("lead time")) {
+      answer =
+        "**Kampala Wholesalers Ltd** is your most reliable supplier: avg lead time 3 days, 98% on-time over the last 90 days. Nile Agro Suppliers averages 7 days."
+    } else if (q.includes("dead stock") || q.includes("slow")) {
+      answer =
+        "No dead stock detected in the last 90 days. Your slowest mover is Sugar 1kg at 4 units/week — still healthy."
+    } else {
+      answer = `Here's what I see in your data: 3 SKUs tracked, 1 low-stock alert (Cooking Oil 1L), stock value UGX 812,800. Ask me about stock-outs, suppliers, or dead stock.`
+    }
+    return HttpResponse.json({
+      reply: answer,
+      suggestions: [
+        "Will anything stock out this week?",
+        "Which supplier is most reliable?",
+        "Any dead stock?",
+      ],
+    })
+  }),
   http.get("*/api/v1/dashboard/summary", () =>
     HttpResponse.json({
       totalSkus: demoProducts.length,

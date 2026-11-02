@@ -14,6 +14,8 @@ import type { ReactNode } from "react"
 import { lazy, Suspense } from "react"
 
 const CommandPalette = lazy(() => import("@/components/CommandPalette"))
+const JarvisDock = lazy(() => import("@/components/JarvisDock"))
+
 import Logo from "@/components/Logo"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -104,6 +106,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       </header>
       <Suspense fallback={null}>
         <CommandPalette />
+        <JarvisDock />
       </Suspense>
       <nav className="flex items-center gap-1 border-b px-4 py-2 text-sm">
         <Link
