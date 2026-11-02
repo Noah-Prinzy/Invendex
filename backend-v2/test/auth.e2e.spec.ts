@@ -31,7 +31,9 @@ describe('auth + access guardrails e2e (/api/v1)', () => {
     expect(registerRes.body.data.user.email).toBe('owner@example.com');
     expect(registerRes.body.data.user.role).toBe('owner');
     expect(registerRes.body.data.accessToken).toBeTruthy();
-    expect(String(registerRes.headers['set-cookie'])).toContain('refreshToken=');
+    expect(String(registerRes.headers['set-cookie'])).toContain(
+      'refreshToken='
+    );
 
     const loginRes = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
@@ -123,7 +125,10 @@ describe('auth + access guardrails e2e (/api/v1)', () => {
     const token = reg.body.data.accessToken as string;
     const orgId = reg.body.data.user.organization as string;
     const Organization = ctx.app.get(getModelToken('Organization'));
-    await Organization.updateOne({ _id: orgId }, { isActive: false }).setOptions({
+    await Organization.updateOne(
+      { _id: orgId },
+      { isActive: false }
+    ).setOptions({
       tenantBypass: true
     });
     const res = await request(app.getHttpServer())
@@ -145,9 +150,11 @@ describe('auth + access guardrails e2e (/api/v1)', () => {
       role: 'staff',
       organization: ghostOrg._id
     });
-    await User.updateOne({ _id: ghost._id }, { organization: null }).setOptions({
-      tenantBypass: true
-    });
+    await User.updateOne({ _id: ghost._id }, { organization: null }).setOptions(
+      {
+        tenantBypass: true
+      }
+    );
     const login = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
       .send({ email: 'ghost@example.com', password: 'password123' });
@@ -195,7 +202,9 @@ describe('auth + access guardrails e2e (/api/v1)', () => {
     expect(spec.status).toBe(200);
     expect(spec.body.paths['/api/v1/auth/login']).toBeTruthy();
     expect(spec.body.paths['/api/v1/efiris/invoices']).toBeTruthy();
-    expect(spec.body.paths['/api/v1/payments/mobile-money/request-to-pay']).toBeTruthy();
+    expect(
+      spec.body.paths['/api/v1/payments/mobile-money/request-to-pay']
+    ).toBeTruthy();
 
     const health = await request(app.getHttpServer()).get('/api/v1/health');
     expect(health.status).toBe(200);
@@ -219,7 +228,9 @@ describe('auth + access guardrails e2e (/api/v1)', () => {
       .post('/api/v1/auth/login')
       .send({ email: 'owner@example.com', password: 'password123' });
     const AuditLog = ctx.app.get(getModelToken('AuditLog'));
-    const count = await AuditLog.countDocuments({ action: 'AUTH_LOGIN' }).setOptions({
+    const count = await AuditLog.countDocuments({
+      action: 'AUTH_LOGIN'
+    }).setOptions({
       tenantBypass: true
     });
     expect(count).toBeGreaterThan(0);

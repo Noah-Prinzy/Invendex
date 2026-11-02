@@ -29,7 +29,8 @@ function fakeRes(contentType: string): FakeRes {
     },
     end(chunk?: Buffer | string | (() => void), cb?: () => void) {
       if (typeof chunk === 'function') chunk();
-      else if (chunk) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      else if (chunk)
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
       if (cb) cb();
       return res;
     }
@@ -43,7 +44,10 @@ function fakeRes(contentType: string): FakeRes {
 
 const bigJson = JSON.stringify({
   success: true,
-  data: Array.from({ length: 500 }, (_, i) => ({ index: i, label: `item-${i}` }))
+  data: Array.from({ length: 500 }, (_, i) => ({
+    index: i,
+    label: `item-${i}`
+  }))
 });
 
 function run(

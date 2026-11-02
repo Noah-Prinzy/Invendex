@@ -1,8 +1,4 @@
-import {
-  CanActivate,
-  Injectable,
-  type ExecutionContext
-} from '@nestjs/common';
+import { CanActivate, Injectable, type ExecutionContext } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { InjectModel } from '@nestjs/mongoose';
@@ -76,7 +72,10 @@ export class JwtAuthGuard implements CanActivate {
       throw new AppError('User no longer exists', 401);
     }
     if (user.isActive === false) {
-      throw new AppError('Account is deactivated. Contact an administrator.', 403);
+      throw new AppError(
+        'Account is deactivated. Contact an administrator.',
+        403
+      );
     }
     if (
       this.config.get<string>('REQUIRE_EMAIL_VERIFICATION') === 'true' &&

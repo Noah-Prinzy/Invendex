@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, type PipeTransform } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  type PipeTransform
+} from '@nestjs/common';
 import type { ZodType } from 'zod';
 
 /**
@@ -7,9 +11,9 @@ import type { ZodType } from 'zod';
  * keys are rejected when the schema is strict.
  */
 @Injectable()
-export class ZodValidationPipe<T extends ZodType = ZodType>
-  implements PipeTransform
-{
+export class ZodValidationPipe<
+  T extends ZodType = ZodType
+> implements PipeTransform {
   constructor(private readonly schema: T) {}
 
   transform(value: unknown): unknown {

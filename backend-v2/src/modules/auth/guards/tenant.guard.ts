@@ -1,8 +1,4 @@
-import {
-  CanActivate,
-  Injectable,
-  type ExecutionContext
-} from '@nestjs/common';
+import { CanActivate, Injectable, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
@@ -59,7 +55,10 @@ export class TenantGuard implements CanActivate {
     );
 
     if (!active) {
-      throw new AppError('Organization is inactive or no longer available', 403);
+      throw new AppError(
+        'Organization is inactive or no longer available',
+        403
+      );
     }
 
     return true;

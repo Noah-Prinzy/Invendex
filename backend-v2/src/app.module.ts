@@ -18,6 +18,8 @@ import { CurrencyModule } from './modules/currency/currency.module';
 import { EfrisModule } from './modules/efiris/efiris.module';
 import { HealthModule } from './modules/health/health.module';
 import { I18nModule } from './modules/i18n/i18n.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
+import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { PermissionGuard } from './modules/rbac/permission.guard';
 import { RbacModule } from './modules/rbac/rbac.module';
@@ -34,8 +36,7 @@ import { RbacModule } from './modules/rbac/rbac.module';
       // in-memory server after module import (ConfigModule snapshots env at
       // import time).
       useFactory: () => ({
-        uri:
-          process.env.DB_URL ?? 'mongodb://127.0.0.1:27017/invendex',
+        uri: process.env.DB_URL ?? 'mongodb://127.0.0.1:27017/invendex',
         connectionFactory: (connection: Connection) => {
           connection.plugin(mongooseTenantPlugin);
           return connection;
@@ -51,7 +52,9 @@ import { RbacModule } from './modules/rbac/rbac.module';
     PaymentsModule,
     ChannelsModule,
     CurrencyModule,
-    I18nModule
+    I18nModule,
+    InventoryModule,
+    PurchaseOrdersModule
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

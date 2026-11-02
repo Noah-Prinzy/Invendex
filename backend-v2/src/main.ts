@@ -46,8 +46,10 @@ async function bootstrap(): Promise<void> {
     const document = SwaggerModule.createDocument(app, documentConfig);
     app
       .getHttpAdapter()
-      .get('/api/v1/openapi.json', (_req: unknown, res: { json: (doc: unknown) => void }) =>
-        res.json(document)
+      .get(
+        '/api/v1/openapi.json',
+        (_req: unknown, res: { json: (doc: unknown) => void }) =>
+          res.json(document)
       );
     SwaggerModule.setup('api/v1/docs', app, document, {
       swaggerOptions: { url: '/api/v1/openapi.json' }
@@ -56,7 +58,9 @@ async function bootstrap(): Promise<void> {
 
   const port = config.get<number>('PORT') ?? 4000;
   await app.listen(port);
-  console.log(`Invendex backend-v2 API listening on port ${port} (contract: /api/v1)`);
+  console.log(
+    `Invendex backend-v2 API listening on port ${port} (contract: /api/v1)`
+  );
 }
 
 void bootstrap();

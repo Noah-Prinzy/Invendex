@@ -55,7 +55,9 @@ export class TokenService {
   }
 
   private expiresIn(key: string): jwt.SignOptions['expiresIn'] {
-    return this.config.get<string>(key) as unknown as jwt.SignOptions['expiresIn'];
+    return this.config.get<string>(
+      key
+    ) as unknown as jwt.SignOptions['expiresIn'];
   }
 
   signAccessToken(user: {
@@ -71,20 +73,33 @@ export class TokenService {
   }
 
   signRefreshToken(user: { id: string }): string {
-    return jwt.sign({ sub: user.id, tokenType: 'refresh' }, this.refreshSecrets()[0], {
-      expiresIn: this.expiresIn('JWT_REFRESH_EXPIRES_IN')
-    });
+    return jwt.sign(
+      { sub: user.id, tokenType: 'refresh' },
+      this.refreshSecrets()[0],
+      {
+        expiresIn: this.expiresIn('JWT_REFRESH_EXPIRES_IN')
+      }
+    );
   }
 
   verifyAccessToken(token: string): AccessTokenPayload {
-    return this.verifyWithChain<AccessTokenPayload>(token, this.accessSecrets());
+    return this.verifyWithChain<AccessTokenPayload>(
+      token,
+      this.accessSecrets()
+    );
   }
 
   verifyRefreshToken(token: string): RefreshTokenPayload {
-    return this.verifyWithChain<RefreshTokenPayload>(token, this.refreshSecrets());
+    return this.verifyWithChain<RefreshTokenPayload>(
+      token,
+      this.refreshSecrets()
+    );
   }
 
-  private verifyWithChain<T extends object>(token: string, secrets: string[]): T {
+  private verifyWithChain<T extends object>(
+    token: string,
+    secrets: string[]
+  ): T {
     if (!token) throw new Error('Token is required');
     let lastError: unknown = null;
     for (const secret of secrets) {
@@ -95,6 +110,8 @@ export class TokenService {
         lastError = error;
       }
     }
-    throw lastError instanceof Error ? lastError : new Error('Unable to verify token');
+    throw lastError instanceof Error
+      ? lastError
+      : new Error('Unable to verify token');
   }
 }

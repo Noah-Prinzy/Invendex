@@ -7,6 +7,9 @@ import { AppError } from '../common/errors/app-error';
  */
 export class TenantIsolationError extends AppError {
   constructor(message: string) {
-    super(`Tenant isolation violation: ${message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+    super(
+      `Tenant isolation violation: ${message}`,
+      HttpStatus.INTERNAL_SERVER_ERROR
+    );
   }
 }

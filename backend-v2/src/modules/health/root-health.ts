@@ -14,25 +14,48 @@ export function registerRootHealthEndpoints(app: INestApplication): void {
 
   const readiness = () => connection.readyState === 1;
 
-  adapter.get('/health', (_req: unknown, res: { status: (code: number) => { json: (body: unknown) => void } }) => {
-    const ready = readiness();
-    res.status(ready ? 200 : 503).json({
-      status: ready ? 'ok' : 'degraded',
-      ready
-    });
-  });
+  adapter.get(
+    '/health',
+    (
+      _req: unknown,
+      res: { status: (code: number) => { json: (body: unknown) => void } }
+    ) => {
+      const ready = readiness();
+      res.status(ready ? 200 : 503).json({
+        status: ready ? 'ok' : 'degraded',
+        ready
+      });
+    }
+  );
 
-  adapter.get('/health/live', (_req: unknown, res: { json: (body: unknown) => void }) => {
-    res.json({ status: 'ok' });
-  });
+  adapter.get(
+    '/health/live',
+    (_req: unknown, res: { json: (body: unknown) => void }) => {
+      res.json({ status: 'ok' });
+    }
+  );
 
-  adapter.get('/health/ready', (_req: unknown, res: { status: (code: number) => { json: (body: unknown) => void } }) => {
-    const ready = readiness();
-    res.status(ready ? 200 : 503).json({ status: ready ? 'ok' : 'unavailable', ready });
-  });
+  adapter.get(
+    '/health/ready',
+    (
+      _req: unknown,
+      res: { status: (code: number) => { json: (body: unknown) => void } }
+    ) => {
+      const ready = readiness();
+      res
+        .status(ready ? 200 : 503)
+        .json({ status: ready ? 'ok' : 'unavailable', ready });
+    }
+  );
 
-  adapter.get('/metrics', async (_req: unknown, res: { set: (k: string, v: string) => void; send: (body: string) => void }) => {
-    res.set('content-type', register.contentType);
-    res.send(await register.metrics());
-  });
+  adapter.get(
+    '/metrics',
+    async (
+      _req: unknown,
+      res: { set: (k: string, v: string) => void; send: (body: string) => void }
+    ) => {
+      res.set('content-type', register.contentType);
+      res.send(await register.metrics());
+    }
+  );
 }

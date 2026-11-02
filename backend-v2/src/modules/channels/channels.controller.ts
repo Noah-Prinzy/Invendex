@@ -35,7 +35,9 @@ export class ChannelsController {
 
   @Post('whatsapp/messages')
   @ApiOperation({ summary: 'Send a WhatsApp message (stub)' })
-  sendWhatsApp(@ZodBody(whatsappMessageSchema) payload: { to: string; body: string }) {
+  sendWhatsApp(
+    @ZodBody(whatsappMessageSchema) payload: { to: string; body: string }
+  ) {
     return this.channels.sendWhatsApp(payload);
   }
 

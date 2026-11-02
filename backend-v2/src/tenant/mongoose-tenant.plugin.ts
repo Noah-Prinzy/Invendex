@@ -7,10 +7,7 @@ type NextFn = (err?: unknown) => void;
 /** Loose view of Schema.pre that accepts any hook name (mongoose's overloads
  * are per-operation literals; we register a fixed list dynamically). */
 type HookRegistrar = {
-  pre: (
-    method: string,
-    fn: (this: unknown, next: NextFn) => void
-  ) => void;
+  pre: (method: string, fn: (this: unknown, next: NextFn) => void) => void;
 };
 
 const asHookRegistrar = (schema: Schema): HookRegistrar =>
@@ -57,7 +54,9 @@ export function mongooseTenantPlugin(schema: Schema): void {
       const tenant = TenantContext.get();
       if (!tenant) {
         return next(
-          new TenantIsolationError(`'${op}' ran without an active tenant context`)
+          new TenantIsolationError(
+            `'${op}' ran without an active tenant context`
+          )
         );
       }
       const filter = (query.getFilter() ?? {}) as Record<string, unknown>;
@@ -91,7 +90,10 @@ export function mongooseTenantPlugin(schema: Schema): void {
     const matchStage = pipeline.find(
       (stage) => stage && typeof stage === 'object' && '$match' in stage
     ) as { $match?: Record<string, unknown> } | undefined;
-    if (!matchStage || !matchesTenant(matchStage.$match?.organization, tenant.organizationId)) {
+    if (
+      !matchStage ||
+      !matchesTenant(matchStage.$match?.organization, tenant.organizationId)
+    ) {
       return next(
         new TenantIsolationError(
           "'aggregate' pipeline is missing a $match on organization matching the active tenant"

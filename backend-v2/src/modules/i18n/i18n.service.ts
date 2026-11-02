@@ -27,7 +27,9 @@ export class I18nService {
 
   /** Maps e.g. 'en-US' → 'en', 'lg' → 'lg'; falls back to the default. */
   normalize(locale: string | null | undefined): string {
-    return this.isSupported(locale ?? '') ? this.baseTag(locale) : this.defaultLocale();
+    return this.isSupported(locale ?? '')
+      ? this.baseTag(locale)
+      : this.defaultLocale();
   }
 
   private baseTag(locale: string | null | undefined): string {
@@ -37,7 +39,11 @@ export class I18nService {
       .split('-')[0];
   }
 
-  translate(key: string, locale?: string, params?: Record<string, string>): string {
+  translate(
+    key: string,
+    locale?: string,
+    params?: Record<string, string>
+  ): string {
     const resolved = this.normalize(locale ?? this.defaultLocale());
     const catalog = LOCALE_MESSAGES[resolved] ?? LOCALE_MESSAGES.en;
     let message = catalog[key] ?? LOCALE_MESSAGES.en[key] ?? key;

@@ -44,7 +44,9 @@ export class AuditService {
         );
       } else {
         const model = new this.auditModel(doc);
-        await model.save({ tenantBypass: true } as Parameters<typeof model.save>[0]);
+        await model.save({ tenantBypass: true } as Parameters<
+          typeof model.save
+        >[0]);
       }
     } catch (error) {
       this.logger.error(

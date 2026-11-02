@@ -19,7 +19,9 @@ export class EfrisController {
 
   @Post('invoices')
   @RequirePermission(PERMISSIONS.FINANCE_MANAGE)
-  @ApiOperation({ summary: 'Submit an invoice to URA EFRIS (stub — implementation phase next)' })
+  @ApiOperation({
+    summary: 'Submit an invoice to URA EFRIS (stub — implementation phase next)'
+  })
   @ApiBody({ type: SubmitInvoiceDtoClass })
   submit(
     @ZodBody(submitInvoiceSchema) dto: SubmitInvoiceDto,
@@ -31,7 +33,10 @@ export class EfrisController {
   @Get('invoices/:fdn')
   @RequirePermission(PERMISSIONS.FINANCE_VIEW)
   @ApiOperation({ summary: 'Get EFRIS fiscal status for an FDN (stub)' })
-  @ApiParam({ name: 'fdn', description: 'Fiscal Document Number returned by EFRIS' })
+  @ApiParam({
+    name: 'fdn',
+    description: 'Fiscal Document Number returned by EFRIS'
+  })
   status(@Param('fdn') fdn: string) {
     return this.efiris.getInvoiceStatus(fdn);
   }

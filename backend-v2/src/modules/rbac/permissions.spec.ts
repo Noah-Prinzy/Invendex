@@ -15,9 +15,15 @@ describe('rbac permissions (ported from legacy permissions.js)', () => {
 
   it('manager sees finance but cannot manage it', () => {
     expect(hasPermission(ROLES.MANAGER, PERMISSIONS.FINANCE_VIEW)).toBe(true);
-    expect(hasPermission(ROLES.MANAGER, PERMISSIONS.FINANCE_MANAGE)).toBe(false);
-    expect(hasPermission(ROLES.MANAGER, PERMISSIONS.PURCHASE_ORDERS_VIEW)).toBe(true);
-    expect(hasPermission(ROLES.MANAGER, PERMISSIONS.PURCHASE_ORDERS_MANAGE)).toBe(false);
+    expect(hasPermission(ROLES.MANAGER, PERMISSIONS.FINANCE_MANAGE)).toBe(
+      false
+    );
+    expect(hasPermission(ROLES.MANAGER, PERMISSIONS.PURCHASE_ORDERS_VIEW)).toBe(
+      true
+    );
+    expect(
+      hasPermission(ROLES.MANAGER, PERMISSIONS.PURCHASE_ORDERS_MANAGE)
+    ).toBe(false);
   });
 
   it('admin manages but staff perms remain; owner has everything', () => {

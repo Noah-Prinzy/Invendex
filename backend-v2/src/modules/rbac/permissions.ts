@@ -85,7 +85,10 @@ const ADMIN_ONLY_PERMISSIONS: Permission[] = [
 export const ROLE_PERMISSIONS: Readonly<Record<Role, ReadonlySet<Permission>>> =
   {
     [ROLES.STAFF]: new Set(STAFF_PERMISSIONS),
-    [ROLES.MANAGER]: new Set([...STAFF_PERMISSIONS, ...MANAGER_ONLY_PERMISSIONS]),
+    [ROLES.MANAGER]: new Set([
+      ...STAFF_PERMISSIONS,
+      ...MANAGER_ONLY_PERMISSIONS
+    ]),
     [ROLES.ADMIN]: new Set([
       ...STAFF_PERMISSIONS,
       ...MANAGER_ONLY_PERMISSIONS,
@@ -111,9 +114,7 @@ export const isRoleAllowed = (
   const normalizedUserRole = normalizeRole(userRole);
   if (!normalizedUserRole) return false;
 
-  const normalizedAllowed = (
-    Array.isArray(allowedRoles) ? allowedRoles : []
-  )
+  const normalizedAllowed = (Array.isArray(allowedRoles) ? allowedRoles : [])
     .map(normalizeRole)
     .filter(Boolean);
   if (!normalizedAllowed.length) return false;

@@ -8,7 +8,10 @@ import {
   DomainEventTypes,
   type DomainEvent
 } from '../../events/domain-event.types';
-import { DOMAIN_EVENT_BUS, type DomainEventBus } from '../../events/domain-event.bus';
+import {
+  DOMAIN_EVENT_BUS,
+  type DomainEventBus
+} from '../../events/domain-event.bus';
 import type { IOrganization } from '../../persistence/schemas/organization.schema';
 import type { IUser } from '../../persistence/schemas/user.schema';
 import { ROLES } from '../rbac/permissions';
@@ -57,7 +60,7 @@ export class AuthService {
     const organization = await this.organizationModel.create({
       name:
         dto.organizationName?.trim() ||
-        `${(dto.name?.trim() || email.split('@')[0])}'s Organization`,
+        `${dto.name?.trim() || email.split('@')[0]}'s Organization`,
       currency: 'UGX',
       locale: this.config.get<string>('DEFAULT_LOCALE') ?? 'en'
     });
@@ -100,7 +103,10 @@ export class AuthService {
       throw new AppError('Invalid email or password', 401);
     }
     if (user.isActive === false) {
-      throw new AppError('Account is deactivated. Contact an administrator.', 403);
+      throw new AppError(
+        'Account is deactivated. Contact an administrator.',
+        403
+      );
     }
     if (
       this.config.get<string>('REQUIRE_EMAIL_VERIFICATION') === 'true' &&
@@ -134,7 +140,10 @@ export class AuthService {
       throw new AppError('User no longer exists', 401);
     }
     if (user.isActive === false) {
-      throw new AppError('Account is deactivated. Contact an administrator.', 403);
+      throw new AppError(
+        'Account is deactivated. Contact an administrator.',
+        403
+      );
     }
     return this.issueTokens(user);
   }

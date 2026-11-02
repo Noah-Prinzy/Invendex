@@ -53,7 +53,9 @@ export class PermissionPolicyService {
     return matrix;
   }
 
-  private enforceHierarchy(matrix: Partial<PermissionMatrix>): PermissionMatrix {
+  private enforceHierarchy(
+    matrix: Partial<PermissionMatrix>
+  ): PermissionMatrix {
     const staff = new Set(normalizePermissionList(matrix[ROLES.STAFF]));
     const manager = new Set([
       ...normalizePermissionList(matrix[ROLES.MANAGER]),
@@ -84,7 +86,9 @@ export class PermissionPolicyService {
     const custom = policyDoc?.matrix;
     if (!custom) return defaults;
     return this.enforceHierarchy({
-      [ROLES.STAFF]: custom.staff?.length ? custom.staff : defaults[ROLES.STAFF],
+      [ROLES.STAFF]: custom.staff?.length
+        ? custom.staff
+        : defaults[ROLES.STAFF],
       [ROLES.MANAGER]: custom.manager?.length
         ? custom.manager
         : defaults[ROLES.MANAGER],

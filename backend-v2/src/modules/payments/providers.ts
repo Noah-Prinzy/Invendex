@@ -56,7 +56,9 @@ export class AirtelMoneyProvider implements MobileMoneyProvider {
   readonly name = 'airtel';
 
   async requestToPay(): Promise<PaymentTransaction> {
-    throw new NotImplementedException('Direct Airtel Money request-to-pay stub');
+    throw new NotImplementedException(
+      'Direct Airtel Money request-to-pay stub'
+    );
   }
 
   async getTransactionStatus(): Promise<PaymentTransaction> {

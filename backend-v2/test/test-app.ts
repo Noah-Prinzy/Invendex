@@ -20,7 +20,9 @@ export async function createTestApp(): Promise<TestAppContext> {
   const uri = await startMongoMemoryServer();
   process.env.DB_URL = uri;
 
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+  const moduleRef = await Test.createTestingModule({
+    imports: [AppModule]
+  }).compile();
   const app = moduleRef.createNestApplication();
   app.setGlobalPrefix('api/v1');
   registerRootHealthEndpoints(app);
@@ -40,8 +42,10 @@ export async function createTestApp(): Promise<TestAppContext> {
   const document = SwaggerModule.createDocument(app, documentConfig);
   app
     .getHttpAdapter()
-    .get('/api/v1/openapi.json', (_req: unknown, res: { json: (doc: unknown) => void }) =>
-      res.json(document)
+    .get(
+      '/api/v1/openapi.json',
+      (_req: unknown, res: { json: (doc: unknown) => void }) =>
+        res.json(document)
     );
 
   await app.init();
