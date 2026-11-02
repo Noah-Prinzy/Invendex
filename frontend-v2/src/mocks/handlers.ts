@@ -34,7 +34,68 @@ const demoProducts: Product[] = [
   },
 ]
 
+export interface PurchaseOrder {
+  _id: string
+  poNumber: string
+  supplier: string
+  status: "draft" | "sent" | "received" | "cancelled"
+  totalUgx: number
+  itemCount: number
+  createdAt: string
+}
+
+const demoPurchaseOrders: PurchaseOrder[] = [
+  {
+    _id: "po1",
+    poNumber: "PO-0001",
+    supplier: "Kampala Wholesalers Ltd",
+    status: "sent",
+    totalUgx: 450000,
+    itemCount: 5,
+    createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+  },
+  {
+    _id: "po2",
+    poNumber: "PO-0002",
+    supplier: "Nile Agro Suppliers",
+    status: "draft",
+    totalUgx: 189000,
+    itemCount: 3,
+    createdAt: new Date(Date.now() - 86400000).toISOString(),
+  },
+  {
+    _id: "po3",
+    poNumber: "PO-0003",
+    supplier: "Kampala Wholesalers Ltd",
+    status: "received",
+    totalUgx: 920000,
+    itemCount: 12,
+    createdAt: new Date(Date.now() - 10 * 86400000).toISOString(),
+  },
+]
+
 export const handlers = [
+  http.get("*/api/v1/purchase-orders", () =>
+    HttpResponse.json({ items: demoPurchaseOrders }),
+  ),
+  http.get("*/api/v1/suppliers", () =>
+    HttpResponse.json({
+      items: [
+        {
+          _id: "s1",
+          name: "Kampala Wholesalers Ltd",
+          phone: "+256 700 111222",
+          leadTimeDays: 3,
+        },
+        {
+          _id: "s2",
+          name: "Nile Agro Suppliers",
+          phone: "+256 772 333444",
+          leadTimeDays: 7,
+        },
+      ],
+    }),
+  ),
   http.get("*/api/v1/products", ({ request }) => {
     const url = new URL(request.url)
     const warehouseId = url.searchParams.get("warehouseId")
