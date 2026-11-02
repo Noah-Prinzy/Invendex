@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   LogOut,
   Moon,
+  Package,
   Sun,
   Warehouse,
 } from "lucide-react"
@@ -103,6 +104,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
         >
           <LayoutDashboard className="size-4" />
           Dashboard
+        </Link>
+        <Link
+          to="/app/products"
+          className="flex items-center gap-1.5 rounded-md px-3 py-1.5 hover:bg-accent [&.active]:bg-accent [&.active]:font-medium"
+        >
+          <Package className="size-4" />
+          Products
         </Link>
       </nav>
       <main className="flex-1 p-4">{children}</main>

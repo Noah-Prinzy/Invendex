@@ -17,6 +17,11 @@ const queryClient = new QueryClient({
 
 registerSync()
 
+if (import.meta.env.DEV && import.meta.env.VITE_USE_MOCKS === "true") {
+  const { worker } = await import("./mocks/browser")
+  await worker.start()
+}
+
 const rootEl = document.getElementById("root")
 if (!rootEl) throw new Error("Missing #root element")
 createRoot(rootEl).render(
