@@ -24,8 +24,12 @@ const fail = (msg) => {
 
 const main = async () => {
   const html = await readFile(path.join(distDir, "index.html"), "utf8")
-  const assetNames = [...html.matchAll(/(?:src|href)="\/assets\/([^"]+)"/g)].map((m) => m[1])
-  const initial = assetNames.filter((n) => n.endsWith(".js") || n.endsWith(".css"))
+  const assetNames = [
+    ...html.matchAll(/(?:src|href)="\/assets\/([^"]+)"/g),
+  ].map((m) => m[1])
+  const initial = assetNames.filter(
+    (n) => n.endsWith(".js") || n.endsWith(".css"),
+  )
 
   const sizes = []
   for (const name of initial) {
@@ -33,8 +37,12 @@ const main = async () => {
     sizes.push({ name, gzip: gz(buf) })
   }
 
-  const initialJs = sizes.filter((s) => s.name.endsWith(".js")).reduce((a, s) => a + s.gzip, 0)
-  const initialCss = sizes.filter((s) => s.name.endsWith(".css")).reduce((a, s) => a + s.gzip, 0)
+  const initialJs = sizes
+    .filter((s) => s.name.endsWith(".js"))
+    .reduce((a, s) => a + s.gzip, 0)
+  const initialCss = sizes
+    .filter((s) => s.name.endsWith(".css"))
+    .reduce((a, s) => a + s.gzip, 0)
 
   let largest = 0
   for (const file of await readdir(assetsDir)) {
@@ -43,16 +51,28 @@ const main = async () => {
     largest = Math.max(largest, gz(buf))
   }
 
-  console.log(`initial JS (gzip):  ${formatKiB(initialJs)} (budget ${formatKiB(BUDGETS.initialJsTotalGzip)})`)
-  console.log(`initial CSS (gzip): ${formatKiB(initialCss)} (budget ${formatKiB(BUDGETS.initialCssTotalGzip)})`)
-  console.log(`largest JS chunk (gzip): ${formatKiB(largest)} (budget ${formatKiB(BUDGETS.largestChunkGzip)})`)
+  console.log(
+    `initial JS (gzip):  ${formatKiB(initialJs)} (budget ${formatKiB(BUDGETS.initialJsTotalGzip)})`,
+  )
+  console.log(
+    `initial CSS (gzip): ${formatKiB(initialCss)} (budget ${formatKiB(BUDGETS.initialCssTotalGzip)})`,
+  )
+  console.log(
+    `largest JS chunk (gzip): ${formatKiB(largest)} (budget ${formatKiB(BUDGETS.largestChunkGzip)})`,
+  )
 
   if (initialJs > BUDGETS.initialJsTotalGzip)
-    fail(`initial JS gzip ${formatKiB(initialJs)} exceeds ${formatKiB(BUDGETS.initialJsTotalGzip)}`)
+    fail(
+      `initial JS gzip ${formatKiB(initialJs)} exceeds ${formatKiB(BUDGETS.initialJsTotalGzip)}`,
+    )
   if (initialCss > BUDGETS.initialCssTotalGzip)
-    fail(`initial CSS gzip ${formatKiB(initialCss)} exceeds ${formatKiB(BUDGETS.initialCssTotalGzip)}`)
+    fail(
+      `initial CSS gzip ${formatKiB(initialCss)} exceeds ${formatKiB(BUDGETS.initialCssTotalGzip)}`,
+    )
   if (largest > BUDGETS.largestChunkGzip)
-    fail(`largest chunk gzip ${formatKiB(largest)} exceeds ${formatKiB(BUDGETS.largestChunkGzip)}`)
+    fail(
+      `largest chunk gzip ${formatKiB(largest)} exceeds ${formatKiB(BUDGETS.largestChunkGzip)}`,
+    )
 }
 
 main().catch((err) => {
