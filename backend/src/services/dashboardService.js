@@ -452,36 +452,34 @@ const getSalesMomentumByProduct = async ({
     });
   }
 
-  pipeline.push(
-    {
-      $group: {
-        _id: '$products.product',
-        recentQty: {
-          $sum: {
-            $cond: [
-              { $gte: ['$createdAt', recentStart] },
-              '$products.quantity',
-              0
-            ]
-          }
-        },
-        previousQty: {
-          $sum: {
-            $cond: [
-              {
-                $and: [
-                  { $gte: ['$createdAt', previousStart] },
-                  { $lt: ['$createdAt', recentStart] }
-                ]
-              },
-              '$products.quantity',
-              0
-            ]
-          }
+  pipeline.push({
+    $group: {
+      _id: '$products.product',
+      recentQty: {
+        $sum: {
+          $cond: [
+            { $gte: ['$createdAt', recentStart] },
+            '$products.quantity',
+            0
+          ]
+        }
+      },
+      previousQty: {
+        $sum: {
+          $cond: [
+            {
+              $and: [
+                { $gte: ['$createdAt', previousStart] },
+                { $lt: ['$createdAt', recentStart] }
+              ]
+            },
+            '$products.quantity',
+            0
+          ]
         }
       }
     }
-  );
+  });
 
   const rows = await Order.aggregate(pipeline);
 

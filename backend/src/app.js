@@ -153,10 +153,7 @@ mountApiRoutes(API_V1_BASE_PATH);
 if (legacyApiEnabled) {
   app.use(LEGACY_API_BASE_PATH, (req, res, next) => {
     res.setHeader('Deprecation', 'true');
-    res.setHeader(
-      'Sunset',
-      runtimeConfig.legacyApi.sunset
-    );
+    res.setHeader('Sunset', runtimeConfig.legacyApi.sunset);
     res.setHeader('Link', '</api/v1>; rel="successor-version"');
     next();
   });

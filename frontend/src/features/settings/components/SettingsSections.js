@@ -181,7 +181,8 @@ export const NotificationRulesSection = ({
           </span>
         </div>
         <p className="event-sub">
-          Your sign-up email stays attached to your account for sign-in and account security flows.
+          Your sign-up email stays attached to your account for sign-in and
+          account security flows.
         </p>
       </section>
 

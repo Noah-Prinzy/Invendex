@@ -655,7 +655,6 @@ const warnUnsafeFlags = () => {
   }
 };
 
-
 export const getRuntimeConfig = () => {
   const nodeEnv = asString(process.env.NODE_ENV || 'development');
   const isProduction = nodeEnv === 'production';
@@ -727,13 +726,10 @@ export const getRuntimeConfig = () => {
           3600
         )
       ),
-      twoFactorIssuer: asString(process.env.AUTH_2FA_ISSUER || 'Invendex').slice(
-        0,
-        80
-      ),
-      twoFactorChallengeSecret: asString(
-        process.env.AUTH_2FA_CHALLENGE_SECRET
-      )
+      twoFactorIssuer: asString(
+        process.env.AUTH_2FA_ISSUER || 'Invendex'
+      ).slice(0, 80),
+      twoFactorChallengeSecret: asString(process.env.AUTH_2FA_CHALLENGE_SECRET)
     }),
     notifications: Object.freeze({
       email: (() => {
@@ -757,9 +753,7 @@ export const getRuntimeConfig = () => {
           fromEmail,
           fromName: asString(process.env.SMTP_FROM_NAME || 'Invendex'),
           isConfigured: configured,
-          isEnabled: toggle
-            ? asBoolean(toggle)
-            : configured
+          isEnabled: toggle ? asBoolean(toggle) : configured
         });
       })(),
       sms: Object.freeze({

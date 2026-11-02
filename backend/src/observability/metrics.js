@@ -9,8 +9,7 @@ let httpRequestDurationSeconds = null;
 const getMetricsEnabled = () =>
   getRuntimeConfig().observability.metrics.enabled;
 
-const getMetricsPrefix = () =>
-  getRuntimeConfig().observability.metrics.prefix;
+const getMetricsPrefix = () => getRuntimeConfig().observability.metrics.prefix;
 
 const getRouteLabel = (req) => {
   if (req?.route?.path) {

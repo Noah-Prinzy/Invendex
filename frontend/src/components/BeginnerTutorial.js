@@ -86,7 +86,11 @@ const resolvePopoverStyle = (rect) => {
   const aboveSpace = rect.top - gap - verticalPadding;
   const centeredLeft = rect.left + rect.width / 2 - popoverWidth / 2;
   const left = Math.round(
-    clamp(centeredLeft, horizontalPadding, viewportWidth - popoverWidth - horizontalPadding)
+    clamp(
+      centeredLeft,
+      horizontalPadding,
+      viewportWidth - popoverWidth - horizontalPadding
+    )
   );
 
   if (belowSpace >= 220 || belowSpace >= aboveSpace) {
@@ -95,7 +99,10 @@ const resolvePopoverStyle = (rect) => {
       left: `${left}px`,
       width: `${Math.round(popoverWidth)}px`,
       maxHeight: `${Math.round(
-        Math.max(220, viewportHeight - Math.max(verticalPadding, belowTop) - verticalPadding)
+        Math.max(
+          220,
+          viewportHeight - Math.max(verticalPadding, belowTop) - verticalPadding
+        )
       )}px`
     };
   }
@@ -180,7 +187,11 @@ const BeginnerTutorial = ({
 
   // Lock page scrolling while the tutorial is active.
   useEffect(() => {
-    if (typeof window === 'undefined' || typeof document === 'undefined' || !step) {
+    if (
+      typeof window === 'undefined' ||
+      typeof document === 'undefined' ||
+      !step
+    ) {
       return undefined;
     }
 
@@ -260,7 +271,15 @@ const BeginnerTutorial = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [step, currentIndex, isLastStep, showSkipAction, onNext, onPrevious, onSkip]);
+  }, [
+    step,
+    currentIndex,
+    isLastStep,
+    showSkipAction,
+    onNext,
+    onPrevious,
+    onSkip
+  ]);
 
   // Move focus into the popover whenever the step changes, so screen reader
   // users and keyboard users land on fresh content automatically.
@@ -292,7 +311,12 @@ const BeginnerTutorial = ({
   if (!step) return null;
 
   const overlay = (
-    <div className="tutorial-overlay" role="dialog" aria-modal="true" aria-labelledby={headingId}>
+    <div
+      className="tutorial-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={headingId}
+    >
       <button
         type="button"
         className="tutorial-backdrop"

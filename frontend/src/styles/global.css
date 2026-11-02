@@ -59,16 +59,23 @@
   --radius-md: 14px;
   --radius-lg: 18px;
 
-  --shadow-sm: 0 1px 2px rgba(18, 22, 31, 0.05), 0 6px 16px rgba(18, 22, 31, 0.05);
-  --shadow-md: 0 4px 10px rgba(18, 22, 31, 0.06), 0 14px 30px rgba(18, 22, 31, 0.07);
-  --shadow-lg: 0 10px 24px rgba(18, 22, 31, 0.1), 0 28px 60px rgba(18, 22, 31, 0.12);
+  --shadow-sm:
+    0 1px 2px rgba(18, 22, 31, 0.05), 0 6px 16px rgba(18, 22, 31, 0.05);
+  --shadow-md:
+    0 4px 10px rgba(18, 22, 31, 0.06), 0 14px 30px rgba(18, 22, 31, 0.07);
+  --shadow-lg:
+    0 10px 24px rgba(18, 22, 31, 0.1), 0 28px 60px rgba(18, 22, 31, 0.12);
 
   --scrollbar-size: 6px;
   --scrollbar-track: transparent;
   --scrollbar-thumb: rgba(47, 93, 255, 0.28);
   --scrollbar-thumb-hover: rgba(47, 93, 255, 0.5);
 
-  --signal-rail: linear-gradient(90deg, var(--accent) 0%, var(--accent-alt) 100%);
+  --signal-rail: linear-gradient(
+    90deg,
+    var(--accent) 0%,
+    var(--accent-alt) 100%
+  );
 }
 
 /* ---- theme variants: same structure, recalibrated accent only ---- */
@@ -197,7 +204,12 @@ body,
 body {
   font-family: var(--font-body);
   color: var(--ink-main);
-  background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 220px, var(--bg-end) 100%);
+  background: linear-gradient(
+    180deg,
+    var(--bg-start) 0%,
+    var(--bg-end) 220px,
+    var(--bg-end) 100%
+  );
   background-attachment: fixed;
   position: relative;
   -webkit-font-smoothing: antialiased;
@@ -318,12 +330,16 @@ textarea:focus-visible {
 .btn-primary {
   color: #fff;
   background: var(--accent);
-  box-shadow: 0 1px 2px rgba(18, 22, 31, 0.06), 0 6px 14px rgba(47, 93, 255, 0.24);
+  box-shadow:
+    0 1px 2px rgba(18, 22, 31, 0.06),
+    0 6px 14px rgba(47, 93, 255, 0.24);
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-strong);
-  box-shadow: 0 1px 2px rgba(18, 22, 31, 0.06), 0 8px 18px rgba(47, 93, 255, 0.3);
+  box-shadow:
+    0 1px 2px rgba(18, 22, 31, 0.06),
+    0 8px 18px rgba(47, 93, 255, 0.3);
 }
 
 .btn-primary:active:not(:disabled) {
@@ -434,7 +450,12 @@ textarea:focus-visible {
   align-content: center;
   gap: 0.9rem;
   color: var(--header-ink);
-  background: linear-gradient(150deg, var(--header-start) 0%, var(--header-mid) 55%, var(--header-end) 100%);
+  background: linear-gradient(
+    150deg,
+    var(--header-start) 0%,
+    var(--header-mid) 55%,
+    var(--header-end) 100%
+  );
 }
 
 .auth-intro::before,
@@ -548,7 +569,12 @@ textarea:focus-visible {
   gap: 0.7rem;
   border-radius: var(--radius-lg);
   border: 1px solid var(--header-border);
-  background: linear-gradient(150deg, var(--header-start) 0%, var(--header-mid) 55%, var(--header-end) 100%);
+  background: linear-gradient(
+    150deg,
+    var(--header-start) 0%,
+    var(--header-mid) 55%,
+    var(--header-end) 100%
+  );
   box-shadow: var(--shadow-lg);
   color: var(--header-ink);
   padding: 1rem 1.15rem;
@@ -600,7 +626,11 @@ textarea:focus-visible {
   align-items: center;
   column-gap: 0.85rem;
   border: 1px solid var(--brand-border);
-  background: linear-gradient(150deg, var(--brand-start) 0%, var(--brand-end) 100%);
+  background: linear-gradient(
+    150deg,
+    var(--brand-start) 0%,
+    var(--brand-end) 100%
+  );
   border-radius: var(--radius-md);
   padding: 0.6rem 0.9rem;
   position: relative;
@@ -704,7 +734,9 @@ textarea:focus-visible {
   background: rgba(255, 255, 255, 0.05);
   color: var(--header-ink);
   border-radius: var(--radius-xs);
-  transition: border-color 0.16s ease, background 0.16s ease;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease;
 }
 
 .header-queue-indicator {
@@ -824,7 +856,11 @@ textarea:focus-visible {
   max-height: min(70vh, 448px);
   border: 1px solid var(--header-border);
   border-radius: var(--radius-md);
-  background: linear-gradient(160deg, var(--header-start) 0%, var(--header-end) 100%);
+  background: linear-gradient(
+    160deg,
+    var(--header-start) 0%,
+    var(--header-end) 100%
+  );
   box-shadow: var(--shadow-lg);
   overflow: hidden;
   z-index: 1500;
@@ -1030,7 +1066,9 @@ textarea:focus-visible {
   font-size: 0.78rem;
   font-weight: 600;
   position: relative;
-  transition: color 0.14s ease, background 0.14s ease;
+  transition:
+    color 0.14s ease,
+    background 0.14s ease;
 }
 
 .tab:hover {
@@ -1166,7 +1204,9 @@ textarea:focus-visible {
   display: block;
   border-radius: 999px;
   background: currentColor;
-  transition: width 160ms ease, transform 160ms ease;
+  transition:
+    width 160ms ease,
+    transform 160ms ease;
 }
 
 .sidebar-menu-icon > span:nth-child(2) {
@@ -1427,7 +1467,11 @@ textarea:focus-visible {
   z-index: 2201;
   border: 1px solid var(--header-border);
   border-radius: var(--radius-md);
-  background: linear-gradient(160deg, var(--header-start) 0%, var(--header-end) 100%);
+  background: linear-gradient(
+    160deg,
+    var(--header-start) 0%,
+    var(--header-end) 100%
+  );
   box-shadow: var(--shadow-lg);
   pointer-events: auto;
   animation: tutorial-popover-enter 180ms ease;

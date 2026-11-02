@@ -1,14 +1,13 @@
 import { getRuntimeConfig } from '../../config/envConfig.js';
 import { logger } from '../../observability/logger.js';
 
-const parseCsv = (value) =>
+const _parseCsv = (value) =>
   String(value || '')
     .split(',')
     .map((entry) => entry.trim())
     .filter(Boolean);
 
-const resolveSmsProvider = () =>
-  getRuntimeConfig().notifications.sms.provider;
+const resolveSmsProvider = () => getRuntimeConfig().notifications.sms.provider;
 
 const resolveWhatsAppProvider = () =>
   getRuntimeConfig().notifications.sms.whatsappProvider;
@@ -73,7 +72,9 @@ const sendViaTwilioMessage = async ({
         'content-type': 'application/x-www-form-urlencoded'
       },
       body: form.toString(),
-      signal: AbortSignal.timeout(getRuntimeConfig().notifications.sms.timeoutMs)
+      signal: AbortSignal.timeout(
+        getRuntimeConfig().notifications.sms.timeoutMs
+      )
     }
   );
 
@@ -95,8 +96,11 @@ const sendViaTwilioMessage = async ({
 };
 
 const sendViaTwilio = async ({ to, message }) => {
-  const { accountSid, authToken, from: fromNumber } =
-    getRuntimeConfig().notifications.sms.twilio;
+  const {
+    accountSid,
+    authToken,
+    from: fromNumber
+  } = getRuntimeConfig().notifications.sms.twilio;
 
   return sendViaTwilioMessage({
     to,
@@ -108,8 +112,11 @@ const sendViaTwilio = async ({ to, message }) => {
 };
 
 const sendViaTwilioWhatsapp = async ({ to, message }) => {
-  const { accountSid, authToken, from: fromNumber } =
-    getRuntimeConfig().notifications.sms.whatsappTwilio;
+  const {
+    accountSid,
+    authToken,
+    from: fromNumber
+  } = getRuntimeConfig().notifications.sms.whatsappTwilio;
 
   return sendViaTwilioMessage({
     to,
@@ -288,8 +295,9 @@ export const sendBulkWhatsApp = async ({ recipients = [], message }) => {
   };
 };
 
-export const getDefaultLowStockRecipients = () =>
-  [...getRuntimeConfig().notifications.sms.lowStockRecipients];
+export const getDefaultLowStockRecipients = () => [
+  ...getRuntimeConfig().notifications.sms.lowStockRecipients
+];
 
 export default {
   sendSms,

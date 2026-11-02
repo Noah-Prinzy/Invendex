@@ -801,8 +801,8 @@ const StocktakesPage = ({
       <article className="data-card" data-tutorial-id="stocktakes-create">
         <h3>Create stocktake session</h3>
         <SectionHint>
-          Create a new session whenever a team is about to physically count items
-          in a warehouse.
+          Create a new session whenever a team is about to physically count
+          items in a warehouse.
         </SectionHint>
         <form className="control-row" onSubmit={handleCreateSession}>
           <label className="control-field">
@@ -864,8 +864,8 @@ const StocktakesPage = ({
       <article className="data-card" data-tutorial-id="stocktakes-session">
         <h3>Session list</h3>
         <SectionHint>
-          Use filters here to find the exact count session you want to continue or
-          review.
+          Use filters here to find the exact count session you want to continue
+          or review.
         </SectionHint>
         <div className="control-row compact">
           <label className="control-field">

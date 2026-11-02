@@ -1,7 +1,10 @@
 import { getRuntimeConfig } from '../../config/envConfig.js';
 import { logger } from '../../observability/logger.js';
 
-const resolveQueueEnabled = () => getRuntimeConfig().backgroundJobs.queueEnabled;
+const asString = (value) => String(value || '').trim();
+
+const resolveQueueEnabled = () =>
+  getRuntimeConfig().backgroundJobs.queueEnabled;
 
 const resolveInlineWorkerEnabled = () =>
   getRuntimeConfig().backgroundJobs.runInlineWorker;

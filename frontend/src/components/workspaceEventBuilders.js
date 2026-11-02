@@ -13,7 +13,12 @@ export const buildInventoryEvent = (payload, eventName) => {
   const sign = quantityDelta >= 0 ? '+' : '';
 
   return {
-    id: eventName + ':' + (payload?.entityId || 'n/a') + ':' + (payload?.occurredAt || Date.now()),
+    id:
+      eventName +
+      ':' +
+      (payload?.entityId || 'n/a') +
+      ':' +
+      (payload?.occurredAt || Date.now()),
     eventName,
     occurredAt: payload?.occurredAt || new Date().toISOString(),
     title: data.source ? 'Inventory ' + data.source : 'Inventory updated',
@@ -27,10 +32,18 @@ export const buildFinanceEvent = (payload, eventName) => {
   const orderId = data.orderId || data.reason || 'n/a';
 
   return {
-    id: eventName + ':' + (payload?.entityId || 'n/a') + ':' + (payload?.occurredAt || Date.now()),
+    id:
+      eventName +
+      ':' +
+      (payload?.entityId || 'n/a') +
+      ':' +
+      (payload?.occurredAt || Date.now()),
     eventName,
     occurredAt: payload?.occurredAt || new Date().toISOString(),
-    title: eventName === 'finance.cogs_recorded' ? 'COGS recorded' : 'Valuation updated',
+    title:
+      eventName === 'finance.cogs_recorded'
+        ? 'COGS recorded'
+        : 'Valuation updated',
     subtitle: 'Reference ' + String(orderId),
     raw: payload
   };
@@ -42,7 +55,13 @@ export const buildPurchaseOrderEvent = (payload, kind) => {
   const status = data.status || 'UNKNOWN';
 
   return {
-    id: 'po:' + kind + ':' + (payload?.entityId || 'n/a') + ':' + (payload?.occurredAt || Date.now()),
+    id:
+      'po:' +
+      kind +
+      ':' +
+      (payload?.entityId || 'n/a') +
+      ':' +
+      (payload?.occurredAt || Date.now()),
     kind,
     occurredAt: payload?.occurredAt || new Date().toISOString(),
     title: 'PO ' + poNumber,
@@ -56,7 +75,11 @@ export const buildAuthEvent = (payload) => {
   const username = resolveUserIdentityLabel(data);
 
   return {
-    id: 'auth:employee:' + (payload?.entityId || 'n/a') + ':' + (payload?.occurredAt || Date.now()),
+    id:
+      'auth:employee:' +
+      (payload?.entityId || 'n/a') +
+      ':' +
+      (payload?.occurredAt || Date.now()),
     occurredAt: payload?.occurredAt || new Date().toISOString(),
     title: 'Employee signed in',
     subtitle: username + ' joined ' + (data.organizationName || 'organization'),

@@ -12,7 +12,7 @@ import {
   resolveOperationalAlert
 } from '../observability/opsAlerting.js';
 
-const sanitize = (value) => String(value || '').trim();
+const _sanitize = (value) => String(value || '').trim();
 
 const resolveErrorTrackingProvider = () =>
   getRuntimeConfig().observability.errorTracking.provider;
