@@ -99,7 +99,9 @@ const DashboardLayout = ({
         </div>
       </header>
       <div className="app-workspace">
-        {tabBarNode ? <aside className="app-sidebar">{tabBarNode}</aside> : null}
+        {tabBarNode ? (
+          <aside className="app-sidebar">{tabBarNode}</aside>
+        ) : null}
         <main id="main-content" className="app-body" tabIndex={-1}>
           {children}
         </main>

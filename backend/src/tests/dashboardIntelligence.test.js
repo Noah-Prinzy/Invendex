@@ -39,13 +39,13 @@ describe('dashboard intelligence', () => {
   it('returns dead stock intelligence with threshold filtering', async () => {
     const organization = await Organization.create({
       name: 'Dashboard Org',
-      code: `DASH-${Date.now()}`
+      code: `DASH-${Date.now()}-W${process.env.JEST_WORKER_ID || 0}`
     });
 
     const warehouse = await Warehouse.create({
       organization: organization._id,
       name: 'Dashboard Warehouse',
-      code: 'DASH-WH'
+      code: `DASH-WH-W${process.env.JEST_WORKER_ID || 0}`
     });
 
     const product = await Product.create({
@@ -81,19 +81,19 @@ describe('dashboard intelligence', () => {
   it('scopes stock aging buckets to the selected warehouse', async () => {
     const organization = await Organization.create({
       name: 'Dashboard Aging Org',
-      code: `DASH-AGING-${Date.now()}`
+      code: `DASH-AGING-${Date.now()}-W${process.env.JEST_WORKER_ID || 0}`
     });
 
     const [warehouseA, warehouseB] = await Warehouse.create([
       {
         organization: organization._id,
         name: 'Warehouse A',
-        code: 'AGING-A'
+        code: `AGING-A-W${process.env.JEST_WORKER_ID || 0}`
       },
       {
         organization: organization._id,
         name: 'Warehouse B',
-        code: 'AGING-B'
+        code: `AGING-B-W${process.env.JEST_WORKER_ID || 0}`
       }
     ]);
 
@@ -121,7 +121,7 @@ describe('dashboard intelligence', () => {
         warehouse: warehouseA._id,
         quantityOnHand: 5,
         quantityReserved: 0,
-        lastMovementAt: new Date('2026-02-20')
+        lastMovementAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000)
       },
       {
         organization: organization._id,
@@ -129,9 +129,14 @@ describe('dashboard intelligence', () => {
         warehouse: warehouseB._id,
         quantityOnHand: 9,
         quantityReserved: 0,
-        lastMovementAt: new Date('2025-10-01')
+        lastMovementAt: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000)
       }
     ]);
+
+    const seeded = await Inventory.countDocuments({
+      organization: organization._id
+    });
+    expect(seeded).toBe(2);
 
     const scoped = await getStockAgingBuckets({
       organizationId: organization._id,
@@ -147,7 +152,7 @@ describe('dashboard intelligence', () => {
   it('builds inventory advisor and dead stock rescue actions', async () => {
     const organization = await Organization.create({
       name: 'Dashboard Advisor Org',
-      code: `DASH-ADV-${Date.now()}`
+      code: `DASH-ADV-${Date.now()}-W${process.env.JEST_WORKER_ID || 0}`
     });
 
     const warehouse = await Warehouse.create({
@@ -203,7 +208,7 @@ describe('dashboard intelligence', () => {
   it('builds warehouse digital twin occupancy and zone summary', async () => {
     const organization = await Organization.create({
       name: 'Dashboard Twin Org',
-      code: `DASH-TWIN-${Date.now()}`
+      code: `DASH-TWIN-${Date.now()}-W${process.env.JEST_WORKER_ID || 0}`
     });
 
     const warehouse = await Warehouse.create({

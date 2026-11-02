@@ -31,16 +31,24 @@ const REPORT_VIEW_KEYS = new Set([
   'audit'
 ]);
 const REPORT_VIEW_META = Object.freeze({
-  orders: ['Purchase order status', 'Review where purchase orders are sitting in the workflow.'],
+  orders: [
+    'Purchase order status',
+    'Review where purchase orders are sitting in the workflow.'
+  ],
   suppliers: ['Supplier spend', 'Compare purchasing spend across suppliers.'],
-  finance: ['Finance snapshot', 'Review valuation and gross-margin indicators.'],
+  finance: [
+    'Finance snapshot',
+    'Review valuation and gross-margin indicators.'
+  ],
   'dead-stock': ['Dead stock', 'Find inventory that has stopped moving.'],
   movements: ['Stock movements', 'Trace recent inventory movement activity.'],
   audit: ['Audit log', 'Review important actions and their outcomes.']
 });
 const readReportView = () => {
   if (typeof window === 'undefined') return 'overview';
-  const view = String(new URLSearchParams(window.location.search).get('reportsPage') || '').trim();
+  const view = String(
+    new URLSearchParams(window.location.search).get('reportsPage') || ''
+  ).trim();
   return REPORT_VIEW_KEYS.has(view) ? view : 'overview';
 };
 const roundMoney = (value) =>
@@ -837,7 +845,10 @@ const Reports = ({
   }
 
   return (
-    <section className="panel feature-section-page" data-report-view={reportView}>
+    <section
+      className="panel feature-section-page"
+      data-report-view={reportView}
+    >
       <header className="panel-head panel-head-row reports-overview-only">
         <div>
           <h2>Reports</h2>
@@ -894,7 +905,10 @@ const Reports = ({
         </div>
       </header>
 
-      <div className="metric-grid reports-overview-only" data-tutorial-id="reports-metrics">
+      <div
+        className="metric-grid reports-overview-only"
+        data-tutorial-id="reports-metrics"
+      >
         <article className="metric-card">
           <p className="metric-label">Total spend</p>
           <p className="metric-value">
@@ -929,7 +943,10 @@ const Reports = ({
         </article>
       </div>
 
-      <nav className="feature-page-nav reports-overview-only" aria-label="Report sections">
+      <nav
+        className="feature-page-nav reports-overview-only"
+        aria-label="Report sections"
+      >
         {[
           ['orders', 'Purchase orders', 'Workflow status and delays'],
           ['suppliers', 'Supplier spend', 'Purchasing by supplier'],
@@ -938,7 +955,12 @@ const Reports = ({
           ['movements', 'Stock movements', 'Inventory movement ledger'],
           ['audit', 'Audit log', 'Actions and outcomes']
         ].map(([key, title, description]) => (
-          <button key={key} type="button" className="feature-page-link" onClick={() => setReportView(key)}>
+          <button
+            key={key}
+            type="button"
+            className="feature-page-link"
+            onClick={() => setReportView(key)}
+          >
             <span>{title}</span>
             <small>{description}</small>
           </button>
@@ -947,7 +969,13 @@ const Reports = ({
 
       {reportView !== 'overview' ? (
         <header className="feature-detail-head">
-          <button type="button" className="btn-ghost" onClick={() => setReportView('overview')}>← Reports</button>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => setReportView('overview')}
+          >
+            ← Reports
+          </button>
           <div>
             <p className="eyebrow">Report</p>
             <h2>{REPORT_VIEW_META[reportView]?.[0]}</h2>
@@ -982,11 +1010,15 @@ const Reports = ({
       ) : null}
 
       <div className="data-grid report-sections">
-        <article className="data-card" data-report-section="orders" data-tutorial-id="reports-summary">
+        <article
+          className="data-card"
+          data-report-section="orders"
+          data-tutorial-id="reports-summary"
+        >
           <h3>PO Status Summary</h3>
           <SectionHint>
-            This block shows where purchase orders are sitting in the workflow so
-            you can spot delays before they affect stock.
+            This block shows where purchase orders are sitting in the workflow
+            so you can spot delays before they affect stock.
           </SectionHint>
           {statusSummary ? (
             <>

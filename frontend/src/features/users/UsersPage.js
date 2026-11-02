@@ -38,7 +38,7 @@ const normalizeUsersPayload = (payload) => ({
             admin: [],
             owner: []
           }
-          }
+        }
 });
 
 const emailToUsernameFallback = (value) => {
@@ -613,8 +613,8 @@ const Users = ({ accessToken, userRole = null, currentUserId = null }) => {
       <article className="data-card" data-tutorial-id="users-manage">
         <h3>Organization users</h3>
         <SectionHint>
-          Use this table to manage who can enter the workspace and what role each
-          person should have.
+          Use this table to manage who can enter the workspace and what role
+          each person should have.
         </SectionHint>
 
         <div className="control-row">

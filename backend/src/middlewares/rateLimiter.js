@@ -10,6 +10,11 @@ const withSharedStore = (options) => ({
 /**
  * Generic rate limiter factory
  */
+const e2eScale = () => {
+  const scale = Number(process.env.RATE_LIMIT_E2E_SCALE);
+  return Number.isFinite(scale) && scale > 0 ? scale : 1;
+};
+
 export const rateLimiter = ({
   windowMs = 15 * 60 * 1000,
   max = 100,
@@ -17,8 +22,8 @@ export const rateLimiter = ({
 }) =>
   rateLimit(
     withSharedStore({
+      max: Math.round(max * e2eScale()),
       windowMs,
-      max,
       standardHeaders: true,
       legacyHeaders: false,
       handler: (req, res, next) => {

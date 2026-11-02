@@ -228,7 +228,7 @@ export const buildSupplierNotificationEmailHtml = ({
       'Reply directly to this email if you need to coordinate fulfillment or update the order details.'
   });
 
-const parseBooleanEnv = (value, fallback = false) => {
+const _parseBooleanEnv = (value, fallback = false) => {
   if (value === undefined || value === null || value === '') {
     return fallback;
   }
@@ -238,7 +238,7 @@ const parseBooleanEnv = (value, fallback = false) => {
   return fallback;
 };
 
-const toFinitePort = (value, fallback = 587) => {
+const _toFinitePort = (value, fallback = 587) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 65535) {
     return fallback;

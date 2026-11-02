@@ -271,7 +271,8 @@ const AuthForm = ({
                 <p className="auth-role-option-kicker">Leadership workspace</p>
                 <h2>Employer</h2>
                 <p className="form-copy">
-                  Manage locations, people, approvals, purchasing, and business-wide inventory decisions.
+                  Manage locations, people, approvals, purchasing, and
+                  business-wide inventory decisions.
                 </p>
                 <div className="auth-role-cta-shell">
                   <span className="auth-role-pulse pulse-a" />
@@ -309,7 +310,8 @@ const AuthForm = ({
                 <p className="auth-role-option-kicker">Operations workspace</p>
                 <h2>Employee</h2>
                 <p className="form-copy">
-                  Handle stock, receiving, counts, and daily tasks inside your assigned workspace.
+                  Handle stock, receiving, counts, and daily tasks inside your
+                  assigned workspace.
                 </p>
                 <div className="auth-role-cta-shell">
                   <span className="auth-role-pulse pulse-a" />
@@ -357,7 +359,10 @@ const AuthForm = ({
           </ul>
           <div className="auth-security-note">
             <span aria-hidden="true">✓</span>
-            <p><strong>Secure workspace access</strong><small>Your session and permissions are protected.</small></p>
+            <p>
+              <strong>Secure workspace access</strong>
+              <small>Your session and permissions are protected.</small>
+            </p>
           </div>
           <div className="auth-authflow-hero-rails" aria-hidden="true">
             <span />

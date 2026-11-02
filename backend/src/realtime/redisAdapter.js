@@ -10,8 +10,7 @@ const redisAdapterState = {
   reason: 'not_enabled'
 };
 
-const isRedisAdapterEnabled = () =>
-  getRuntimeConfig().realtimeRedis.enabled;
+const isRedisAdapterEnabled = () => getRuntimeConfig().realtimeRedis.enabled;
 
 export const configureSocketRedisAdapter = async (io) => {
   redisAdapterState.enabled = isRedisAdapterEnabled();

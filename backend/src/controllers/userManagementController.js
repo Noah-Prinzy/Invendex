@@ -311,7 +311,8 @@ export const updateOrganizationUserStatus = async (req, res, next) => {
       {
         new: true,
         runValidators: true,
-        select: '_id username email role isActive isVerified createdAt organization'
+        select:
+          '_id username email role isActive isVerified createdAt organization'
       }
     ).lean();
 
@@ -355,7 +356,9 @@ export const updateOrganizationUserRole = async (req, res, next) => {
     const targetUser = await User.findOne({
       _id: id,
       organization: req.organizationId
-    }).select('_id username role email organization isActive isVerified createdAt');
+    }).select(
+      '_id username role email organization isActive isVerified createdAt'
+    );
 
     if (!targetUser) {
       throw new AppError('User not found', 404);

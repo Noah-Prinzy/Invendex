@@ -13,7 +13,11 @@
   border: 0;
   border-radius: var(--radius-lg);
   background:
-    radial-gradient(circle at 86% 18%, color-mix(in srgb, var(--accent-alt) 18%, transparent), transparent 30%),
+    radial-gradient(
+      circle at 86% 18%,
+      color-mix(in srgb, var(--accent-alt) 18%, transparent),
+      transparent 30%
+    ),
     linear-gradient(135deg, var(--header-start), var(--header-end));
 }
 
@@ -89,7 +93,10 @@
   padding: 1rem 1.05rem;
   position: relative;
   overflow: hidden;
-  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 .metric-card-success::after,
@@ -173,7 +180,10 @@
   color: var(--ink-strong);
   text-align: left;
   cursor: pointer;
-  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
 }
 
 .dashboard-page-link:hover {
@@ -264,7 +274,10 @@
   color: var(--ink-strong);
   text-align: left;
   cursor: pointer;
-  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .feature-page-link:hover {
@@ -309,26 +322,38 @@
   display: none;
 }
 
-[data-product-view]:not([data-product-view='overview']) .products-overview-only {
+[data-product-view]:not([data-product-view='overview'])
+  .products-overview-only {
   display: none;
 }
 
-[data-product-view='catalog'] [data-product-section]:not([data-product-section='catalog']),
-[data-product-view='adjust'] [data-product-section]:not([data-product-section='adjust']),
-[data-product-view='create'] [data-product-section]:not([data-product-section='create']),
-[data-product-view='import'] [data-product-section]:not([data-product-section='import']),
-[data-product-view='deleted'] [data-product-section]:not([data-product-section='deleted']) {
+[data-product-view='catalog']
+  [data-product-section]:not([data-product-section='catalog']),
+[data-product-view='adjust']
+  [data-product-section]:not([data-product-section='adjust']),
+[data-product-view='create']
+  [data-product-section]:not([data-product-section='create']),
+[data-product-view='import']
+  [data-product-section]:not([data-product-section='import']),
+[data-product-view='deleted']
+  [data-product-section]:not([data-product-section='deleted']) {
   display: none;
 }
 
 [data-report-view='overview'] [data-report-section],
 [data-report-view]:not([data-report-view='overview']) .reports-overview-only,
-[data-report-view='orders'] [data-report-section]:not([data-report-section='orders']),
-[data-report-view='suppliers'] [data-report-section]:not([data-report-section='suppliers']),
-[data-report-view='finance'] [data-report-section]:not([data-report-section='finance']),
-[data-report-view='dead-stock'] [data-report-section]:not([data-report-section='dead-stock']),
-[data-report-view='movements'] [data-report-section]:not([data-report-section='movements']),
-[data-report-view='audit'] [data-report-section]:not([data-report-section='audit']) {
+[data-report-view='orders']
+  [data-report-section]:not([data-report-section='orders']),
+[data-report-view='suppliers']
+  [data-report-section]:not([data-report-section='suppliers']),
+[data-report-view='finance']
+  [data-report-section]:not([data-report-section='finance']),
+[data-report-view='dead-stock']
+  [data-report-section]:not([data-report-section='dead-stock']),
+[data-report-view='movements']
+  [data-report-section]:not([data-report-section='movements']),
+[data-report-view='audit']
+  [data-report-section]:not([data-report-section='audit']) {
   display: none;
 }
 
@@ -337,9 +362,12 @@
 }
 
 [data-supplier-view='overview'] [data-supplier-section],
-[data-supplier-view]:not([data-supplier-view='overview']) .suppliers-overview-only,
-[data-supplier-view='directory'] [data-supplier-section]:not([data-supplier-section='directory']),
-[data-supplier-view='ranking'] [data-supplier-section]:not([data-supplier-section='ranking']) {
+[data-supplier-view]:not([data-supplier-view='overview'])
+  .suppliers-overview-only,
+[data-supplier-view='directory']
+  [data-supplier-section]:not([data-supplier-section='directory']),
+[data-supplier-view='ranking']
+  [data-supplier-section]:not([data-supplier-section='ranking']) {
   display: none;
 }
 
@@ -362,10 +390,14 @@
   display: none;
 }
 
-.dashboard-view-inventory [data-dashboard-category]:not([data-dashboard-category='inventory']),
-.dashboard-view-suppliers [data-dashboard-category]:not([data-dashboard-category='suppliers']),
-.dashboard-view-ai [data-dashboard-category]:not([data-dashboard-category='ai']),
-.dashboard-view-warehouse [data-dashboard-category]:not([data-dashboard-category='warehouse']) {
+.dashboard-view-inventory
+  [data-dashboard-category]:not([data-dashboard-category='inventory']),
+.dashboard-view-suppliers
+  [data-dashboard-category]:not([data-dashboard-category='suppliers']),
+.dashboard-view-ai
+  [data-dashboard-category]:not([data-dashboard-category='ai']),
+.dashboard-view-warehouse
+  [data-dashboard-category]:not([data-dashboard-category='warehouse']) {
   display: none;
 }
 
@@ -451,7 +483,11 @@
 .metric-card.metric-card-products-total,
 .metric-card.metric-card-users-total {
   border-color: rgba(47, 93, 255, 0.28);
-  background: linear-gradient(180deg, var(--surface-1) 0%, rgba(47, 93, 255, 0.04) 100%);
+  background: linear-gradient(
+    180deg,
+    var(--surface-1) 0%,
+    rgba(47, 93, 255, 0.04) 100%
+  );
 }
 
 .event-grid {
@@ -474,7 +510,10 @@
   padding: 1rem 1.05rem;
   position: relative;
   overflow: hidden;
-  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 .event-card::before,
@@ -506,7 +545,11 @@
 
 .access-card {
   border-color: rgba(47, 93, 255, 0.24);
-  background: linear-gradient(180deg, var(--surface-1) 0%, rgba(47, 93, 255, 0.04) 100%);
+  background: linear-gradient(
+    180deg,
+    var(--surface-1) 0%,
+    rgba(47, 93, 255, 0.04) 100%
+  );
 }
 
 .panel-head-row,
@@ -703,7 +746,10 @@
   color: var(--ink-strong);
   padding: 0.5rem 0.56rem;
   font-size: 0.84rem;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
 }
 
 .settings-field textarea {
@@ -772,7 +818,10 @@
   text-align: left;
   cursor: pointer;
   padding: 0.68rem 0.74rem;
-  transition: transform 0.14s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  transition:
+    transform 0.14s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 .settings-hub-card:hover {
@@ -823,7 +872,10 @@
   text-align: left;
   cursor: pointer;
   padding: 0.62rem;
-  transition: transform 0.14s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  transition:
+    transform 0.14s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 .theme-option-card:hover {
@@ -1065,7 +1117,9 @@
   text-transform: uppercase;
   font-weight: 700;
   cursor: pointer;
-  transition: border-color 0.16s ease, background 0.16s ease;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease;
 }
 
 .digital-twin-drawer-tab:hover {
@@ -1192,7 +1246,9 @@
   text-transform: uppercase;
   font-weight: 700;
   cursor: pointer;
-  transition: border-color 0.16s ease, background 0.16s ease;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease;
 }
 
 .digital-twin-zone-filter:hover {
@@ -1255,7 +1311,10 @@
   display: grid;
   align-content: space-between;
   background: var(--surface-1);
-  transition: transform 0.14s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+  transition:
+    transform 0.14s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease;
 }
 
 .digital-twin-bin:hover {
@@ -1352,7 +1411,10 @@
   justify-content: space-between;
   align-items: center;
   gap: 0.56rem;
-  transition: border-color 0.16s ease, transform 0.14s ease, box-shadow 0.16s ease;
+  transition:
+    border-color 0.16s ease,
+    transform 0.14s ease,
+    box-shadow 0.16s ease;
 }
 
 .event-item:hover {
@@ -1731,7 +1793,6 @@
   }
 }
 
-
 /* Dashboard hierarchy: lead with operational health and attention signals */
 .metric-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1750,7 +1811,11 @@
   grid-column: span 2;
   border-color: color-mix(in srgb, var(--accent) 38%, var(--border-soft));
   background:
-    radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 42%),
+    radial-gradient(
+      circle at 92% 8%,
+      color-mix(in srgb, var(--accent) 16%, transparent),
+      transparent 42%
+    ),
     var(--surface-1);
 }
 
@@ -1759,7 +1824,11 @@
   grid-column: span 2;
   border-color: color-mix(in srgb, var(--warning) 42%, var(--border-soft));
   background:
-    radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--warning) 18%, transparent), transparent 42%),
+    radial-gradient(
+      circle at 92% 8%,
+      color-mix(in srgb, var(--warning) 18%, transparent),
+      transparent 42%
+    ),
     var(--surface-1);
 }
 
@@ -1782,14 +1851,21 @@
   font-weight: 700;
 }
 
-.metric-grid .metric-card:not(:nth-child(4)):not(:nth-child(5)):not(:nth-child(6)):not(:nth-child(8)) {
+.metric-grid
+  .metric-card:not(:nth-child(4)):not(:nth-child(5)):not(:nth-child(6)):not(
+    :nth-child(8)
+  ) {
   order: 10;
   min-height: 5.75rem;
   background: color-mix(in srgb, var(--surface-2) 56%, var(--surface-1));
   box-shadow: none;
 }
 
-.metric-grid .metric-card:not(:nth-child(4)):not(:nth-child(5)):not(:nth-child(6)):not(:nth-child(8)) .metric-value {
+.metric-grid
+  .metric-card:not(:nth-child(4)):not(:nth-child(5)):not(:nth-child(6)):not(
+    :nth-child(8)
+  )
+  .metric-value {
   font-size: 1.05rem;
 }
 

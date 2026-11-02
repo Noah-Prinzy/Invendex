@@ -1,0 +1,21 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "invendex-preset",
+  "style": "radix-sera",
+  "baseColor": "zinc",
+  "iconLibrary": "remixicon",
+  "rtl": true,
+  "cssVars": {
+    "theme": {
+      "--radius": "0"
+    },
+    "light": {
+      "--primary": "oklch(0.52 0.105 223.128)",
+      "--primary-foreground": "oklch(0.984 0.019 200.873)"
+    },
+    "dark": {
+      "--primary": "oklch(0.45 0.085 224.283)",
+      "--primary-foreground": "oklch(0.984 0.019 200.873)"
+    }
+  }
+}

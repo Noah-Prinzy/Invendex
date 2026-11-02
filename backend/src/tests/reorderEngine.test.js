@@ -1,8 +1,10 @@
 import mongoose from 'mongoose';
 import Product from '../models/Product.js';
+import Inventory from '../models/Inventory.js';
 import InventorySnapshot from '../models/InventorySnapshot.js';
 import ReorderAlert from '../models/ReorderAlert.js';
 import SupplierProduct from '../models/SupplierProduct.js';
+import Warehouse from '../models/Warehouse.js';
 import { runReorderEngine } from '../services/reorderEngine.js';
 import { getTestDbUri } from './testDbUri.js';
 
@@ -15,11 +17,32 @@ beforeAll(async () => {
 beforeEach(async () => {
   await Promise.all([
     Product.deleteMany({}),
+    Inventory.deleteMany({}),
     InventorySnapshot.deleteMany({}),
     ReorderAlert.deleteMany({}),
-    SupplierProduct.deleteMany({})
+    SupplierProduct.deleteMany({}),
+    Warehouse.deleteMany({})
   ]);
 });
+
+const seedWarehouseStock = async ({
+  organizationId,
+  product,
+  quantityOnHand
+}) => {
+  const warehouse = await Warehouse.create({
+    organization: organizationId,
+    name: 'Reorder Test Warehouse',
+    code: `RW-${product.sku}`
+  });
+  await Inventory.create({
+    organization: organizationId,
+    product: product._id,
+    warehouse: warehouse._id,
+    quantityOnHand,
+    quantityReserved: 0
+  });
+};
 
 afterAll(async () => {
   await mongoose.connection.close();
@@ -56,6 +79,12 @@ describe('Reorder Engine', () => {
         recordedAt: new Date('2024-01-02')
       }
     ]);
+
+    await seedWarehouseStock({
+      organizationId,
+      product,
+      quantityOnHand: product.stock
+    });
 
     const result = await runReorderEngine({ organizationId });
 
@@ -98,6 +127,12 @@ describe('Reorder Engine', () => {
       }
     ]);
 
+    await seedWarehouseStock({
+      organizationId,
+      product,
+      quantityOnHand: product.stock
+    });
+
     const firstRun = await runReorderEngine({ organizationId });
     expect(firstRun.generated).toBe(1);
 
@@ -139,6 +174,12 @@ describe('Reorder Engine', () => {
         recordedAt: new Date('2024-01-02')
       }
     ]);
+
+    await seedWarehouseStock({
+      organizationId,
+      product,
+      quantityOnHand: product.stock
+    });
 
     const firstRun = await runReorderEngine({ organizationId });
     expect(firstRun.generated).toBe(1);
@@ -195,6 +236,12 @@ describe('Reorder Engine', () => {
         recordedAt: new Date('2024-01-02')
       }
     ]);
+
+    await seedWarehouseStock({
+      organizationId,
+      product,
+      quantityOnHand: product.stock
+    });
 
     const result = await runReorderEngine({ organizationId });
 

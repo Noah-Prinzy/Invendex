@@ -252,7 +252,8 @@ const applyWarehouseScopedStockToProducts = (
       }
 
       const productId = String(product?._id || product?.id || '').trim();
-      const inventoryRow = inventorySnapshot.inventoryByProductId.get(productId);
+      const inventoryRow =
+        inventorySnapshot.inventoryByProductId.get(productId);
       const stock = inventorySnapshot.stockMap.has(productId)
         ? Number(inventorySnapshot.stockMap.get(productId) || 0)
         : 0;

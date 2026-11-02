@@ -62,8 +62,7 @@ export const protect = async (req, res, next) => {
       );
     }
 
-    const requiresVerifiedEmail =
-      runtimeConfig.auth.requireEmailVerification;
+    const requiresVerifiedEmail = runtimeConfig.auth.requireEmailVerification;
 
     if (requiresVerifiedEmail && user.isVerified !== true) {
       return next(

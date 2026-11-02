@@ -3,7 +3,7 @@ import { getRequestContext } from './requestContext.js';
 import { logger } from './logger.js';
 
 const sanitize = (value) => String(value || '').trim();
-const asNumber = (value) => {
+const _asNumber = (value) => {
   const parsed = Number.parseFloat(sanitize(value));
   return Number.isFinite(parsed) ? parsed : null;
 };
