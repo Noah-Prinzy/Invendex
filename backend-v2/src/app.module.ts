@@ -18,6 +18,8 @@ import { CurrencyModule } from './modules/currency/currency.module';
 import { EfrisModule } from './modules/efiris/efiris.module';
 import { HealthModule } from './modules/health/health.module';
 import { I18nModule } from './modules/i18n/i18n.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
+import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { PermissionGuard } from './modules/rbac/permission.guard';
 import { RbacModule } from './modules/rbac/rbac.module';
@@ -51,7 +53,9 @@ import { RbacModule } from './modules/rbac/rbac.module';
     PaymentsModule,
     ChannelsModule,
     CurrencyModule,
-    I18nModule
+    I18nModule,
+    InventoryModule,
+    PurchaseOrdersModule
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
