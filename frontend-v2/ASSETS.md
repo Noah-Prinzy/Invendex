@@ -2,7 +2,7 @@
 
 | Asset | Source | License | Used in |
 |---|---|---|---|
-| Logo mark (Ledger Cube, option A) | Generated in-repo (`public/logo.svg`, `src/components/Logo.tsx`) | Project-owned | App shell, auth, welcome, favicon, PWA icons |
+| Logo mark "N" (Noah-provided, `public/logo.png`) | Provided by Noah (Boss) | Project-owned | `src/components/Logo.tsx`, favicon-16/32/48.png, PWA icons |
 | PWA icons (192/512/maskable/apple-touch) | Derived from logo via sharp | Project-owned | `public/icons/*`, manifest |
 | Sora Variable font | @fontsource-variable/sora (Google Fonts) | OFL-1.1 | UI text (`--font-sans`) |
 | Space Grotesk Variable font | @fontsource-variable/space-grotesk (Google Fonts) | OFL-1.1 | Headings/logo wordmark (`--font-heading`) |
