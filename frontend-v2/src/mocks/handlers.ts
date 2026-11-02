@@ -111,6 +111,21 @@ export const handlers = [
     if (product) product.stock += body.delta
     return HttpResponse.json({ ok: true })
   }),
+  http.get("*/api/v1/reports/spend/summary", () =>
+    HttpResponse.json({
+      totalSpendUgx: 2450000,
+      topSupplier: "Kampala Wholesalers Ltd",
+      ordersThisMonth: 6,
+      avgLeadTimeDays: 4.2,
+    }),
+  ),
+  http.get("*/api/v1/finance/valuation", () =>
+    HttpResponse.json({
+      method: "FIFO",
+      totalValueUgx: 5820000,
+      skuCount: demoProducts.length,
+    }),
+  ),
   http.get("*/api/v1/dashboard/summary", () =>
     HttpResponse.json({
       totalSkus: demoProducts.length,

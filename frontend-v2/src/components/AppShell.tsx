@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router"
 import {
+  BarChart3,
   Bell,
   LayoutDashboard,
   LogOut,
@@ -10,7 +11,9 @@ import {
   Warehouse,
 } from "lucide-react"
 import type { ReactNode } from "react"
-import CommandPalette from "@/components/CommandPalette"
+import { lazy, Suspense } from "react"
+
+const CommandPalette = lazy(() => import("@/components/CommandPalette"))
 import Logo from "@/components/Logo"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -99,7 +102,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </Button>
         </div>
       </header>
-      <CommandPalette />
+      <Suspense fallback={null}>
+        <CommandPalette />
+      </Suspense>
       <nav className="flex items-center gap-1 border-b px-4 py-2 text-sm">
         <Link
           to="/app"
@@ -121,6 +126,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
         >
           <ShoppingCart className="size-4" />
           Purchasing
+        </Link>
+        <Link
+          to="/app/reports"
+          className="flex items-center gap-1.5 rounded-md px-3 py-1.5 hover:bg-accent [&.active]:bg-accent [&.active]:font-medium"
+        >
+          <BarChart3 className="size-4" />
+          Reports
         </Link>
       </nav>
       <main className="flex-1 p-4">{children}</main>
