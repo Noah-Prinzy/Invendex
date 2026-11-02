@@ -9,6 +9,7 @@ import {
   Warehouse,
 } from "lucide-react"
 import type { ReactNode } from "react"
+import CommandPalette from "@/components/CommandPalette"
 import Logo from "@/components/Logo"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -97,6 +98,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </Button>
         </div>
       </header>
+      <CommandPalette />
       <nav className="flex items-center gap-1 border-b px-4 py-2 text-sm">
         <Link
           to="/app"
