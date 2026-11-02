@@ -8,9 +8,10 @@ import {
   sendBulkSms,
   sendBulkWhatsApp
 } from './smsService.js';
+import { getRuntimeConfig } from '../../config/envConfig.js';
 import { logger } from '../../observability/logger.js';
 
-const APP_WEB_URL = String(process.env.APP_WEB_URL || '').trim();
+const APP_WEB_URL = getRuntimeConfig().auth.appWebUrl;
 
 const escapeHtml = (value) =>
   String(value ?? '')
@@ -245,38 +246,9 @@ const toFinitePort = (value, fallback = 587) => {
   return Math.floor(parsed);
 };
 
-const resolveSmtpConfig = () => {
-  const host = String(process.env.SMTP_HOST || '').trim();
-  const user = String(process.env.SMTP_USER || '').trim();
-  const pass = String(process.env.SMTP_PASS || '').trim();
-  const fromEmail = String(process.env.SMTP_FROM_EMAIL || '').trim();
-  const fromName = String(process.env.SMTP_FROM_NAME || 'Invendex').trim();
-  const port = toFinitePort(process.env.SMTP_PORT, 587);
-  const secure = parseBooleanEnv(process.env.SMTP_SECURE, port === 465);
-  const requireTls = parseBooleanEnv(process.env.SMTP_REQUIRE_TLS, false);
-  const explicitToggle = String(process.env.EMAIL_NOTIFICATIONS_ENABLED || '')
-    .trim()
-    .toLowerCase();
-
-  const isConfigured = Boolean(host && fromEmail);
-  const isEnabled =
-    explicitToggle === 'false'
-      ? false
-      : explicitToggle === 'true' || isConfigured;
-
-  return {
-    host,
-    port,
-    secure,
-    requireTls,
-    user,
-    pass,
-    fromEmail,
-    fromName,
-    isConfigured,
-    isEnabled
-  };
-};
+const resolveSmtpConfig = () => ({
+  ...getRuntimeConfig().notifications.email
+});
 
 let cachedTransporter = null;
 let cachedConfigFingerprint = '';

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { getRuntimeConfig } from '../config/envConfig.js';
 import { getRealtimeEmitStats } from '../realtime/publisher.js';
 
 const CONNECTION_STATE = {
@@ -52,7 +53,7 @@ export const getReadinessHealth = async () => {
 
   let mongoPingOk = false;
   let pingError = null;
-  const timeoutMs = Number(process.env.HEALTHCHECK_DB_TIMEOUT_MS || 1000);
+  const timeoutMs = getRuntimeConfig().observability.healthcheckDbTimeoutMs;
 
   if (stateCode === 1 && mongoose.connection?.db?.admin) {
     try {
@@ -75,9 +76,7 @@ export const getReadinessHealth = async () => {
       pingError
     },
     realtime: {
-      enabled:
-        String(process.env.REALTIME_ENABLED || 'false').toLowerCase() ===
-        'true',
+      enabled: getRuntimeConfig().realtimeEnabled,
       emittedEvents: getRealtimeEmitStats()
     }
   };

@@ -125,7 +125,9 @@ const normalizeSameSiteValue = (value) => {
 const resolveUseSecureCookies = () => {
   const explicit = asString(process.env.COOKIE_SECURE);
   if (explicit) return asBoolean(explicit);
-  return asString(process.env.NODE_ENV || 'development') === 'production';
+
+  const nodeEnv = asString(process.env.NODE_ENV || 'development');
+  return nodeEnv === 'production' || nodeEnv === 'staging';
 };
 
 const resolveCookieSameSite = (useSecureCookies) => {
@@ -322,8 +324,14 @@ const validateRealtimeCors = (issues) => {
   }
 };
 
-const validateRateLimitRedis = (issues) => {
-  if (!asBoolean(process.env.RATE_LIMIT_REDIS_ENABLED)) return;
+const validateRateLimitRedis = (issues, nodeEnv) => {
+  const enabled = asBoolean(process.env.RATE_LIMIT_REDIS_ENABLED);
+  if (nodeEnv === 'production' && !enabled) {
+    issues.push('RATE_LIMIT_REDIS_ENABLED must be true in production');
+    return;
+  }
+
+  if (!enabled) return;
 
   const redisUrl = asString(
     process.env.RATE_LIMIT_REDIS_URL || process.env.REALTIME_REDIS_URL
@@ -355,10 +363,6 @@ const validateCookieSecurity = (issues, warnings, nodeEnv) => {
   if (nodeEnv === 'production' && !useSecureCookies) {
     issues.push('COOKIE_SECURE must be enabled in production');
   }
-
-  if (nodeEnv !== 'production' && !useSecureCookies) {
-    warnings.push('COOKIE_SECURE is disabled outside production');
-  }
 };
 
 const validateErrorTracking = (issues) => {
@@ -376,19 +380,20 @@ const validateErrorTracking = (issues) => {
     return;
   }
 
-  if (
-    (provider === 'webhook' || provider === 'both') &&
-    !asString(process.env.ERROR_TRACKING_WEBHOOK_URL)
-  ) {
-    issues.push(
-      'ERROR_TRACKING_PROVIDER requires ERROR_TRACKING_WEBHOOK_URL when provider includes webhook'
-    );
+  const webhookUrl = asString(process.env.ERROR_TRACKING_WEBHOOK_URL);
+  const sentryDsn = asString(process.env.ERROR_TRACKING_SENTRY_DSN);
+
+  if (provider === 'webhook' || provider === 'both') {
+    if (webhookUrl) return;
+
+    if (asString(process.env.NODE_ENV || 'development') === 'production') {
+      issues.push(
+        'ERROR_TRACKING_PROVIDER requires ERROR_TRACKING_WEBHOOK_URL when provider includes webhook'
+      );
+    }
   }
 
-  if (
-    (provider === 'sentry' || provider === 'both') &&
-    !asString(process.env.ERROR_TRACKING_SENTRY_DSN)
-  ) {
+  if ((provider === 'sentry' || provider === 'both') && !sentryDsn) {
     issues.push(
       'ERROR_TRACKING_PROVIDER requires ERROR_TRACKING_SENTRY_DSN when provider includes sentry'
     );
@@ -650,6 +655,182 @@ const warnUnsafeFlags = () => {
   }
 };
 
+
+export const getRuntimeConfig = () => {
+  const nodeEnv = asString(process.env.NODE_ENV || 'development');
+  const isProduction = nodeEnv === 'production';
+  const enabled = (key, fallback = false) => {
+    const raw = asString(process.env[key]);
+    return raw ? asBoolean(raw) : fallback;
+  };
+
+  return Object.freeze({
+    nodeEnv,
+    isProduction,
+    port: asInteger(process.env.PORT) || 4000,
+    shutdownTimeoutMs: asInteger(process.env.SHUTDOWN_TIMEOUT_MS) || 15_000,
+    httpLogger: asString(process.env.HTTP_LOGGER || 'morgan').toLowerCase(),
+    scheduledJobsEnabled: !isProduction || enabled('RUN_SCHEDULED_JOBS'),
+    realtimeEnabled: enabled('REALTIME_ENABLED'),
+    realtimeRedis: Object.freeze({
+      enabled: enabled('REALTIME_REDIS_ENABLED'),
+      url: asString(process.env.REALTIME_REDIS_URL)
+    }),
+    rateLimitRedis: Object.freeze({
+      enabled: enabled('RATE_LIMIT_REDIS_ENABLED'),
+      url: asString(
+        process.env.RATE_LIMIT_REDIS_URL || process.env.REALTIME_REDIS_URL
+      ),
+      prefix: asString(
+        process.env.RATE_LIMIT_REDIS_PREFIX || 'invendex:rate-limit:'
+      )
+    }),
+    backgroundJobs: Object.freeze({
+      queueEnabled: enabled('BACKGROUND_JOB_QUEUE_ENABLED'),
+      runInlineWorker: asString(process.env.BACKGROUND_JOB_RUN_INLINE_WORKER)
+        ? enabled('BACKGROUND_JOB_RUN_INLINE_WORKER')
+        : !isProduction,
+      queueName: asString(
+        process.env.BACKGROUND_JOB_QUEUE_NAME || 'invendex:background-jobs'
+      ),
+      redisUrl: asString(
+        process.env.BACKGROUND_JOB_REDIS_URL ||
+          process.env.REALTIME_REDIS_URL ||
+          process.env.RATE_LIMIT_REDIS_URL
+      ),
+      workerConcurrency: Math.max(
+        1,
+        Math.min(
+          asInteger(process.env.BACKGROUND_JOB_WORKER_CONCURRENCY) || 3,
+          50
+        )
+      )
+    }),
+    auth: Object.freeze({
+      testBypassEnabled: enabled('AUTH_TEST_BYPASS', true),
+      requireEmailVerification: enabled('AUTH_REQUIRE_EMAIL_VERIFICATION'),
+      appWebUrl: asString(process.env.APP_WEB_URL),
+      accessTokenSecret: asString(process.env.JWT_ACCESS_SECRET),
+      accessTokenPreviousSecrets: parseCsv(
+        process.env.JWT_ACCESS_SECRET_PREVIOUS
+      ),
+      refreshTokenSecret: asString(process.env.JWT_REFRESH_SECRET),
+      refreshTokenPreviousSecrets: parseCsv(
+        process.env.JWT_REFRESH_SECRET_PREVIOUS
+      ),
+      accessTokenExpiresIn: asString(process.env.JWT_ACCESS_EXPIRES || '15m'),
+      refreshTokenExpiresIn: asString(process.env.JWT_REFRESH_EXPIRES || '7d'),
+      twoFactorChallengeTtlSeconds: Math.max(
+        60,
+        Math.min(
+          asInteger(process.env.AUTH_2FA_CHALLENGE_TTL_SECONDS) || 600,
+          3600
+        )
+      ),
+      twoFactorIssuer: asString(process.env.AUTH_2FA_ISSUER || 'Invendex').slice(
+        0,
+        80
+      ),
+      twoFactorChallengeSecret: asString(
+        process.env.AUTH_2FA_CHALLENGE_SECRET
+      )
+    }),
+    notifications: Object.freeze({
+      email: (() => {
+        const host = asString(process.env.SMTP_HOST);
+        const fromEmail = asString(process.env.SMTP_FROM_EMAIL);
+        const port = Math.max(
+          1,
+          Math.min(asInteger(process.env.SMTP_PORT) || 587, 65_535)
+        );
+        const configured = Boolean(host && fromEmail);
+        const toggle = asString(process.env.EMAIL_NOTIFICATIONS_ENABLED);
+        return Object.freeze({
+          host,
+          port,
+          secure: asString(process.env.SMTP_SECURE)
+            ? asBoolean(process.env.SMTP_SECURE)
+            : port === 465,
+          requireTls: asBoolean(process.env.SMTP_REQUIRE_TLS),
+          user: asString(process.env.SMTP_USER),
+          pass: asString(process.env.SMTP_PASS),
+          fromEmail,
+          fromName: asString(process.env.SMTP_FROM_NAME || 'Invendex'),
+          isConfigured: configured,
+          isEnabled: toggle
+            ? asBoolean(toggle)
+            : configured
+        });
+      })(),
+      sms: Object.freeze({
+        provider: asString(process.env.SMS_PROVIDER || 'none').toLowerCase(),
+        whatsappProvider: asString(
+          process.env.WHATSAPP_PROVIDER || process.env.SMS_PROVIDER || 'none'
+        ).toLowerCase(),
+        timeoutMs: asInteger(process.env.SMS_TIMEOUT_MS) || 4000,
+        lowStockRecipients: parseCsv(process.env.SMS_LOW_STOCK_RECIPIENTS),
+        twilio: Object.freeze({
+          accountSid: asString(process.env.SMS_TWILIO_ACCOUNT_SID),
+          authToken: asString(process.env.SMS_TWILIO_AUTH_TOKEN),
+          from: asString(process.env.SMS_TWILIO_FROM)
+        }),
+        whatsappTwilio: Object.freeze({
+          accountSid: asString(
+            process.env.WHATSAPP_TWILIO_ACCOUNT_SID ||
+              process.env.SMS_TWILIO_ACCOUNT_SID
+          ),
+          authToken: asString(
+            process.env.WHATSAPP_TWILIO_AUTH_TOKEN ||
+              process.env.SMS_TWILIO_AUTH_TOKEN
+          ),
+          from: asString(
+            process.env.WHATSAPP_TWILIO_FROM || process.env.SMS_TWILIO_FROM
+          )
+        })
+      })
+    }),
+    observability: Object.freeze({
+      logLevel: asString(process.env.LOG_LEVEL || 'info').toLowerCase(),
+      metrics: Object.freeze({
+        enabled: enabled('METRICS_ENABLED'),
+        prefix: asString(process.env.METRICS_PREFIX || 'invendex_'),
+        token: asString(process.env.METRICS_TOKEN)
+      }),
+      healthcheckDbTimeoutMs:
+        asInteger(process.env.HEALTHCHECK_DB_TIMEOUT_MS) || 1000,
+      operationalAlerts: Object.freeze({
+        webhookUrl: asString(process.env.OPS_ALERT_WEBHOOK_URL),
+        webhookTimeoutMs:
+          asInteger(process.env.OPS_ALERT_WEBHOOK_TIMEOUT_MS) || 2000,
+        cooldownMs: asInteger(process.env.OPS_ALERT_COOLDOWN_MS) || 60_000
+      }),
+      errorTracking: Object.freeze({
+        provider: asString(
+          process.env.ERROR_TRACKING_PROVIDER ||
+            (process.env.ERROR_TRACKING_WEBHOOK_URL ? 'webhook' : 'none')
+        ).toLowerCase(),
+        webhookUrl: asString(process.env.ERROR_TRACKING_WEBHOOK_URL),
+        sentryDsn: asString(process.env.ERROR_TRACKING_SENTRY_DSN),
+        timeoutMs: asInteger(process.env.ERROR_TRACKING_TIMEOUT_MS) || 2000,
+        sentryTracesSampleRate: Math.max(
+          0,
+          Math.min(
+            asNumber(process.env.ERROR_TRACKING_SENTRY_TRACES_SAMPLE_RATE) || 0,
+            1
+          )
+        )
+      })
+    }),
+    apiDocsEnabled: !isProduction || enabled('API_DOCS_ENABLED'),
+    legacyApi: Object.freeze({
+      enabled: !isProduction || enabled('LEGACY_API_ENABLED'),
+      sunset: asString(
+        process.env.LEGACY_API_SUNSET || 'Thu, 31 Dec 2026 23:59:59 GMT'
+      )
+    })
+  });
+};
+
 export const validateRuntimeEnv = () => {
   const nodeEnv = asString(process.env.NODE_ENV || 'development');
   const issues = [];
@@ -671,7 +852,7 @@ export const validateRuntimeEnv = () => {
   );
   validateCors(issues);
   validateRealtimeCors(issues);
-  validateRateLimitRedis(issues);
+  validateRateLimitRedis(issues, nodeEnv);
   validateRealtimeScaling(issues, warnings, nodeEnv);
   validateCookieSecurity(issues, warnings, nodeEnv);
   validateErrorTracking(issues);
@@ -709,5 +890,6 @@ export default {
   getTrustProxySetting,
   getBodyParserConfig,
   getHttpServerTimeoutConfig,
+  getRuntimeConfig,
   validateRuntimeEnv
 };

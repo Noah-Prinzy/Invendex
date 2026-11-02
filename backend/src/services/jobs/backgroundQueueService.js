@@ -1,39 +1,17 @@
+import { getRuntimeConfig } from '../../config/envConfig.js';
 import { logger } from '../../observability/logger.js';
 
-const DEFAULT_QUEUE_NAME = 'invendex:background-jobs';
+const resolveQueueEnabled = () => getRuntimeConfig().backgroundJobs.queueEnabled;
 
-const asString = (value) => String(value || '').trim();
-const asBoolean = (value) =>
-  ['1', 'true', 'yes', 'on'].includes(asString(value).toLowerCase());
-const asInteger = (value) => {
-  const parsed = Number.parseInt(asString(value), 10);
-  return Number.isFinite(parsed) ? parsed : null;
-};
+const resolveInlineWorkerEnabled = () =>
+  getRuntimeConfig().backgroundJobs.runInlineWorker;
 
-const resolveQueueEnabled = () =>
-  asBoolean(process.env.BACKGROUND_JOB_QUEUE_ENABLED);
+const resolveQueueName = () => getRuntimeConfig().backgroundJobs.queueName;
 
-const resolveInlineWorkerEnabled = () => {
-  const explicit = asString(process.env.BACKGROUND_JOB_RUN_INLINE_WORKER);
-  if (explicit) return asBoolean(explicit);
-  return asString(process.env.NODE_ENV || 'development') !== 'production';
-};
+const resolveRedisUrl = () => getRuntimeConfig().backgroundJobs.redisUrl;
 
-const resolveQueueName = () =>
-  asString(process.env.BACKGROUND_JOB_QUEUE_NAME) || DEFAULT_QUEUE_NAME;
-
-const resolveRedisUrl = () =>
-  asString(
-    process.env.BACKGROUND_JOB_REDIS_URL ||
-      process.env.REALTIME_REDIS_URL ||
-      process.env.RATE_LIMIT_REDIS_URL
-  );
-
-const resolveWorkerConcurrency = () => {
-  const configured = asInteger(process.env.BACKGROUND_JOB_WORKER_CONCURRENCY);
-  if (configured == null) return 3;
-  return Math.max(1, Math.min(configured, 50));
-};
+const resolveWorkerConcurrency = () =>
+  getRuntimeConfig().backgroundJobs.workerConcurrency;
 
 let queue = null;
 let queueConnection = null;

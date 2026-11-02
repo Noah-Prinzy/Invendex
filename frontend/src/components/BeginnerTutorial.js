@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 const getFallbackSpotlight = () => {
@@ -31,11 +31,24 @@ const SCROLL_LOCK_KEYS = new Set([
   'ArrowDown'
 ]);
 
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+
+const safeQuerySelector = (selector) => {
+  if (!selector) return null;
+  try {
+    return document.querySelector(selector);
+  } catch {
+    // Ignore invalid selectors rather than crashing the tutorial.
+    return null;
+  }
+};
+
 const resolveSpotlightRect = (selector) => {
   if (typeof window === 'undefined') return getFallbackSpotlight();
   if (!selector) return null;
 
-  const target = document.querySelector(selector);
+  const target = safeQuerySelector(selector);
   if (!target) return getFallbackSpotlight();
 
   const rect = target.getBoundingClientRect();
@@ -105,9 +118,16 @@ const BeginnerTutorial = ({
   const [spotlightRect, setSpotlightRect] = useState(
     typeof window === 'undefined' ? null : getFallbackSpotlight()
   );
+  const popoverRef = useRef(null);
+  const headingId = 'tutorial-step-heading';
+  const descriptionId = 'tutorial-step-description';
+
   const step = steps[currentIndex] || null;
   const shouldSpotlight = Boolean(String(step?.selector || '').trim());
+  const isLastStep = currentIndex >= steps.length - 1;
+  const showSkipAction = step?.showSkipAction === true;
 
+  // Track the target element and keep the spotlight synced to it.
   useEffect(() => {
     if (typeof window === 'undefined' || !step) return undefined;
 
@@ -118,9 +138,7 @@ const BeginnerTutorial = ({
 
     const syncTarget = () => {
       if (cancelled) return;
-      const target = shouldSpotlight
-        ? document.querySelector(step.selector)
-        : null;
+      const target = shouldSpotlight ? safeQuerySelector(step.selector) : null;
       if (
         target &&
         !hasScrolledToTarget &&
@@ -160,6 +178,7 @@ const BeginnerTutorial = ({
     };
   }, [shouldSpotlight, step]);
 
+  // Lock page scrolling while the tutorial is active.
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined' || !step) {
       return undefined;
@@ -174,6 +193,8 @@ const BeginnerTutorial = ({
 
     const preventScrollKeys = (event) => {
       if (!SCROLL_LOCK_KEYS.has(event.key)) return;
+      // Let the person scroll inside the popover itself if it has overflow.
+      if (popoverRef.current?.contains(document.activeElement)) return;
       event.preventDefault();
     };
 
@@ -184,6 +205,72 @@ const BeginnerTutorial = ({
       documentElement.style.overflow = previousHtmlOverflow;
       window.removeEventListener('keydown', preventScrollKeys);
     };
+  }, [step]);
+
+  // Keyboard navigation: Escape to skip/close, arrows to move between steps,
+  // and a focus trap so Tab stays inside the popover.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !step) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        if (showSkipAction) {
+          onSkip();
+        } else if (!isLastStep) {
+          onNext();
+        }
+        return;
+      }
+
+      if (event.key === 'ArrowRight' || event.key === 'Enter') {
+        const target = event.target;
+        const isInteractiveElement =
+          target?.tagName === 'BUTTON' || target?.tagName === 'A';
+        if (event.key === 'Enter' && isInteractiveElement) return;
+        event.preventDefault();
+        onNext();
+        return;
+      }
+
+      if (event.key === 'ArrowLeft' && currentIndex > 0) {
+        event.preventDefault();
+        onPrevious();
+        return;
+      }
+
+      if (event.key === 'Tab' && popoverRef.current) {
+        const focusable = Array.from(
+          popoverRef.current.querySelectorAll(FOCUSABLE_SELECTOR)
+        ).filter((el) => el.offsetParent !== null);
+        if (!focusable.length) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [step, currentIndex, isLastStep, showSkipAction, onNext, onPrevious, onSkip]);
+
+  // Move focus into the popover whenever the step changes, so screen reader
+  // users and keyboard users land on fresh content automatically.
+  useEffect(() => {
+    if (!step || !popoverRef.current) return;
+    const frameId = window.requestAnimationFrame(() => {
+      const primaryButton = popoverRef.current?.querySelector('.btn-primary');
+      (primaryButton || popoverRef.current)?.focus();
+    });
+    return () => window.cancelAnimationFrame(frameId);
   }, [step]);
 
   const popoverStyle = useMemo(() => {
@@ -199,14 +286,13 @@ const BeginnerTutorial = ({
 
     return resolvePopoverStyle(spotlightRect || getFallbackSpotlight());
   }, [shouldSpotlight, spotlightRect]);
+
   const stepAnimationKey = String(step?.id || currentIndex || 'tutorial-step');
-  const showSkipAction = step?.showSkipAction === true;
 
   if (!step) return null;
 
-  const isLastStep = currentIndex >= steps.length - 1;
   const overlay = (
-    <div className="tutorial-overlay" role="dialog" aria-modal="true">
+    <div className="tutorial-overlay" role="dialog" aria-modal="true" aria-labelledby={headingId}>
       <button
         type="button"
         className="tutorial-backdrop"
@@ -228,18 +314,23 @@ const BeginnerTutorial = ({
       ) : null}
       <article
         key={`${stepAnimationKey}-popover`}
+        ref={popoverRef}
         className="tutorial-popover"
         style={popoverStyle}
+        tabIndex={-1}
+        aria-describedby={descriptionId}
         onClick={(event) => event.stopPropagation()}
         onWheel={(event) => event.stopPropagation()}
         onTouchMove={(event) => event.stopPropagation()}
       >
         <div className="tutorial-popover-inner">
-          <p className="tutorial-progress">
+          <p className="tutorial-progress" aria-live="polite">
             Step {currentIndex + 1} of {steps.length}
           </p>
-          <h3>{step.title}</h3>
-          <p className="tutorial-description">{step.description}</p>
+          <h3 id={headingId}>{step.title}</h3>
+          <p id={descriptionId} className="tutorial-description">
+            {step.description}
+          </p>
           {Array.isArray(step.tips) && step.tips.length ? (
             <div className="tutorial-tip-list">
               {step.tips.map((tip, index) => (
@@ -256,7 +347,7 @@ const BeginnerTutorial = ({
             </div>
           ) : null}
           <p className="tutorial-footnote">
-            Click anywhere outside this box to continue.
+            Click anywhere outside this box, or press Enter, to continue.
           </p>
           <div className="tutorial-actions">
             {showSkipAction ? (

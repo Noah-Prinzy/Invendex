@@ -29,7 +29,10 @@ const DashboardLayout = ({
   const brandTitle = buildInventoryHeaderTitle(companyName);
 
   return (
-    <main className="app-layout">
+    <div className="app-layout">
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
       <header className="app-header">
         <div className="app-header-main">
           <div className="brand">
@@ -94,10 +97,14 @@ const DashboardLayout = ({
             </Button>
           </div>
         </div>
-        {tabBarNode ? <div className="app-header-nav">{tabBarNode}</div> : null}
       </header>
-      <section className="app-body">{children}</section>
-    </main>
+      <div className="app-workspace">
+        {tabBarNode ? <aside className="app-sidebar">{tabBarNode}</aside> : null}
+        <main id="main-content" className="app-body" tabIndex={-1}>
+          {children}
+        </main>
+      </div>
+    </div>
   );
 };
 

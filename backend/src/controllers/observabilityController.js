@@ -1,4 +1,5 @@
 import { successResponse } from '../utils/response.js';
+import { getRuntimeConfig } from '../config/envConfig.js';
 import { isRealtimeEnabled } from '../realtime/socketServer.js';
 import { getSocketRedisAdapterStatus } from '../realtime/redisAdapter.js';
 import { getRateLimitStoreStatus } from '../middlewares/rateLimitStore.js';
@@ -13,11 +14,8 @@ import {
 
 const sanitize = (value) => String(value || '').trim();
 
-const resolveErrorTrackingProvider = () => {
-  const explicit = sanitize(process.env.ERROR_TRACKING_PROVIDER).toLowerCase();
-  if (explicit) return explicit;
-  return sanitize(process.env.ERROR_TRACKING_WEBHOOK_URL) ? 'webhook' : 'none';
-};
+const resolveErrorTrackingProvider = () =>
+  getRuntimeConfig().observability.errorTracking.provider;
 
 const parsePositiveInteger = (value, fallback) => {
   const parsed = Number(value);
@@ -31,10 +29,10 @@ export const getObservabilityPing = async (req, res, next) => {
   try {
     const provider = resolveErrorTrackingProvider();
     const webhookEnabled = Boolean(
-      sanitize(process.env.ERROR_TRACKING_WEBHOOK_URL)
+      getRuntimeConfig().observability.errorTracking.webhookUrl
     );
     const sentryConfigured = Boolean(
-      sanitize(process.env.ERROR_TRACKING_SENTRY_DSN)
+      getRuntimeConfig().observability.errorTracking.sentryDsn
     );
 
     return successResponse(
@@ -43,7 +41,7 @@ export const getObservabilityPing = async (req, res, next) => {
         status: 'ok',
         timestamp: new Date().toISOString(),
         uptimeSeconds: Math.floor(process.uptime()),
-        environment: sanitize(process.env.NODE_ENV || 'development'),
+        environment: getRuntimeConfig().nodeEnv,
         organizationId: req.organizationId || null,
         userId: req.user?._id || req.user?.id || null,
         trace: {
@@ -79,7 +77,7 @@ export const getObservabilityRuntime = async (req, res, next) => {
           nodeVersion: process.version,
           pid: process.pid,
           uptimeSeconds: Math.floor(process.uptime()),
-          environment: sanitize(process.env.NODE_ENV || 'development')
+          environment: getRuntimeConfig().nodeEnv
         },
         realtime: {
           enabled: isRealtimeEnabled(),

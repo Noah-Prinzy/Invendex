@@ -1,5 +1,7 @@
 import jwt from 'jsonwebtoken';
 
+import { getRuntimeConfig } from '../config/envConfig.js';
+
 const asString = (value) => String(value || '').trim();
 
 const parseSecretChain = (primarySecret, previousSecretsRaw) => {
@@ -45,31 +47,41 @@ const verifyJwtWithSecretChain = (token, secretChain) => {
   throw new Error('Unable to verify token');
 };
 
-const getRequiredSecret = (envKey) => {
-  const value = asString(process.env[envKey]);
-  if (!value) {
-    throw new Error(`${envKey} is required`);
+const getRequiredSecret = (value, configKey) => {
+  const secret = asString(value);
+  if (!secret) {
+    throw new Error(`${configKey} is required`);
   }
-  return value;
+  return secret;
 };
 
 export const getAccessTokenSigningSecret = () =>
-  getRequiredSecret('JWT_ACCESS_SECRET');
+  getRequiredSecret(
+    getRuntimeConfig().auth.accessTokenSecret,
+    'JWT_ACCESS_SECRET'
+  );
 
 export const getRefreshTokenSigningSecret = () =>
-  getRequiredSecret('JWT_REFRESH_SECRET');
-
-export const getAccessTokenVerificationSecrets = () =>
-  parseSecretChain(
-    process.env.JWT_ACCESS_SECRET,
-    process.env.JWT_ACCESS_SECRET_PREVIOUS
+  getRequiredSecret(
+    getRuntimeConfig().auth.refreshTokenSecret,
+    'JWT_REFRESH_SECRET'
   );
 
-export const getRefreshTokenVerificationSecrets = () =>
-  parseSecretChain(
-    process.env.JWT_REFRESH_SECRET,
-    process.env.JWT_REFRESH_SECRET_PREVIOUS
+export const getAccessTokenVerificationSecrets = () => {
+  const auth = getRuntimeConfig().auth;
+  return parseSecretChain(
+    auth.accessTokenSecret,
+    auth.accessTokenPreviousSecrets.join(',')
   );
+};
+
+export const getRefreshTokenVerificationSecrets = () => {
+  const auth = getRuntimeConfig().auth;
+  return parseSecretChain(
+    auth.refreshTokenSecret,
+    auth.refreshTokenPreviousSecrets.join(',')
+  );
+};
 
 export const verifyAccessToken = (token) =>
   verifyJwtWithSecretChain(token, getAccessTokenVerificationSecrets());
@@ -89,7 +101,7 @@ export const generateAccessToken = (user) => {
     },
     getAccessTokenSigningSecret(),
     {
-      expiresIn: process.env.JWT_ACCESS_EXPIRES || '15m'
+      expiresIn: getRuntimeConfig().auth.accessTokenExpiresIn
     }
   );
 };
@@ -105,7 +117,7 @@ export const generateRefreshToken = (user) => {
     },
     getRefreshTokenSigningSecret(),
     {
-      expiresIn: process.env.JWT_REFRESH_EXPIRES || '7d'
+      expiresIn: getRuntimeConfig().auth.refreshTokenExpiresIn
     }
   );
 };

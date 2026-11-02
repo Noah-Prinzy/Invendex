@@ -1,3 +1,4 @@
+import { getRuntimeConfig } from '../config/envConfig.js';
 import { getRequestContext } from './requestContext.js';
 import { logger } from './logger.js';
 
@@ -7,11 +8,8 @@ const asNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const resolveProvider = () => {
-  const explicit = sanitize(process.env.ERROR_TRACKING_PROVIDER).toLowerCase();
-  if (explicit) return explicit;
-  return sanitize(process.env.ERROR_TRACKING_WEBHOOK_URL) ? 'webhook' : 'none';
-};
+const resolveProvider = () =>
+  getRuntimeConfig().observability.errorTracking.provider;
 
 const providerIncludesWebhook = (provider) =>
   provider === 'webhook' || provider === 'both';
@@ -20,9 +18,9 @@ const providerIncludesSentry = (provider) =>
   provider === 'sentry' || provider === 'both';
 
 const provider = resolveProvider();
-const sentryDsn = sanitize(process.env.ERROR_TRACKING_SENTRY_DSN);
+const sentryDsn = getRuntimeConfig().observability.errorTracking.sentryDsn;
 const errorTrackingTimeoutMs =
-  Number.parseInt(sanitize(process.env.ERROR_TRACKING_TIMEOUT_MS), 10) || 2000;
+  getRuntimeConfig().observability.errorTracking.timeoutMs;
 
 let warnedMissingSentryPackage = false;
 let warnedMissingSentryDsn = false;
@@ -51,7 +49,7 @@ const getMergedContext = (context) => {
 };
 
 const postErrorWebhook = async (payload) => {
-  const url = sanitize(process.env.ERROR_TRACKING_WEBHOOK_URL);
+  const url = getRuntimeConfig().observability.errorTracking.webhookUrl;
   if (!url || !providerIncludesWebhook(provider)) return;
 
   try {
@@ -83,10 +81,10 @@ const getSentryModule = async () => {
     sentryModulePromise = import('@sentry/node')
       .then((module) => {
         const tracesSampleRate =
-          asNumber(process.env.ERROR_TRACKING_SENTRY_TRACES_SAMPLE_RATE) || 0;
+          getRuntimeConfig().observability.errorTracking.sentryTracesSampleRate;
         module.init({
           dsn: sentryDsn,
-          environment: sanitize(process.env.NODE_ENV || 'development'),
+          environment: getRuntimeConfig().nodeEnv,
           tracesSampleRate: Math.max(0, Math.min(1, tracesSampleRate))
         });
         sentryEnabled = true;

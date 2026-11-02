@@ -1,4 +1,12 @@
 import {
+  buildAuthEvent,
+  buildFinanceEvent,
+  buildInventoryEvent,
+  buildPurchaseOrderEvent,
+  resolveWarehouseIdFromPayload
+} from './workspaceEventBuilders.js';
+
+import {
   Suspense,
   lazy,
   useCallback,
@@ -40,19 +48,7 @@ const LEGACY_TUTORIAL_COMPLETED_STORAGE_KEY_PREFIXES = Object.freeze([
   'Invendex:tutorial_completed:'
 ]);
 
-const emailToUsernameFallback = (value) => {
-  const normalized = String(value || '').trim();
-  if (!normalized) return '';
-  return normalized.includes('@') ? normalized.split('@')[0] : normalized;
-};
 
-const resolveUserIdentityLabel = (identity = {}, fallback = 'employee') =>
-  String(
-    identity?.username ||
-      identity?.name ||
-      emailToUsernameFallback(identity?.email) ||
-      fallback
-  ).trim() || fallback;
 
 const sanitizeBaseUrl = (value) =>
   String(value || '')
@@ -405,80 +401,6 @@ const Warehouses = lazy(
 const Account = lazy(() => import('../features/account/AccountPage.js'));
 const Settings = lazy(() => import('../features/settings/SettingsPage.js'));
 
-const buildInventoryEvent = (payload, eventName) => {
-  const data = payload?.data || {};
-  const quantityDelta = Number(data.quantityDelta || 0);
-  const quantityOnHand = Number(data.quantityOnHand || 0);
-  const sign = quantityDelta >= 0 ? '+' : '';
-
-  return {
-    id: `${eventName}:${payload?.entityId || 'n/a'}:${payload?.occurredAt || Date.now()}`,
-    eventName,
-    occurredAt: payload?.occurredAt || new Date().toISOString(),
-    title: data.source ? `Inventory ${data.source}` : 'Inventory updated',
-    subtitle: `Delta ${sign}${quantityDelta} | On hand ${quantityOnHand}`,
-    raw: payload
-  };
-};
-
-const buildFinanceEvent = (payload, eventName) => {
-  const data = payload?.data || {};
-  const orderId = data.orderId || data.reason || 'n/a';
-
-  return {
-    id: `${eventName}:${payload?.entityId || 'n/a'}:${payload?.occurredAt || Date.now()}`,
-    eventName,
-    occurredAt: payload?.occurredAt || new Date().toISOString(),
-    title:
-      eventName === 'finance.cogs_recorded'
-        ? 'COGS recorded'
-        : 'Valuation updated',
-    subtitle: `Reference ${String(orderId)}`,
-    raw: payload
-  };
-};
-
-const buildPurchaseOrderEvent = (payload, kind) => {
-  const data = payload?.data || {};
-  const poNumber = data.poNumber || payload?.entityId || 'n/a';
-  const status = data.status || 'UNKNOWN';
-
-  return {
-    id: `po:${kind}:${payload?.entityId || 'n/a'}:${payload?.occurredAt || Date.now()}`,
-    kind,
-    occurredAt: payload?.occurredAt || new Date().toISOString(),
-    title: `PO ${poNumber}`,
-    subtitle: `Status ${status}`,
-    raw: payload
-  };
-};
-
-const buildAuthEvent = (payload) => {
-  const data = payload?.data || {};
-  const username = resolveUserIdentityLabel(data);
-
-  return {
-    id: `auth:employee:${payload?.entityId || 'n/a'}:${payload?.occurredAt || Date.now()}`,
-    occurredAt: payload?.occurredAt || new Date().toISOString(),
-    title: 'Employee signed in',
-    subtitle: `${username} joined ${data.organizationName || 'organization'}`,
-    raw: payload
-  };
-};
-
-const resolveWarehouseIdFromPayload = (payload) => {
-  const data = payload?.data || {};
-  const warehouseCandidate =
-    data?.warehouseId ||
-    data?.warehouse?._id ||
-    data?.warehouse?.id ||
-    data?.warehouse ||
-    payload?.warehouseId ||
-    payload?.warehouse;
-
-  const normalized = String(warehouseCandidate || '').trim();
-  return normalized || null;
-};
 const prependEvent = (list, event) => [event, ...list].slice(0, EVENT_LIMIT);
 const readTabFromUrl = () => {
   if (typeof window === 'undefined') return '';

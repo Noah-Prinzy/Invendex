@@ -7,6 +7,7 @@ import {
 import { createIdempotencyKey } from '../../api/idempotency.js';
 import { SectionHint } from '../../components/PageGuide.js';
 
+
 const formatWhen = (iso) => {
   if (!iso) return 'n/a';
   const date = new Date(iso);
@@ -163,10 +164,10 @@ const PurchaseOrders = ({
       </div>
 
       {queryErrorMessage ? (
-        <p className="form-error">{queryErrorMessage}</p>
+        <p className="form-error" role="alert">{queryErrorMessage}</p>
       ) : null}
-      {actionError ? <p className="form-error">{actionError}</p> : null}
-      {actionNotice ? <p className="section-note">{actionNotice}</p> : null}
+      {actionError ? <p className="form-error" role="alert">{actionError}</p> : null}
+      {actionNotice ? <p className="section-note" role="status" aria-live="polite">{actionNotice}</p> : null}
 
       <article
         className="data-card"
@@ -239,41 +240,47 @@ const PurchaseOrders = ({
         )}
       </article>
 
-      <div className="event-grid one-col">
-        <article className="event-card">
-          <h3>Latest PO timeline</h3>
-          <SectionHint>
-            Use this stream as a quick audit trail for what changed most
-            recently in purchasing.
-          </SectionHint>
-          <ul className="event-list">
-            {poEvents.length ? (
-              poEvents.slice(0, 10).map((event) => (
-                <li key={event.id} className="event-item">
-                  <div>
-                    <p className="event-title">{event.title}</p>
-                    <p className="event-sub">{event.subtitle}</p>
-                  </div>
-                  <span className={`event-pill ${event.kind}`}>
-                    {event.kind}
-                  </span>
+      <details className="workflow-disclosure">
+        <summary>
+          <span>Purchase order activity</span>
+          <small>Show the secondary audit timeline</small>
+        </summary>
+        <div className="event-grid one-col">
+          <article className="event-card">
+            <h3>Latest PO timeline</h3>
+            <SectionHint>
+              Use this stream as a quick audit trail for what changed most
+              recently in purchasing.
+            </SectionHint>
+            <ul className="event-list">
+              {poEvents.length ? (
+                poEvents.slice(0, 10).map((event) => (
+                  <li key={event.id} className="event-item">
+                    <div>
+                      <p className="event-title">{event.title}</p>
+                      <p className="event-sub">{event.subtitle}</p>
+                    </div>
+                    <span className={`event-pill ${event.kind}`}>
+                      {event.kind}
+                    </span>
+                  </li>
+                ))
+              ) : (
+                <li className="event-empty">
+                  No purchase order events received yet.
                 </li>
-              ))
-            ) : (
-              <li className="event-empty">
-                No purchase order events received yet.
-              </li>
-            )}
-          </ul>
-          {latestPoEvent ? (
-            <>
-              <p className="event-sub">
-                Most recent: {formatWhen(latestPoEvent.occurredAt)}
-              </p>
-            </>
-          ) : null}
-        </article>
-      </div>
+              )}
+            </ul>
+            {latestPoEvent ? (
+              <>
+                <p className="event-sub">
+                  Most recent: {formatWhen(latestPoEvent.occurredAt)}
+                </p>
+              </>
+            ) : null}
+          </article>
+        </div>
+      </details>
     </section>
   );
 };

@@ -1,3 +1,4 @@
+import { getRuntimeConfig } from '../config/envConfig.js';
 import { getRequestContext } from './requestContext.js';
 
 const LOG_LEVEL_ORDER = {
@@ -8,9 +9,7 @@ const LOG_LEVEL_ORDER = {
 };
 
 const getCurrentLogLevel = () => {
-  const value = String(process.env.LOG_LEVEL || 'info')
-    .trim()
-    .toLowerCase();
+  const value = getRuntimeConfig().observability.logLevel;
   return LOG_LEVEL_ORDER[value] ? value : 'info';
 };
 

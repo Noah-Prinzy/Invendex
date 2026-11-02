@@ -225,6 +225,10 @@ const AuthForm = ({
 
         <div className="auth-role-stage">
           <div className="auth-role-content">
+            <div className="auth-portal-brand" aria-label="Invendex">
+              <img src="/apple-touch-icon.png" alt="" />
+              <span>Invendex</span>
+            </div>
             <div className="auth-role-selector-head">
               <h1 className="auth-role-heading">
                 <span className="auth-role-heading-line auth-role-heading-intro">
@@ -264,8 +268,10 @@ const AuthForm = ({
                     <path d="M8.2 6.8V4.9a1 1 0 0 1 1-1h5.6a1 1 0 0 1 1 1v1.9" />
                   </svg>
                 </div>
+                <p className="auth-role-option-kicker">Leadership workspace</p>
+                <h2>Employer</h2>
                 <p className="form-copy">
-                  As the admin you take overall responsibility.
+                  Manage locations, people, approvals, purchasing, and business-wide inventory decisions.
                 </p>
                 <div className="auth-role-cta-shell">
                   <span className="auth-role-pulse pulse-a" />
@@ -300,8 +306,10 @@ const AuthForm = ({
                     <path d="M2.8 19.6h18.4" />
                   </svg>
                 </div>
+                <p className="auth-role-option-kicker">Operations workspace</p>
+                <h2>Employee</h2>
                 <p className="form-copy">
-                  As the employee you are the heartbeat of the operation.
+                  Handle stock, receiving, counts, and daily tasks inside your assigned workspace.
                 </p>
                 <div className="auth-role-cta-shell">
                   <span className="auth-role-pulse pulse-a" />
@@ -334,6 +342,10 @@ const AuthForm = ({
 
       <form className="auth-card auth-authflow-card" onSubmit={handleSubmit}>
         <aside className="auth-authflow-hero">
+          <div className="auth-authflow-brand">
+            <img src="/apple-touch-icon.png" alt="" />
+            <span>Invendex</span>
+          </div>
           <p className="eyebrow">{portalLabel}</p>
           <h2>{heroTitle}</h2>
           <p className="form-copy">{copy}</p>
@@ -343,6 +355,10 @@ const AuthForm = ({
               <li key={item}>{item}</li>
             ))}
           </ul>
+          <div className="auth-security-note">
+            <span aria-hidden="true">✓</span>
+            <p><strong>Secure workspace access</strong><small>Your session and permissions are protected.</small></p>
+          </div>
           <div className="auth-authflow-hero-rails" aria-hidden="true">
             <span />
             <span />
@@ -353,6 +369,7 @@ const AuthForm = ({
         <div className="auth-authflow-main">
           <div className="auth-title-row">
             <div>
+              <p className="auth-form-kicker">Welcome back</p>
               <h1>{title}</h1>
               <p className="form-copy">{copy}</p>
             </div>

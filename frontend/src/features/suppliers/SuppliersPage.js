@@ -9,14 +9,26 @@ import { SectionHint } from '../../components/PageGuide.js';
 const DIRECTORY_PAGE_SIZE = 8;
 const RANKING_PAGE_SIZE = 6;
 const SUPPLIERS_QUERY_STALE_TIME_MS = 45 * 1000;
+const readSupplierView = () => {
+  if (typeof window === 'undefined') return 'overview';
+  const value = new URLSearchParams(window.location.search).get('suppliersPage');
+  return ['directory', 'ranking'].includes(value) ? value : 'overview';
+};
 
 const Suppliers = ({ accessToken, userRole = null }) => {
+  const [supplierView, setSupplierView] = useState(readSupplierView);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortKey, setSortKey] = useState('name');
   const [sortDirection, setSortDirection] = useState('asc');
   const [directoryPage, setDirectoryPage] = useState(1);
   const [rankingPage, setRankingPage] = useState(1);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (supplierView === 'overview') url.searchParams.delete('suppliersPage');
+    else url.searchParams.set('suppliersPage', supplierView);
+    window.history.replaceState({}, '', url);
+  }, [supplierView]);
   const isAdmin = String(userRole || '') === 'admin';
   const suppliersQueryKey = useMemo(
     () => ['suppliers:index', String(accessToken || ''), String(isAdmin)],
@@ -172,8 +184,8 @@ const Suppliers = ({ accessToken, userRole = null }) => {
   }
 
   return (
-    <section className="panel">
-      <header className="panel-head panel-head-row">
+    <section className="panel feature-section-page" data-supplier-view={supplierView}>
+      <header className="panel-head panel-head-row suppliers-overview-only">
         <div>
           <h2>Suppliers</h2>
           <p>
@@ -190,7 +202,7 @@ const Suppliers = ({ accessToken, userRole = null }) => {
         </button>
       </header>
 
-      <div className="metric-grid">
+      <div className="metric-grid suppliers-overview-only">
         <article className="metric-card">
           <p className="metric-label">Total suppliers</p>
           <p className="metric-value">{stats.total}</p>
@@ -205,10 +217,16 @@ const Suppliers = ({ accessToken, userRole = null }) => {
         </article>
       </div>
 
+      <nav className="feature-page-nav suppliers-overview-only" aria-label="Supplier sections">
+        <button type="button" className="feature-page-link" onClick={() => setSupplierView('directory')}><span>Supplier directory</span><small>Contacts, status, and supplier records</small></button>
+        <button type="button" className="feature-page-link" onClick={() => setSupplierView('ranking')}><span>Supplier ranking</span><small>Reliability and performance analytics</small></button>
+      </nav>
+      {supplierView !== 'overview' ? <header className="feature-detail-head"><button type="button" className="btn-ghost" onClick={() => setSupplierView('overview')}>← Suppliers</button><div><p className="eyebrow">Supplier workspace</p><h2>{supplierView === 'directory' ? 'Supplier directory' : 'Supplier ranking'}</h2><p>{supplierView === 'directory' ? 'Manage supplier records without unrelated analytics in the way.' : 'Compare supplier reliability and performance.'}</p></div></header> : null}
+
       {errorMessage ? <p className="form-error">{errorMessage}</p> : null}
 
-      <div className="data-grid">
-        <article className="data-card" data-tutorial-id="suppliers-directory">
+      <div className="data-grid feature-section-grid">
+        <article className="data-card" data-supplier-section="directory" data-tutorial-id="suppliers-directory">
           <h3>Supplier Directory</h3>
           <SectionHint>
             This table is your contact and status reference for suppliers in the
@@ -336,7 +354,7 @@ const Suppliers = ({ accessToken, userRole = null }) => {
           </footer>
         </article>
 
-        <article className="data-card">
+        <article className="data-card" data-supplier-section="ranking">
           <h3>Supplier Ranking</h3>
           <SectionHint>
             Higher-ranked suppliers are generally more reliable based on the

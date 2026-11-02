@@ -1,4 +1,5 @@
 import OperationalAlert from '../models/OperationalAlert.js';
+import { getRuntimeConfig } from '../config/envConfig.js';
 import { logger } from './logger.js';
 
 const ALERT_LEVELS = new Set(['INFO', 'WARN', 'ERROR', 'CRITICAL']);
@@ -12,7 +13,8 @@ const normalizeSeverity = (value) => {
 };
 
 const postAlertWebhook = async ({ severity, category, message, context }) => {
-  const webhookUrl = String(process.env.OPS_ALERT_WEBHOOK_URL || '').trim();
+  const webhookUrl =
+    getRuntimeConfig().observability.operationalAlerts.webhookUrl;
   if (!webhookUrl) return;
 
   try {
@@ -27,7 +29,7 @@ const postAlertWebhook = async ({ severity, category, message, context }) => {
         occurredAt: new Date().toISOString()
       }),
       signal: AbortSignal.timeout(
-        Number(process.env.OPS_ALERT_WEBHOOK_TIMEOUT_MS || 2000)
+        getRuntimeConfig().observability.operationalAlerts.webhookTimeoutMs
       )
     });
   } catch (error) {

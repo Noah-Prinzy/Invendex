@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import { AppError } from '../errors/AppError.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { verifyAccessToken } from '../utils/token.js';
+import { getRuntimeConfig } from '../config/envConfig.js';
 
 /**
  * 🔐 Protect Routes (Access Token Verification)
@@ -12,10 +13,10 @@ export const protect = async (req, res, next) => {
      * 🧪 TEST MODE BYPASS
      * Automatically authenticate requests during tests
      */
-    const allowTestBypass =
-      String(process.env.AUTH_TEST_BYPASS || 'true').toLowerCase() === 'true';
+    const runtimeConfig = getRuntimeConfig();
+    const allowTestBypass = runtimeConfig.auth.testBypassEnabled;
 
-    if (process.env.NODE_ENV === 'test' && allowTestBypass) {
+    if (runtimeConfig.nodeEnv === 'test' && allowTestBypass) {
       req.user = {
         _id: '000000000000000000000000',
         role: 'admin',
@@ -62,9 +63,7 @@ export const protect = async (req, res, next) => {
     }
 
     const requiresVerifiedEmail =
-      String(process.env.AUTH_REQUIRE_EMAIL_VERIFICATION || 'false')
-        .toLowerCase()
-        .trim() === 'true';
+      runtimeConfig.auth.requireEmailVerification;
 
     if (requiresVerifiedEmail && user.isVerified !== true) {
       return next(

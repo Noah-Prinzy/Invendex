@@ -1,3 +1,4 @@
+import { getRuntimeConfig } from '../../config/envConfig.js';
 import { logger } from '../../observability/logger.js';
 
 const parseCsv = (value) =>
@@ -7,14 +8,10 @@ const parseCsv = (value) =>
     .filter(Boolean);
 
 const resolveSmsProvider = () =>
-  String(process.env.SMS_PROVIDER || 'none')
-    .trim()
-    .toLowerCase();
+  getRuntimeConfig().notifications.sms.provider;
 
 const resolveWhatsAppProvider = () =>
-  String(process.env.WHATSAPP_PROVIDER || process.env.SMS_PROVIDER || 'none')
-    .trim()
-    .toLowerCase();
+  getRuntimeConfig().notifications.sms.whatsappProvider;
 
 const normalizePhone = (value) =>
   String(value || '')
@@ -76,7 +73,7 @@ const sendViaTwilioMessage = async ({
         'content-type': 'application/x-www-form-urlencoded'
       },
       body: form.toString(),
-      signal: AbortSignal.timeout(Number(process.env.SMS_TIMEOUT_MS || 4000))
+      signal: AbortSignal.timeout(getRuntimeConfig().notifications.sms.timeoutMs)
     }
   );
 
@@ -98,9 +95,8 @@ const sendViaTwilioMessage = async ({
 };
 
 const sendViaTwilio = async ({ to, message }) => {
-  const accountSid = String(process.env.SMS_TWILIO_ACCOUNT_SID || '').trim();
-  const authToken = String(process.env.SMS_TWILIO_AUTH_TOKEN || '').trim();
-  const fromNumber = String(process.env.SMS_TWILIO_FROM || '').trim();
+  const { accountSid, authToken, from: fromNumber } =
+    getRuntimeConfig().notifications.sms.twilio;
 
   return sendViaTwilioMessage({
     to,
@@ -112,19 +108,8 @@ const sendViaTwilio = async ({ to, message }) => {
 };
 
 const sendViaTwilioWhatsapp = async ({ to, message }) => {
-  const accountSid = String(
-    process.env.WHATSAPP_TWILIO_ACCOUNT_SID ||
-      process.env.SMS_TWILIO_ACCOUNT_SID ||
-      ''
-  ).trim();
-  const authToken = String(
-    process.env.WHATSAPP_TWILIO_AUTH_TOKEN ||
-      process.env.SMS_TWILIO_AUTH_TOKEN ||
-      ''
-  ).trim();
-  const fromNumber = String(
-    process.env.WHATSAPP_TWILIO_FROM || process.env.SMS_TWILIO_FROM || ''
-  ).trim();
+  const { accountSid, authToken, from: fromNumber } =
+    getRuntimeConfig().notifications.sms.whatsappTwilio;
 
   return sendViaTwilioMessage({
     to,
@@ -304,7 +289,7 @@ export const sendBulkWhatsApp = async ({ recipients = [], message }) => {
 };
 
 export const getDefaultLowStockRecipients = () =>
-  parseCsv(process.env.SMS_LOW_STOCK_RECIPIENTS);
+  [...getRuntimeConfig().notifications.sms.lowStockRecipients];
 
 export default {
   sendSms,

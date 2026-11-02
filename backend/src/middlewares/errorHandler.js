@@ -94,8 +94,15 @@ export const errorHandler = (err, req, res, _next) => {
     logger.warn('request_failed', logMeta);
   }
 
+  const responseMessage =
+    statusCode >= 500 &&
+    String(process.env.NODE_ENV || 'development') === 'production'
+      ? 'Internal server error'
+      : message;
+
   res.status(statusCode).json({
     success: false,
-    message
+    message: responseMessage,
+    ...(req?.requestId ? { requestId: req.requestId } : {})
   });
 };

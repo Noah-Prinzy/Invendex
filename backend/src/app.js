@@ -28,6 +28,7 @@ import {
 import {
   createCorsOriginValidator,
   getBodyParserConfig,
+  getRuntimeConfig,
   getTrustProxySetting
 } from './config/envConfig.js';
 
@@ -40,6 +41,9 @@ const app = express();
 const corsOriginValidator = createCorsOriginValidator();
 const trustProxySetting = getTrustProxySetting();
 const bodyParserConfig = getBodyParserConfig();
+const runtimeConfig = getRuntimeConfig();
+const legacyApiEnabled = runtimeConfig.legacyApi.enabled;
+const openApiDocsEnabled = runtimeConfig.apiDocsEnabled;
 
 if (trustProxySetting !== false) {
   app.set('trust proxy', trustProxySetting);
@@ -88,7 +92,7 @@ app.use(
 
 app.use(xss());
 
-if (String(process.env.HTTP_LOGGER || 'morgan').toLowerCase() === 'morgan') {
+if (runtimeConfig.httpLogger === 'morgan') {
   app.use(morgan('dev'));
 }
 
@@ -146,15 +150,30 @@ app.use(API_V1_BASE_PATH, (req, res, next) => {
   next();
 });
 mountApiRoutes(API_V1_BASE_PATH);
-mountApiRoutes(LEGACY_API_BASE_PATH);
-mountOpenApiDocs({
-  basePath: API_V1_BASE_PATH,
-  authBasePath: `${API_V1_BASE_PATH}/auth`
-});
-mountOpenApiDocs({
-  basePath: LEGACY_API_BASE_PATH,
-  authBasePath: '/auth'
-});
+if (legacyApiEnabled) {
+  app.use(LEGACY_API_BASE_PATH, (req, res, next) => {
+    res.setHeader('Deprecation', 'true');
+    res.setHeader(
+      'Sunset',
+      runtimeConfig.legacyApi.sunset
+    );
+    res.setHeader('Link', '</api/v1>; rel="successor-version"');
+    next();
+  });
+  mountApiRoutes(LEGACY_API_BASE_PATH);
+}
+if (openApiDocsEnabled) {
+  mountOpenApiDocs({
+    basePath: API_V1_BASE_PATH,
+    authBasePath: `${API_V1_BASE_PATH}/auth`
+  });
+  if (legacyApiEnabled) {
+    mountOpenApiDocs({
+      basePath: LEGACY_API_BASE_PATH,
+      authBasePath: '/auth'
+    });
+  }
+}
 app.use('/api/v2', (req, res) => {
   res.status(501).json({
     success: false,
@@ -168,9 +187,8 @@ app.get('/health', async (req, res, next) => {
     const liveness = getLivenessHealth();
 
     res.status(readiness.ready ? 200 : 503).json({
-      ...liveness,
-      readiness: readiness.ready ? 'ready' : 'degraded',
-      db: readiness.db
+      status: liveness.status,
+      ready: readiness.ready
     });
   } catch (error) {
     next(error);
@@ -178,13 +196,16 @@ app.get('/health', async (req, res, next) => {
 });
 
 app.get('/health/live', (req, res) => {
-  res.status(200).json(getLivenessHealth());
+  res.status(200).json({ status: getLivenessHealth().status });
 });
 
 app.get('/health/ready', async (req, res, next) => {
   try {
     const readiness = await getReadinessHealth();
-    res.status(readiness.ready ? 200 : 503).json(readiness);
+    res.status(readiness.ready ? 200 : 503).json({
+      status: readiness.status,
+      ready: readiness.ready
+    });
   } catch (error) {
     next(error);
   }

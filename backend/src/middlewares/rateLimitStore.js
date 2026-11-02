@@ -1,9 +1,6 @@
+import { getRuntimeConfig } from '../config/envConfig.js';
 import { logger } from '../observability/logger.js';
 import { raiseOperationalAlert } from '../observability/opsAlerting.js';
-
-const asString = (value) => String(value || '').trim();
-const asBoolean = (value) =>
-  ['1', 'true', 'yes', 'on'].includes(asString(value).toLowerCase());
 
 const rateLimitStoreState = {
   enabled: false,
@@ -13,10 +10,11 @@ const rateLimitStoreState = {
 };
 
 const isRedisRateLimitEnabled = () =>
-  asBoolean(process.env.RATE_LIMIT_REDIS_ENABLED);
+  getRuntimeConfig().rateLimitRedis.enabled;
 
-const resolveRedisUrl = () =>
-  asString(process.env.RATE_LIMIT_REDIS_URL || process.env.REALTIME_REDIS_URL);
+const isProduction = () => getRuntimeConfig().isProduction;
+
+const resolveRedisUrl = () => getRuntimeConfig().rateLimitRedis.url;
 
 const initializeRateLimitStore = async () => {
   rateLimitStoreState.enabled = isRedisRateLimitEnabled();
@@ -38,12 +36,15 @@ const initializeRateLimitStore = async () => {
     rateLimitStoreState.reason = 'redis_url_missing';
     logger.warn('rate_limit_redis_disabled_missing_url');
     raiseOperationalAlert({
-      severity: 'WARN',
+      severity: isProduction() ? 'ERROR' : 'WARN',
       category: 'rate_limiting',
       message:
         'RATE_LIMIT_REDIS_ENABLED=true but no Redis URL configured; using in-memory limiter',
       source: 'rate_limit_store'
     }).catch(() => {});
+    if (isProduction()) {
+      throw new Error('Distributed Redis rate limiting requires a Redis URL in production');
+    }
     return {
       store: null,
       disconnect: async () => {}
@@ -66,9 +67,7 @@ const initializeRateLimitStore = async () => {
     });
     await client.connect();
 
-    const prefix = asString(
-      process.env.RATE_LIMIT_REDIS_PREFIX || 'invendex:rate-limit:'
-    );
+    const prefix = getRuntimeConfig().rateLimitRedis.prefix;
     const store = new RedisStore({
       prefix,
       sendCommand: (...args) => client.sendCommand(args)
@@ -102,7 +101,7 @@ const initializeRateLimitStore = async () => {
         'Install rate-limit-redis and redis to enable distributed rate limiting'
     });
     raiseOperationalAlert({
-      severity: 'WARN',
+      severity: isProduction() ? 'ERROR' : 'WARN',
       category: 'rate_limiting',
       message:
         'Distributed rate-limit Redis unavailable; using in-memory limiter',
@@ -112,6 +111,11 @@ const initializeRateLimitStore = async () => {
       },
       source: 'rate_limit_store'
     }).catch(() => {});
+    if (isProduction()) {
+      throw new Error(
+        `Distributed Redis rate limiting failed to initialize: ${error?.message || 'unknown error'}`
+      );
+    }
     return {
       store: null,
       disconnect: async () => {}

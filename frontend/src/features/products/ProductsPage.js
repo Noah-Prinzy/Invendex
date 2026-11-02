@@ -45,6 +45,20 @@ const ROLES_WITH_PRODUCT_MANAGE = new Set([
 const ROLES_WITH_DELETED_REVIEW = new Set(['owner', 'admin']);
 const PAGE_SIZE = 8;
 const PRODUCTS_QUERY_STALE_TIME_MS = 45 * 1000;
+const PRODUCT_VIEW_KEYS = new Set(['overview', 'catalog', 'adjust', 'create', 'import', 'deleted']);
+const PRODUCT_VIEW_META = Object.freeze({
+  catalog: ['Product catalog', 'Search, filter, review, and manage every product.'],
+  adjust: ['Stock adjustment', 'Apply a controlled stock change to the selected warehouse.'],
+  create: ['Add product', 'Create a product, variant, barcode, and inventory defaults.'],
+  import: ['Bulk import', 'Add or update many products through one guided workflow.'],
+  deleted: ['Deleted products', 'Review, restore, or permanently remove deleted products.']
+});
+
+const readProductView = () => {
+  if (typeof window === 'undefined') return 'overview';
+  const view = String(new URLSearchParams(window.location.search).get('productsPage') || '').trim();
+  return PRODUCT_VIEW_KEYS.has(view) ? view : 'overview';
+};
 const STOCK_ADJUST_REASONS = [
   'sale',
   'restock',
@@ -191,6 +205,7 @@ const Products = ({
   warehouseId = null,
   activeWarehouseLabel = 'All warehouses'
 }) => {
+  const [productView, setProductView] = useState(readProductView);
   const [searchTerm, setSearchTerm] = useState('');
   const [skuFilter, setSkuFilter] = useState('');
   const [stockFilter, setStockFilter] = useState('all');
@@ -225,6 +240,14 @@ const Products = ({
   const [barcodeScannerOpen, setBarcodeScannerOpen] = useState(false);
   const [barcodeScannerError, setBarcodeScannerError] = useState('');
   const [barcodeScannerStatus, setBarcodeScannerStatus] = useState('');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (productView === 'overview') url.searchParams.delete('productsPage');
+    else url.searchParams.set('productsPage', productView);
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [productView]);
   const barcodeVideoRef = useRef(null);
   const barcodeStreamRef = useRef(null);
   const barcodeScanFrameRef = useRef(null);
@@ -1076,8 +1099,8 @@ const Products = ({
   }, [filteredProducts, page]);
 
   return (
-    <section className="panel">
-      <header className="panel-head panel-head-row">
+    <section className="panel feature-section-page" data-product-view={productView}>
+      <header className="panel-head panel-head-row products-overview-only">
         <div>
           <h2>Products</h2>
           <p>Live product list with low-stock visibility.</p>
@@ -1092,7 +1115,7 @@ const Products = ({
         </button>
       </header>
 
-      <div className="metric-grid" data-tutorial-id="products-metrics">
+      <div className="metric-grid products-overview-only" data-tutorial-id="products-metrics">
         <article className="metric-card metric-card-products-total">
           <p className="metric-label">Total products</p>
           <p className="metric-value">{stats.total}</p>
@@ -1124,12 +1147,40 @@ const Products = ({
         ) : null}
       </div>
 
+      <nav className="feature-page-nav products-overview-only" aria-label="Product sections">
+        {[
+          ['catalog', 'Catalog', 'Browse and manage products'],
+          ['adjust', 'Adjust stock', 'Update warehouse quantities'],
+          ['create', 'Add product', 'Create a new catalog item'],
+          ['import', 'Bulk import', 'Add multiple products'],
+          ...(canReviewDeletedProducts ? [['deleted', 'Deleted items', 'Review removed products']] : [])
+        ].map(([key, label, description]) => (
+          <button type="button" key={key} className="feature-page-link" onClick={() => setProductView(key)}>
+            <span>{label}</span>
+            <small>{description}</small>
+          </button>
+        ))}
+      </nav>
+
+      {productView !== 'overview' ? (
+        <header className="feature-detail-head">
+          <button type="button" className="dashboard-back-link" onClick={() => setProductView('overview')}>
+            <span aria-hidden="true">←</span> Products
+          </button>
+          <div>
+            <p className="eyebrow">Product workspace</p>
+            <h2>{PRODUCT_VIEW_META[productView]?.[0]}</h2>
+            <p>{PRODUCT_VIEW_META[productView]?.[1]}</p>
+          </div>
+        </header>
+      ) : null}
+
       {errorMessage ? <p className="form-error">{errorMessage}</p> : null}
       {managementNotice ? (
         <p className="section-note">{managementNotice}</p>
       ) : null}
 
-      <article className="data-card" data-tutorial-id="products-adjustment">
+      <article className="data-card" data-product-section="adjust" data-tutorial-id="products-adjustment">
         <h3>Manual stock adjustment</h3>
         <SectionHint>
           Choose the product, reason, and amount, then the system applies the
@@ -1201,7 +1252,7 @@ const Products = ({
       </article>
 
       {canManageProducts ? (
-        <article className="data-card" data-tutorial-id="products-create">
+        <article className="data-card" data-product-section="create" data-tutorial-id="products-create">
           <h3>Add product</h3>
           <SectionHint>
             Add a new item once, then manage stock per warehouse from the
@@ -1441,6 +1492,7 @@ const Products = ({
       ) : null}
 
       {canManageProducts ? (
+        <div data-product-section="import">
         <Suspense
           fallback={
             <article className="data-card">
@@ -1453,9 +1505,10 @@ const Products = ({
             onProductsChanged={refreshProducts}
           />
         </Suspense>
+        </div>
       ) : null}
 
-      <article className="data-card">
+      <article className="data-card" data-product-section="catalog">
         <h3>Catalog</h3>
         <div className="control-row">
           <label className="control-field">
@@ -1671,7 +1724,7 @@ const Products = ({
       </article>
 
       {canReviewDeletedProducts ? (
-        <article className="data-card">
+        <article className="data-card" data-product-section="deleted">
           <h3>Deleted items (admin review)</h3>
           {deletedProducts.length ? (
             <div className="table-wrap">

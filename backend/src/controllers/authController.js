@@ -28,7 +28,8 @@ import {
 } from '../utils/contactInfo.js';
 import {
   getRefreshCookieOptions,
-  getClearRefreshCookieOptions
+  getClearRefreshCookieOptions,
+  getRuntimeConfig
 } from '../config/envConfig.js';
 import {
   buildOtpAuthUri,
@@ -58,18 +59,11 @@ const ALLOWED_UI_THEMES = new Set([
   'neon-grid'
 ]);
 const DEFAULT_UI_THEME = 'invendex-classic';
-const TWO_FACTOR_CHALLENGE_TTL_SECONDS = (() => {
-  const raw = Number(process.env.AUTH_2FA_CHALLENGE_TTL_SECONDS || 600);
-  if (!Number.isFinite(raw) || raw < 60 || raw > 3600) {
-    return 600;
-  }
-  return Math.floor(raw);
-})();
-const TWO_FACTOR_ISSUER = String(process.env.AUTH_2FA_ISSUER || 'Invendex')
-  .trim()
-  .slice(0, 80);
+const TWO_FACTOR_CHALLENGE_TTL_SECONDS =
+  getRuntimeConfig().auth.twoFactorChallengeTtlSeconds;
+const TWO_FACTOR_ISSUER = getRuntimeConfig().auth.twoFactorIssuer;
 const TWO_FACTOR_RECOVERY_CODES_COUNT = 10;
-const APP_WEB_URL = String(process.env.APP_WEB_URL || '').trim();
+const APP_WEB_URL = getRuntimeConfig().auth.appWebUrl;
 const USERNAME_REGEX = /^[a-zA-Z0-9._-]{3,32}$/;
 
 const buildEmailActionHint = (fallbackMessage = '') => {
@@ -642,9 +636,7 @@ const escapeHtml = (value) =>
     .replace(/'/g, '&#39;');
 
 const getTwoFactorChallengeSecret = () => {
-  const explicitSecret = String(
-    process.env.AUTH_2FA_CHALLENGE_SECRET || ''
-  ).trim();
+  const explicitSecret = getRuntimeConfig().auth.twoFactorChallengeSecret;
   if (explicitSecret) return explicitSecret;
   return getAccessTokenSigningSecret();
 };
@@ -756,9 +748,7 @@ const buildTwoFactorStatusPayload = (user) => {
 };
 
 const isEmailVerificationRequired = () =>
-  String(process.env.AUTH_REQUIRE_EMAIL_VERIFICATION || 'false')
-    .toLowerCase()
-    .trim() === 'true';
+  getRuntimeConfig().auth.requireEmailVerification;
 
 const normalizeEmailInput = (value) =>
   String(value || '')
@@ -1074,7 +1064,7 @@ const resolveUniqueUsername = async (preferredUsername, fallbackEmail) => {
 };
 
 const buildTokenDebugData = (rawToken) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (getRuntimeConfig().isProduction) {
     return {};
   }
 
@@ -1472,7 +1462,7 @@ const verifyLoginCredentials = async ({
   normalizedPassword
 }) => {
   if (!user) {
-    if (process.env.NODE_ENV !== 'production') {
+    if (!getRuntimeConfig().isProduction) {
       logger.warn('auth_login_user_not_found', {
         identifier: loginIdentifier,
         identifierLength: String(loginIdentifier || '').length
@@ -1497,7 +1487,7 @@ const verifyLoginCredentials = async ({
 
   const isMatch = await bcrypt.compare(normalizedPassword, user.password);
   if (!isMatch) {
-    if (process.env.NODE_ENV !== 'production') {
+    if (!getRuntimeConfig().isProduction) {
       logger.warn('auth_login_password_mismatch', {
         identifier: loginIdentifier,
         userId: user._id

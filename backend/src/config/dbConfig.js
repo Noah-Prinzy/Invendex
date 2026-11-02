@@ -29,3 +29,9 @@ export async function connectDB() {
   enableMongoProfiling();
   logger.info('database_connected');
 }
+
+export async function disconnectDB() {
+  if (mongoose.connection.readyState === 0) return;
+  await mongoose.disconnect();
+  logger.info('database_disconnected');
+}

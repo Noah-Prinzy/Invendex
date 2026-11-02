@@ -1,14 +1,16 @@
 import client from 'prom-client';
 
+import { getRuntimeConfig } from '../config/envConfig.js';
+
 let registry = null;
 let httpRequestCounter = null;
 let httpRequestDurationSeconds = null;
 
 const getMetricsEnabled = () =>
-  String(process.env.METRICS_ENABLED || 'false').toLowerCase() === 'true';
+  getRuntimeConfig().observability.metrics.enabled;
 
 const getMetricsPrefix = () =>
-  String(process.env.METRICS_PREFIX || 'invendex_');
+  getRuntimeConfig().observability.metrics.prefix;
 
 const getRouteLabel = (req) => {
   if (req?.route?.path) {
@@ -71,8 +73,10 @@ export const metricsMiddleware = (req, res, next) => {
 };
 
 const isMetricsAuthorized = (req) => {
-  const expectedToken = process.env.METRICS_TOKEN;
-  if (!expectedToken) return true;
+  const expectedToken = getRuntimeConfig().observability.metrics.token;
+  if (!expectedToken) {
+    return !getRuntimeConfig().isProduction;
+  }
 
   const header = String(req.headers.authorization || '');
   const providedToken = header.startsWith('Bearer ')

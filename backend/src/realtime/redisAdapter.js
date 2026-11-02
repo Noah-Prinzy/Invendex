@@ -1,3 +1,4 @@
+import { getRuntimeConfig } from '../config/envConfig.js';
 import { logger } from '../observability/logger.js';
 import { raiseOperationalAlert } from '../observability/opsAlerting.js';
 
@@ -10,9 +11,7 @@ const redisAdapterState = {
 };
 
 const isRedisAdapterEnabled = () =>
-  String(process.env.REALTIME_REDIS_ENABLED || '')
-    .toLowerCase()
-    .trim() === 'true';
+  getRuntimeConfig().realtimeRedis.enabled;
 
 export const configureSocketRedisAdapter = async (io) => {
   redisAdapterState.enabled = isRedisAdapterEnabled();
@@ -49,7 +48,7 @@ export const configureSocketRedisAdapter = async (io) => {
     return false;
   }
 
-  const redisUrl = process.env.REALTIME_REDIS_URL || undefined;
+  const redisUrl = getRuntimeConfig().realtimeRedis.url || undefined;
   const pubClient = createClient(redisUrl ? { url: redisUrl } : undefined);
   const subClient = pubClient.duplicate();
 

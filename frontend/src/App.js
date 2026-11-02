@@ -16,6 +16,7 @@ import AuthLayout from './layouts/AuthLayout.js';
 import RequireAuth from './guards/RequireAuth.js';
 
 import './styles/global.css';
+import './styles/uiPrimitives.css';
 
 const AuthForm = lazy(() => import('./components/AuthForm.js'));
 const AuthIntroLanding = lazy(() => import('./components/AuthIntroLanding.js'));
@@ -99,7 +100,7 @@ const App = () => {
   const authPortalFallback = (
     <main className="auth-layout auth-layout-single">
       <section className="auth-card">
-        <p className="form-copy">Loading sign-in...</p>
+        <p className="form-copy">{t('app.loadingSignIn')}</p>
       </section>
     </main>
   );
@@ -107,11 +108,11 @@ const App = () => {
   const authIntroFallback = (
     <AuthLayout
       eyebrow={t('app.brand')}
-      title="Welcome to Invendex"
+      title={t('app.welcomeTitle')}
       description={t('app.authIntroDescription')}
     >
       <section className="auth-card">
-        <p className="form-copy">Loading intro...</p>
+        <p className="form-copy">{t('app.loadingIntro')}</p>
       </section>
     </AuthLayout>
   );
@@ -123,7 +124,7 @@ const App = () => {
       description={t('app.loadingSessionDescription')}
     >
       <section className="auth-card">
-        <p className="form-copy">Loading workspace...</p>
+        <p className="form-copy">{t('app.loadingWorkspace')}</p>
       </section>
     </AuthLayout>
   );
@@ -153,7 +154,7 @@ const App = () => {
     <Suspense fallback={authIntroFallback}>
       <AuthIntroLanding
         eyebrow={t('app.brand')}
-        title="Welcome to Invendex"
+        title={t('app.welcomeTitle')}
         description={t('app.authIntroDescription')}
         onGetStarted={handleGetStarted}
         skipStoryScreen={hasCompletedAuthIntro()}

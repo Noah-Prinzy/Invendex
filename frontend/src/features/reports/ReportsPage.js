@@ -21,6 +21,28 @@ import useOrganizationCurrency from '../../hooks/finance/useOrganizationCurrency
 
 const SPEND_PAGE_SIZE = 8;
 const REPORTS_QUERY_STALE_TIME_MS = 45 * 1000;
+const REPORT_VIEW_KEYS = new Set([
+  'overview',
+  'orders',
+  'suppliers',
+  'finance',
+  'dead-stock',
+  'movements',
+  'audit'
+]);
+const REPORT_VIEW_META = Object.freeze({
+  orders: ['Purchase order status', 'Review where purchase orders are sitting in the workflow.'],
+  suppliers: ['Supplier spend', 'Compare purchasing spend across suppliers.'],
+  finance: ['Finance snapshot', 'Review valuation and gross-margin indicators.'],
+  'dead-stock': ['Dead stock', 'Find inventory that has stopped moving.'],
+  movements: ['Stock movements', 'Trace recent inventory movement activity.'],
+  audit: ['Audit log', 'Review important actions and their outcomes.']
+});
+const readReportView = () => {
+  if (typeof window === 'undefined') return 'overview';
+  const view = String(new URLSearchParams(window.location.search).get('reportsPage') || '').trim();
+  return REPORT_VIEW_KEYS.has(view) ? view : 'overview';
+};
 const roundMoney = (value) =>
   Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
@@ -89,6 +111,14 @@ const Reports = ({
   warehouseId = null,
   activeWarehouseLabel = 'All warehouses'
 }) => {
+  const [reportView, setReportView] = useState(readReportView);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (reportView === 'overview') url.searchParams.delete('reportsPage');
+    else url.searchParams.set('reportsPage', reportView);
+    window.history.replaceState({}, '', url);
+  }, [reportView]);
   const [spendSearch, setSpendSearch] = useState('');
   const [spendSortKey, setSpendSortKey] = useState('totalSpend');
   const [spendSortDirection, setSpendSortDirection] = useState('desc');
@@ -807,8 +837,8 @@ const Reports = ({
   }
 
   return (
-    <section className="panel">
-      <header className="panel-head panel-head-row">
+    <section className="panel feature-section-page" data-report-view={reportView}>
+      <header className="panel-head panel-head-row reports-overview-only">
         <div>
           <h2>Reports</h2>
           <p>
@@ -864,7 +894,7 @@ const Reports = ({
         </div>
       </header>
 
-      <div className="metric-grid" data-tutorial-id="reports-metrics">
+      <div className="metric-grid reports-overview-only" data-tutorial-id="reports-metrics">
         <article className="metric-card">
           <p className="metric-label">Total spend</p>
           <p className="metric-value">
@@ -899,6 +929,33 @@ const Reports = ({
         </article>
       </div>
 
+      <nav className="feature-page-nav reports-overview-only" aria-label="Report sections">
+        {[
+          ['orders', 'Purchase orders', 'Workflow status and delays'],
+          ['suppliers', 'Supplier spend', 'Purchasing by supplier'],
+          ['finance', 'Finance snapshot', 'Valuation and margin'],
+          ['dead-stock', 'Dead stock', 'Slow-moving inventory'],
+          ['movements', 'Stock movements', 'Inventory movement ledger'],
+          ['audit', 'Audit log', 'Actions and outcomes']
+        ].map(([key, title, description]) => (
+          <button key={key} type="button" className="feature-page-link" onClick={() => setReportView(key)}>
+            <span>{title}</span>
+            <small>{description}</small>
+          </button>
+        ))}
+      </nav>
+
+      {reportView !== 'overview' ? (
+        <header className="feature-detail-head">
+          <button type="button" className="btn-ghost" onClick={() => setReportView('overview')}>← Reports</button>
+          <div>
+            <p className="eyebrow">Report</p>
+            <h2>{REPORT_VIEW_META[reportView]?.[0]}</h2>
+            <p>{REPORT_VIEW_META[reportView]?.[1]}</p>
+          </div>
+        </header>
+      ) : null}
+
       {errorMessage ? <p className="form-error">{errorMessage}</p> : null}
       {inventoryExportError ? (
         <p className="form-error">{inventoryExportError}</p>
@@ -924,8 +981,8 @@ const Reports = ({
         </p>
       ) : null}
 
-      <div className="data-grid">
-        <article className="data-card" data-tutorial-id="reports-summary">
+      <div className="data-grid report-sections">
+        <article className="data-card" data-report-section="orders" data-tutorial-id="reports-summary">
           <h3>PO Status Summary</h3>
           <SectionHint>
             This block shows where purchase orders are sitting in the workflow so
@@ -961,7 +1018,7 @@ const Reports = ({
           )}
         </article>
 
-        <article className="data-card">
+        <article className="data-card" data-report-section="suppliers">
           <h3>Spend by Supplier</h3>
           <SectionHint>
             Use the search and sort controls here to compare how much you are
@@ -1069,7 +1126,7 @@ const Reports = ({
           )}
         </article>
 
-        <article className="data-card">
+        <article className="data-card" data-report-section="finance">
           <h3>Finance Snapshot</h3>
           {valuation || grossMargin ? (
             <ul className="rank-list">
@@ -1101,7 +1158,7 @@ const Reports = ({
           )}
         </article>
 
-        <article className="data-card">
+        <article className="data-card" data-report-section="dead-stock">
           <h3>Dead Stock</h3>
           {deadStockRows.length ? (
             <>
@@ -1145,7 +1202,7 @@ const Reports = ({
           )}
         </article>
 
-        <article className="data-card">
+        <article className="data-card" data-report-section="movements">
           <h3>Stock Movements</h3>
           <div className="control-row compact">
             <label className="control-field">
@@ -1196,7 +1253,7 @@ const Reports = ({
           )}
         </article>
 
-        <article className="data-card">
+        <article className="data-card" data-report-section="audit">
           <h3>Audit Log</h3>
           <div className="control-row">
             <label className="control-field">
