@@ -24,7 +24,6 @@ export const rateLimiter = ({
     withSharedStore({
       max: Math.round(max * e2eScale()),
       windowMs,
-      max,
       standardHeaders: true,
       legacyHeaders: false,
       handler: (req, res, next) => {
