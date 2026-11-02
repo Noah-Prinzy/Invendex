@@ -41,11 +41,12 @@ const getPriorityWeight = (priority) => {
 };
 
 const toObjectId = (value) => {
-  try {
+  if (!value) return null;
+  if (value instanceof mongoose.Types.ObjectId) return value;
+  if (mongoose.Types.ObjectId.isValid(value)) {
     return new mongoose.Types.ObjectId(value);
-  } catch {
-    return null;
   }
+  return null;
 };
 
 const getSalesAggregatePipeline = ({
