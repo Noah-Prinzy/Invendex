@@ -1,7 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router"
 import {
   Bell,
-  Boxes,
   LayoutDashboard,
   LogOut,
   Moon,
@@ -10,6 +9,7 @@ import {
   Warehouse,
 } from "lucide-react"
 import type { ReactNode } from "react"
+import Logo from "@/components/Logo"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -44,7 +44,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           to="/app"
           className="flex items-center gap-2 font-heading text-lg font-bold"
         >
-          <Boxes className="size-5 text-primary" />
+          <Logo size={24} />
           Invendex
         </Link>
         <div className="ml-4 flex items-center gap-2">

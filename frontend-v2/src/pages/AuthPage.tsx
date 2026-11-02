@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router"
-import { Boxes } from "lucide-react"
 import { useState } from "react"
+import Logo from "@/components/Logo"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -33,7 +33,7 @@ export default function AuthPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
           <div className="mb-2 flex items-center gap-2 font-heading text-2xl font-bold">
-            <Boxes className="size-6 text-primary" />
+            <Logo size={28} />
             Invendex
           </div>
           <CardTitle>Welcome back</CardTitle>
