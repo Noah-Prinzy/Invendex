@@ -79,4 +79,6 @@ export const purchaseOrderListQuerySchema = z
   })
   .strict();
 
-export type PurchaseOrderListQuery = z.infer<typeof purchaseOrderListQuerySchema>;
+export type PurchaseOrderListQuery = z.infer<
+  typeof purchaseOrderListQuerySchema
+>;

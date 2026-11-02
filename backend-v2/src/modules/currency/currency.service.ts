@@ -86,7 +86,13 @@ export class CurrencyService {
     amount: number,
     from: string,
     to: string
-  ): Promise<{ amount: number; from: string; to: string; rate: number; result: number }> {
+  ): Promise<{
+    amount: number;
+    from: string;
+    to: string;
+    rate: number;
+    result: number;
+  }> {
     const { rates } = await this.getRates(from);
     const rate = rates[to.toUpperCase()];
     if (!rate) {

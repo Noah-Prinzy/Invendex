@@ -22,8 +22,7 @@ import { AuditModule } from './modules/audit/audit.module';
     }),
     MongooseModule.forRootAsync({
       useFactory: () => ({
-        uri:
-          process.env.DB_URL ?? 'mongodb://127.0.0.1:27017/invendex',
+        uri: process.env.DB_URL ?? 'mongodb://127.0.0.1:27017/invendex',
         connectionFactory: (connection: Connection) => {
           connection.plugin(mongooseTenantPlugin);
           return connection;
@@ -32,7 +31,9 @@ import { AuditModule } from './modules/audit/audit.module';
     }),
     BullModule.forRootAsync({
       useFactory: (config: ConfigService) => ({
-        connection: config.get<string>('REDIS_URL') as unknown as ConnectionOptions
+        connection: config.get<string>(
+          'REDIS_URL'
+        ) as unknown as ConnectionOptions
       }),
       inject: [ConfigService]
     }),

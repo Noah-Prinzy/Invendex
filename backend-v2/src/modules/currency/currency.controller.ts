@@ -28,10 +28,14 @@ export class CurrencyController {
   }
 
   @Get('rates')
-  @ApiOperation({ summary: 'Get exchange rates for a base currency (UGX default)' })
+  @ApiOperation({
+    summary: 'Get exchange rates for a base currency (UGX default)'
+  })
   @ApiQuery({ name: 'base', required: false, example: 'UGX' })
   rates(@ZodQuery(ratesQuerySchema) query: z.infer<typeof ratesQuerySchema>) {
-    return this.currency.getRates(query.base).then((result) => ({ data: result }));
+    return this.currency
+      .getRates(query.base)
+      .then((result) => ({ data: result }));
   }
 
   @Get('convert')

@@ -43,9 +43,14 @@ describe('applyPurchaseOrderToInventory (ported legacy spec)', () => {
     // Mongoose builds indexes asynchronously at boot; await them so the
     // snapshot unique partial index (idempotency gate) is enforced.
     await Promise.all(
-      [Product, Warehouse, Inventory, InventorySnapshot, ReorderAlert, PurchaseOrder].map(
-        (model) => model.ensureIndexes()
-      )
+      [
+        Product,
+        Warehouse,
+        Inventory,
+        InventorySnapshot,
+        ReorderAlert,
+        PurchaseOrder
+      ].map((model) => model.ensureIndexes())
     );
   }, 240000);
 

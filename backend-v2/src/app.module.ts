@@ -36,8 +36,7 @@ import { RbacModule } from './modules/rbac/rbac.module';
       // in-memory server after module import (ConfigModule snapshots env at
       // import time).
       useFactory: () => ({
-        uri:
-          process.env.DB_URL ?? 'mongodb://127.0.0.1:27017/invendex',
+        uri: process.env.DB_URL ?? 'mongodb://127.0.0.1:27017/invendex',
         connectionFactory: (connection: Connection) => {
           connection.plugin(mongooseTenantPlugin);
           return connection;

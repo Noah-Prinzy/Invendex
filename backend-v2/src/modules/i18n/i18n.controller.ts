@@ -30,7 +30,14 @@ export class I18nController {
   @Get('messages')
   @ApiOperation({ summary: 'Get the message catalog for a locale' })
   @ApiQuery({ name: 'locale', required: false, example: 'sw' })
-  messages(@ZodQuery(messagesQuerySchema) query: z.infer<typeof messagesQuerySchema>) {
-    return { data: { locale: this.i18n.normalize(query.locale), messages: this.i18n.messages(query.locale) } };
+  messages(
+    @ZodQuery(messagesQuerySchema) query: z.infer<typeof messagesQuerySchema>
+  ) {
+    return {
+      data: {
+        locale: this.i18n.normalize(query.locale),
+        messages: this.i18n.messages(query.locale)
+      }
+    };
   }
 }

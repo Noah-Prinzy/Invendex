@@ -2,10 +2,7 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import type { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { TenantContext } from '../tenant/tenant-context';
-import {
-  EVENTS_QUEUE,
-  type DomainEvent
-} from './domain-event.types';
+import { EVENTS_QUEUE, type DomainEvent } from './domain-event.types';
 import { EventHandlersRegistry } from './event-handlers.registry';
 
 /**
@@ -29,9 +26,8 @@ export class EventsProcessor extends WorkerHost {
       return;
     }
     if (event.organizationId) {
-      await TenantContext.run(
-        { organizationId: event.organizationId },
-        () => handler(event)
+      await TenantContext.run({ organizationId: event.organizationId }, () =>
+        handler(event)
       );
     } else {
       await handler(event);

@@ -36,7 +36,9 @@ export class DomainEventsModule {
               BullModule.registerQueueAsync({
                 name: EVENTS_QUEUE,
                 useFactory: (config: ConfigService) => ({
-                  connection: config.get<string>('REDIS_URL') as unknown as ConnectionOptions
+                  connection: config.get<string>(
+                    'REDIS_URL'
+                  ) as unknown as ConnectionOptions
                 }),
                 inject: [ConfigService]
               })

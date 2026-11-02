@@ -1,5 +1,9 @@
 import mongoose, { Schema, type Document, type Model } from 'mongoose';
-import { paginate, parseSort, paginationQuerySchema } from '../src/common/dto/pagination.dto';
+import {
+  paginate,
+  parseSort,
+  paginationQuerySchema
+} from '../src/common/dto/pagination.dto';
 import { mongooseTenantPlugin } from '../src/tenant/mongoose-tenant.plugin';
 import { TenantContext } from '../src/tenant/tenant-context';
 import { TenantIsolationError } from '../src/tenant/tenant-isolation.error';
@@ -46,7 +50,12 @@ describe('pagination helper', () => {
 
   it('coerces and clamps query params via zod', () => {
     const parsed = paginationQuerySchema.parse({ page: '2', limit: '10' });
-    expect(parsed).toEqual({ page: 2, limit: 10, sort: undefined, q: undefined });
+    expect(parsed).toEqual({
+      page: 2,
+      limit: 10,
+      sort: undefined,
+      q: undefined
+    });
     expect(() => paginationQuerySchema.parse({ limit: 1000 })).toThrow();
   });
 

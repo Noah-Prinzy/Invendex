@@ -50,6 +50,8 @@ export class LoginDtoClass {
 }
 
 export class RefreshDtoClass {
-  @ApiPropertyOptional({ description: 'Omit when using the refreshToken cookie' })
+  @ApiPropertyOptional({
+    description: 'Omit when using the refreshToken cookie'
+  })
   refreshToken?: string;
 }

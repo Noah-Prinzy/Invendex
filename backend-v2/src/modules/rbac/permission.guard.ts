@@ -1,8 +1,4 @@
-import {
-  CanActivate,
-  Injectable,
-  type ExecutionContext
-} from '@nestjs/common';
+import { CanActivate, Injectable, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { AppError } from '../../common/errors/app-error';

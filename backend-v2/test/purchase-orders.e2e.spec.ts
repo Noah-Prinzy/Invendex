@@ -56,9 +56,14 @@ describe('purchase-orders + inventory e2e (/api/v1)', () => {
     });
 
     await Promise.all(
-      ['Warehouse', 'Supplier', 'Product', 'PurchaseOrder', 'Inventory', 'InventorySnapshot'].map(
-        (name) => app.get(getModelToken(name)).ensureIndexes()
-      )
+      [
+        'Warehouse',
+        'Supplier',
+        'Product',
+        'PurchaseOrder',
+        'Inventory',
+        'InventorySnapshot'
+      ].map((name) => app.get(getModelToken(name)).ensureIndexes())
     );
   }, 240000);
 

@@ -72,8 +72,7 @@ export function compressionMiddleware(
       const body = Buffer.concat(chunks);
       const contentType = String(res.getHeader('content-type') ?? '');
       const callback = rest.find((arg) => typeof arg === 'function') as
-        | (() => void)
-        | undefined;
+        (() => void) | undefined;
 
       const finish = (payload: Buffer, encoding: string | null): Response => {
         res.write = originalWrite;

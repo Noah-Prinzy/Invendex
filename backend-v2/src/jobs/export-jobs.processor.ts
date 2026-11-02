@@ -15,7 +15,9 @@ export class ExportJobsProcessor extends WorkerHost {
     this.logger.log(`Processing job '${job.name}' (${job.id})`);
     switch (job.name) {
       case 'reports.export.xlsx':
-        return this.exportXlsx(job as Job<{ title?: string; rows?: unknown[][] }>);
+        return this.exportXlsx(
+          job as Job<{ title?: string; rows?: unknown[][] }>
+        );
       case 'reports.export.pdf':
         return this.exportPdf(job as Job<{ title?: string; lines?: string[] }>);
       case 'labels.barcode':
@@ -37,7 +39,10 @@ export class ExportJobsProcessor extends WorkerHost {
       type: 'buffer',
       bookType: 'xlsx'
     }) as Buffer;
-    return { fileName: `${job.data.title ?? 'report'}.xlsx`, bytes: buffer.length };
+    return {
+      fileName: `${job.data.title ?? 'report'}.xlsx`,
+      bytes: buffer.length
+    };
   }
 
   private async exportPdf(job: Job<{ title?: string; lines?: string[] }>) {
@@ -52,7 +57,10 @@ export class ExportJobsProcessor extends WorkerHost {
     );
     doc.end();
     const buffer = await done;
-    return { fileName: `${job.data.title ?? 'report'}.pdf`, bytes: buffer.length };
+    return {
+      fileName: `${job.data.title ?? 'report'}.pdf`,
+      bytes: buffer.length
+    };
   }
 
   private async renderBarcodeLabels(job: Job<{ barcodes?: string[] }>) {

@@ -1,5 +1,11 @@
 import { Controller, Get, Param, Patch, Post } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags
+} from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { TenantId } from '../../common/decorators/tenant-id.decorator';
@@ -43,7 +49,11 @@ export class PurchaseOrdersController {
   @ApiOperation({ summary: 'List purchase orders (paginated, tenant-scoped)' })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
-  @ApiQuery({ name: 'status', required: false, enum: ['DRAFT', 'SENT', 'RECEIVED', 'CLOSED', 'CANCELLED'] })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['DRAFT', 'SENT', 'RECEIVED', 'CLOSED', 'CANCELLED']
+  })
   async list(
     @ZodQuery(purchaseOrderListQuerySchema) query: PurchaseOrderListQuery,
     @TenantId() organizationId: string | undefined
@@ -72,7 +82,10 @@ export class PurchaseOrdersController {
 
   @Patch(':id/receive')
   @RequirePermission(PERMISSIONS.PURCHASE_ORDERS_MANAGE)
-  @ApiOperation({ summary: 'Receive a purchase order — applies stock to inventory (idempotent)' })
+  @ApiOperation({
+    summary:
+      'Receive a purchase order — applies stock to inventory (idempotent)'
+  })
   @ApiParam({ name: 'id' })
   async receive(
     @Param('id') id: string,
@@ -82,11 +95,8 @@ export class PurchaseOrdersController {
     if (!organizationId) {
       throw new AppError('User is not assigned to an organization', 403);
     }
-    const { purchaseOrder, inventoryEvents } = await this.purchaseOrders.receive(
-      id,
-      organizationId,
-      user._id
-    );
+    const { purchaseOrder, inventoryEvents } =
+      await this.purchaseOrders.receive(id, organizationId, user._id);
     return {
       data: { purchaseOrder, inventoryEvents },
       message: 'Purchase order received'

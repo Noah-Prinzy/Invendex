@@ -73,7 +73,9 @@ export class AuthController {
   @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Rotate the refresh token and get a new access token' })
+  @ApiOperation({
+    summary: 'Rotate the refresh token and get a new access token'
+  })
   @ApiBody({ type: RefreshDtoClass })
   async refresh(
     @ZodBody(refreshSchema) dto: RefreshDto,
@@ -89,7 +91,10 @@ export class AuthController {
     }
     const tokens = await this.authService.refresh(token);
     this.setRefreshCookie(res, tokens.refreshToken);
-    return { data: { accessToken: tokens.accessToken }, message: 'Token refreshed' };
+    return {
+      data: { accessToken: tokens.accessToken },
+      message: 'Token refreshed'
+    };
   }
 
   @Public()

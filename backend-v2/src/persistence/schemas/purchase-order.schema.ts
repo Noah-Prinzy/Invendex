@@ -1,11 +1,7 @@
 import { Schema, type Document, type Types } from 'mongoose';
 
 export type PurchaseOrderStatus =
-  | 'DRAFT'
-  | 'SENT'
-  | 'RECEIVED'
-  | 'CLOSED'
-  | 'CANCELLED';
+  'DRAFT' | 'SENT' | 'RECEIVED' | 'CLOSED' | 'CANCELLED';
 
 export type PurchaseOrderSource = 'REORDER_ENGINE' | 'MANUAL';
 export type TrackingType = 'NONE' | 'BATCH' | 'SERIAL';
@@ -84,7 +80,12 @@ export const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
     },
     poNumber: { type: String, unique: true, index: true },
     supplier: { type: Schema.Types.ObjectId, ref: 'Supplier', required: true },
-    warehouse: { type: Schema.Types.ObjectId, ref: 'Warehouse', required: true, index: true },
+    warehouse: {
+      type: Schema.Types.ObjectId,
+      ref: 'Warehouse',
+      required: true,
+      index: true
+    },
     status: {
       type: String,
       enum: ['DRAFT', 'SENT', 'RECEIVED', 'CLOSED', 'CANCELLED'],
@@ -135,8 +136,14 @@ PurchaseOrderSchema.pre('save', function (this: IPurchaseOrder, next) {
       }
 
       if (trackingType === 'SERIAL') {
-        const serials = (Array.isArray(item.serialNumbers) ? item.serialNumbers : [])
-          .map((value) => String(value || '').trim().toUpperCase())
+        const serials = (
+          Array.isArray(item.serialNumbers) ? item.serialNumbers : []
+        )
+          .map((value) =>
+            String(value || '')
+              .trim()
+              .toUpperCase()
+          )
           .filter(Boolean);
 
         if (serials.length !== item.quantity) {
@@ -148,14 +155,19 @@ PurchaseOrderSchema.pre('save', function (this: IPurchaseOrder, next) {
         }
         if (new Set(serials).size !== serials.length) {
           return next(
-            new Error(`serialNumbers must be unique for SERIAL item ${item.sku || ''}`)
+            new Error(
+              `serialNumbers must be unique for SERIAL item ${item.sku || ''}`
+            )
           );
         }
         item.serialNumbers = serials;
       }
     }
 
-    this.totalQuantity = this.items.reduce((sum, item) => sum + item.quantity, 0);
+    this.totalQuantity = this.items.reduce(
+      (sum, item) => sum + item.quantity,
+      0
+    );
     this.totalCost = this.items.reduce((sum, item) => sum + item.totalCost, 0);
   }
 

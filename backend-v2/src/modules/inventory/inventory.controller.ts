@@ -1,6 +1,12 @@
 import { Controller, Get, Param, Post } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags
+} from '@nestjs/swagger';
 import type { Model } from 'mongoose';
 import { paginate } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -76,7 +82,9 @@ export class InventoryController {
 
   @Post('adjust')
   @RequirePermission(PERMISSIONS.INVENTORY_ADJUST)
-  @ApiOperation({ summary: 'Manually adjust stock (creates a snapshot, syncs product stock)' })
+  @ApiOperation({
+    summary: 'Manually adjust stock (creates a snapshot, syncs product stock)'
+  })
   @ApiBody({ type: AdjustInventoryDtoClass })
   async adjust(
     @ZodBody(adjustInventorySchema) dto: AdjustInventoryDto,

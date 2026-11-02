@@ -3,7 +3,9 @@ import { Schema, type Document, type Types } from 'mongoose';
 const DEFAULT_SNAPSHOT_TTL_DAYS = 365;
 const snapshotTtlSeconds =
   Number(process.env.INVENTORY_SNAPSHOT_TTL_DAYS ?? DEFAULT_SNAPSHOT_TTL_DAYS) *
-  24 * 60 * 60;
+  24 *
+  60 *
+  60;
 
 export type SnapshotSource = 'SYSTEM' | 'ADMIN' | 'STAFF' | 'MANUAL' | 'CRON';
 

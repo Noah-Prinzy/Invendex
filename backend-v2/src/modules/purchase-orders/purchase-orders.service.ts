@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import mongoose, { type FilterQuery, type Model } from 'mongoose';
 import { AppError } from '../../common/errors/app-error';
-import { paginate, type PaginatedResult } from '../../common/dto/pagination.dto';
+import {
+  paginate,
+  type PaginatedResult
+} from '../../common/dto/pagination.dto';
 import type { IPurchaseOrder } from '../../persistence/schemas/purchase-order.schema';
 import type { IProduct } from '../../persistence/schemas/product.schema';
 import type { ISupplier } from '../../persistence/schemas/supplier.schema';
@@ -23,7 +26,8 @@ export class PurchaseOrdersService {
     private readonly purchaseOrderModel: Model<IPurchaseOrder>,
     @InjectModel('Product') private readonly productModel: Model<IProduct>,
     @InjectModel('Supplier') private readonly supplierModel: Model<ISupplier>,
-    @InjectModel('Warehouse') private readonly warehouseModel: Model<IWarehouse>,
+    @InjectModel('Warehouse')
+    private readonly warehouseModel: Model<IWarehouse>,
     private readonly inventory: InventoryService
   ) {}
 
@@ -88,7 +92,9 @@ export class PurchaseOrdersService {
     query: PurchaseOrderListQuery,
     organizationId: string
   ): Promise<PaginatedResult<IPurchaseOrder>> {
-    const filter: FilterQuery<IPurchaseOrder> = { organization: organizationId };
+    const filter: FilterQuery<IPurchaseOrder> = {
+      organization: organizationId
+    };
     if (query.status) filter.status = query.status;
     if (query.q) {
       filter.$or = [
@@ -114,7 +120,10 @@ export class PurchaseOrdersService {
     id: string,
     organizationId: string,
     userId: string
-  ): Promise<{ purchaseOrder: IPurchaseOrder; inventoryEvents: Array<Record<string, unknown>> }> {
+  ): Promise<{
+    purchaseOrder: IPurchaseOrder;
+    inventoryEvents: Array<Record<string, unknown>>;
+  }> {
     const po = await this.purchaseOrderModel.findOne({
       _id: id,
       organization: organizationId
@@ -126,13 +135,17 @@ export class PurchaseOrdersService {
       return { purchaseOrder: po, inventoryEvents: [] }; // idempotent re-receive
     }
     if (po.status === 'CANCELLED' || po.status === 'CLOSED') {
-      throw new AppError(`Cannot receive a ${po.status.toLowerCase()} purchase order`, 400);
+      throw new AppError(
+        `Cannot receive a ${po.status.toLowerCase()} purchase order`,
+        400
+      );
     }
 
-    const { inventoryEvents } = await this.inventory.applyPurchaseOrderToInventory({
-      purchaseOrder: po,
-      actorUserId: userId
-    });
+    const { inventoryEvents } =
+      await this.inventory.applyPurchaseOrderToInventory({
+        purchaseOrder: po,
+        actorUserId: userId
+      });
 
     po.status = 'RECEIVED';
     po.receivedAt = new Date();

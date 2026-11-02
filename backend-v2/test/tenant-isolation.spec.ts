@@ -35,7 +35,9 @@ describe('mongoose tenant-isolation plugin (fails queries missing the tenant fil
 
   it('fails any query without an active tenant context', async () => {
     await expect(Widget.find()).rejects.toThrow(TenantIsolationError);
-    await expect(Widget.countDocuments({})).rejects.toThrow(TenantIsolationError);
+    await expect(Widget.countDocuments({})).rejects.toThrow(
+      TenantIsolationError
+    );
   });
 
   it('fails queries missing the organization filter even inside a tenant context', async () => {

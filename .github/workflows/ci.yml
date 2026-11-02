@@ -71,6 +71,41 @@ jobs:
       - name: Test (Coverage Enforced)
         run: npm run test:coverage
 
+  backend-v2:
+    name: backend-v2 Lint + Test + Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend-v2
+    env:
+      NODE_ENV: test
+      CI: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend-v2/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
   frontend:
     name: Frontend Format + Lint + Test + Build
     runs-on: ubuntu-latest

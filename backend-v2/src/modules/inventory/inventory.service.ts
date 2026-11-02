@@ -2,16 +2,16 @@ import { Inject, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import mongoose, { type Model } from 'mongoose';
 import { AppError } from '../../common/errors/app-error';
-import { DOMAIN_EVENT_BUS, type DomainEventBus } from '../../events/domain-event.bus';
+import {
+  DOMAIN_EVENT_BUS,
+  type DomainEventBus
+} from '../../events/domain-event.bus';
 import type { IInventory } from '../../persistence/schemas/inventory.schema';
 import type { IInventorySnapshot } from '../../persistence/schemas/inventory-snapshot.schema';
 import type { IProduct } from '../../persistence/schemas/product.schema';
 import type { IPurchaseOrder } from '../../persistence/schemas/purchase-order.schema';
 import type { IReorderAlert } from '../../persistence/schemas/reorder-alert.schema';
-import {
-  convertQuantityToBaseUnits,
-  resolvePurchaseToBaseFactor
-} from './uom';
+import { convertQuantityToBaseUnits, resolvePurchaseToBaseFactor } from './uom';
 
 export const STOCK_REASONS = [
   'sale',
@@ -38,7 +38,8 @@ const toObjectId = (value: unknown): mongoose.Types.ObjectId =>
 @Injectable()
 export class InventoryService {
   constructor(
-    @InjectModel('Inventory') private readonly inventoryModel: Model<IInventory>,
+    @InjectModel('Inventory')
+    private readonly inventoryModel: Model<IInventory>,
     @InjectModel('InventorySnapshot')
     private readonly snapshotModel: Model<IInventorySnapshot>,
     @InjectModel('Product') private readonly productModel: Model<IProduct>,
@@ -155,7 +156,12 @@ export class InventoryService {
               reorderQuantity: 0
             }
           },
-          { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
+          {
+            upsert: true,
+            new: true,
+            runValidators: true,
+            setDefaultsOnInsert: true
+          }
         );
 
         const syncedProduct = await this.syncProductStock({
@@ -175,7 +181,11 @@ export class InventoryService {
         if (reorderAlert) {
           await this.reorderAlertModel.findOneAndUpdate(
             { _id: reorderAlert, organization: purchaseOrder.organization },
-            { resolved: true, resolvedAt: new Date(), resolvedBy: actorUserId ? toObjectId(actorUserId) : null }
+            {
+              resolved: true,
+              resolvedAt: new Date(),
+              resolvedBy: actorUserId ? toObjectId(actorUserId) : null
+            }
           );
         }
 
@@ -273,7 +283,10 @@ export class InventoryService {
     const current = Number(existing?.quantityOnHand || 0);
     const nextQuantity = current + delta;
     if (nextQuantity < 0) {
-      throw new AppError('Adjustment would drive quantityOnHand below zero', 400);
+      throw new AppError(
+        'Adjustment would drive quantityOnHand below zero',
+        400
+      );
     }
 
     const now = new Date();
@@ -281,9 +294,18 @@ export class InventoryService {
       filter,
       {
         $set: { quantityOnHand: nextQuantity, lastMovementAt: now },
-        $setOnInsert: { quantityReserved: 0, reorderPoint: 0, reorderQuantity: 0 }
+        $setOnInsert: {
+          quantityReserved: 0,
+          reorderPoint: 0,
+          reorderQuantity: 0
+        }
       },
-      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
+      {
+        upsert: true,
+        new: true,
+        runValidators: true,
+        setDefaultsOnInsert: true
+      }
     );
 
     const product = await this.productModel.findOne({

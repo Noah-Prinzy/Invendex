@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import {
-  InventorySchema
-} from '../../persistence/schemas/inventory.schema';
+import { InventorySchema } from '../../persistence/schemas/inventory.schema';
 import { InventorySnapshotSchema } from '../../persistence/schemas/inventory-snapshot.schema';
 import { ProductSchema } from '../../persistence/schemas/product.schema';
 import { ReorderAlertSchema } from '../../persistence/schemas/reorder-alert.schema';

@@ -21,7 +21,9 @@ export class PaymentsController {
 
   @Post('request-to-pay')
   @RequirePermission(PERMISSIONS.FINANCE_MANAGE)
-  @ApiOperation({ summary: 'Request a mobile-money payment (stub — provider wiring next)' })
+  @ApiOperation({
+    summary: 'Request a mobile-money payment (stub — provider wiring next)'
+  })
   @ApiBody({ type: RequestToPayDtoClass })
   requestToPay(@ZodBody(requestToPaySchema) dto: RequestToPayDto) {
     return this.payments.requestToPay(dto);
@@ -29,7 +31,9 @@ export class PaymentsController {
 
   @Public()
   @Post('webhook/:provider')
-  @ApiOperation({ summary: 'Provider webhook (MTN MoMo / Airtel / aggregator)' })
+  @ApiOperation({
+    summary: 'Provider webhook (MTN MoMo / Airtel / aggregator)'
+  })
   @ApiParam({ name: 'provider', enum: ['aggregator', 'mtn', 'airtel'] })
   webhook(
     @Param('provider') _provider: string,

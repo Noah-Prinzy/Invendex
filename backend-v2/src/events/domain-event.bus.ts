@@ -41,10 +41,7 @@ export class InMemoryEventBus implements DomainEventBus {
     for (const handler of handlers) {
       const run = (): Promise<void> => Promise.resolve(handler(event));
       if (event.organizationId) {
-        await TenantContext.run(
-          { organizationId: event.organizationId },
-          run
-        );
+        await TenantContext.run({ organizationId: event.organizationId }, run);
       } else {
         await run();
       }
