@@ -7,12 +7,21 @@ import {
 import { lazy } from "react"
 import AppShell from "@/components/AppShell"
 
+const WelcomePage = lazy(() => import("@/pages/WelcomePage"))
 const AuthPage = lazy(() => import("@/pages/AuthPage"))
 const DashboardPage = lazy(() => import("@/pages/DashboardPage"))
 const ProductsPage = lazy(() => import("@/pages/ProductsPage"))
+const PurchasingPage = lazy(() => import("@/pages/PurchasingPage"))
+const ReportsPage = lazy(() => import("@/pages/ReportsPage"))
 
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
+})
+
+const welcomeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/welcome",
+  component: WelcomePage,
 })
 
 const indexRoute = createRoute({
@@ -41,10 +50,33 @@ const productsRoute = createRoute({
   ),
 })
 
+const purchasingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/app/purchasing",
+  component: () => (
+    <AppShell>
+      <PurchasingPage />
+    </AppShell>
+  ),
+})
+
+const reportsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/app/reports",
+  component: () => (
+    <AppShell>
+      <ReportsPage />
+    </AppShell>
+  ),
+})
+
 const routeTree = rootRoute.addChildren([
+  welcomeRoute,
   indexRoute,
   dashboardRoute,
   productsRoute,
+  purchasingRoute,
+  reportsRoute,
 ])
 
 export const router = createRouter({ routeTree })

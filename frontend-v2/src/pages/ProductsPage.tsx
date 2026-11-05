@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Minus, Plus } from "lucide-react"
+import { Minus, Plus, TriangleAlert } from "lucide-react"
 import { useState } from "react"
 import {
   adjustStock,
@@ -8,17 +8,10 @@ import {
   getProducts,
   type Product,
 } from "@/api/client"
+import { type Column, DataTable } from "@/components/DataTable"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { useAppStore } from "@/state/appStore"
 
 const CACHE_KEY = (warehouseId: string) => `products:${warehouseId || "all"}`
@@ -85,10 +78,85 @@ export default function ProductsPage() {
 
   const products = query.data?.items ?? []
 
+  const columns: Column<Product>[] = [
+    {
+      key: "name",
+      header: "Product",
+      sortable: true,
+      cell: (p) => (
+        <div>
+          <div className="font-medium">{p.name}</div>
+          {p.category ? (
+            <div className="text-xs text-muted-foreground">{p.category}</div>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      key: "sku",
+      header: "SKU",
+      sortable: true,
+      cell: (p) => <span className="font-mono text-xs">{p.sku}</span>,
+    },
+    {
+      key: "price",
+      header: "Price (UGX)",
+      sortable: true,
+      className: "text-right",
+      cell: (p) => (
+        <span className="tabular-nums">
+          {new Intl.NumberFormat("en-UG").format(p.price)}
+        </span>
+      ),
+    },
+    {
+      key: "stock",
+      header: "Stock",
+      sortable: true,
+      className: "text-right",
+      cell: (p) => {
+        const low = p.stock <= p.lowStockThreshold
+        return (
+          <Badge variant={low ? "destructive" : "secondary"}>
+            {low ? <TriangleAlert className="mr-1 size-3" /> : null}
+            {p.stock}
+          </Badge>
+        )
+      },
+    },
+    {
+      key: "adjust",
+      header: "Adjust",
+      className: "text-right",
+      cell: (p) => (
+        <div className="flex justify-end gap-1">
+          <Button
+            size="icon"
+            variant="outline"
+            aria-label={`Decrease ${p.name}`}
+            disabled={adjustingId === p._id}
+            onClick={() => adjust.mutate({ product: p, delta: -1 })}
+          >
+            <Minus className="size-3" />
+          </Button>
+          <Button
+            size="icon"
+            variant="outline"
+            aria-label={`Increase ${p.name}`}
+            disabled={adjustingId === p._id}
+            onClick={() => adjust.mutate({ product: p, delta: 1 })}
+          >
+            <Plus className="size-3" />
+          </Button>
+        </div>
+      ),
+    },
+  ]
+
   return (
     <section className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="font-heading text-xl font-bold">Products</h1>
+        <h1 className="font-heading text-xl font-bold">Stock</h1>
         {query.isFetching ? (
           <Badge variant="secondary">Syncing…</Badge>
         ) : query.isError ? (
@@ -105,69 +173,15 @@ export default function ProductsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead className="text-right">Price (UGX)</TableHead>
-                <TableHead className="text-right">Stock</TableHead>
-                <TableHead className="text-right">Adjust</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {products.map((p) => {
-                const low = p.stock <= p.lowStockThreshold
-                return (
-                  <TableRow key={p._id}>
-                    <TableCell>
-                      <div className="font-medium">{p.name}</div>
-                      {p.category ? (
-                        <div className="text-xs text-muted-foreground">
-                          {p.category}
-                        </div>
-                      ) : null}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{p.sku}</TableCell>
-                    <TableCell className="text-right">
-                      {new Intl.NumberFormat("en-UG").format(p.price)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Badge variant={low ? "destructive" : "secondary"}>
-                        {p.stock}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          size="icon"
-                          variant="outline"
-                          aria-label={`Decrease ${p.name}`}
-                          disabled={adjustingId === p._id}
-                          onClick={() =>
-                            adjust.mutate({ product: p, delta: -1 })
-                          }
-                        >
-                          <Minus className="size-3" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="outline"
-                          aria-label={`Increase ${p.name}`}
-                          disabled={adjustingId === p._id}
-                          onClick={() =>
-                            adjust.mutate({ product: p, delta: 1 })
-                          }
-                        >
-                          <Plus className="size-3" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
+          <DataTable
+            rows={products}
+            columns={columns}
+            rowKey={(p) => p._id}
+            isLoading={query.isLoading}
+            searchPlaceholder="Search products…"
+            searchKeys={["name", "sku", "category"]}
+            emptyState="No products yet — add your first product from the command palette (Ctrl+K)."
+          />
         </CardContent>
       </Card>
     </section>

@@ -1,15 +1,23 @@
 import { Link, useNavigate } from "@tanstack/react-router"
 import {
+  BarChart3,
   Bell,
-  Boxes,
   LayoutDashboard,
   LogOut,
   Moon,
   Package,
+  ShoppingCart,
   Sun,
   Warehouse,
 } from "lucide-react"
 import type { ReactNode } from "react"
+import { lazy, Suspense } from "react"
+
+const CommandPalette = lazy(() => import("@/components/CommandPalette"))
+const JarvisDock = lazy(() => import("@/components/JarvisDock"))
+const CoachMarks = lazy(() => import("@/components/CoachMarks"))
+
+import Logo from "@/components/Logo"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -44,7 +52,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           to="/app"
           className="flex items-center gap-2 font-heading text-lg font-bold"
         >
-          <Boxes className="size-5 text-primary" />
+          <Logo size={24} />
           Invendex
         </Link>
         <div className="ml-4 flex items-center gap-2">
@@ -97,23 +105,45 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </Button>
         </div>
       </header>
-      <nav className="flex items-center gap-1 border-b px-4 py-2 text-sm">
+      <Suspense fallback={null}>
+        <CommandPalette />
+        <JarvisDock />
+      </Suspense>
+      <nav
+        aria-label="Primary"
+        className="flex items-center gap-1 border-b px-4 py-2 text-sm max-md:fixed max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:z-30 max-md:border-b-0 max-md:border-t max-md:bg-background max-md:justify-around max-md:py-2"
+      >
         <Link
           to="/app"
-          className="flex items-center gap-1.5 rounded-md px-3 py-1.5 hover:bg-accent [&.active]:bg-accent [&.active]:font-medium"
+          className="flex items-center gap-1.5 rounded-md px-3 py-1.5 hover:bg-accent [&.active]:bg-accent [&.active]:font-medium max-md:flex-col max-md:gap-0.5 max-md:px-2 max-md:text-xs"
         >
           <LayoutDashboard className="size-4" />
-          Dashboard
+          <span className="max-md:inline">Dashboard</span>
         </Link>
         <Link
           to="/app/products"
-          className="flex items-center gap-1.5 rounded-md px-3 py-1.5 hover:bg-accent [&.active]:bg-accent [&.active]:font-medium"
+          className="flex items-center gap-1.5 rounded-md px-3 py-1.5 hover:bg-accent [&.active]:bg-accent [&.active]:font-medium max-md:flex-col max-md:gap-0.5 max-md:px-2 max-md:text-xs"
         >
           <Package className="size-4" />
-          Products
+          <span className="max-md:inline">Stock</span>
+        </Link>
+        <Link
+          to="/app/purchasing"
+          className="flex items-center gap-1.5 rounded-md px-3 py-1.5 hover:bg-accent [&.active]:bg-accent [&.active]:font-medium max-md:flex-col max-md:gap-0.5 max-md:px-2 max-md:text-xs"
+        >
+          <ShoppingCart className="size-4" />
+          <span className="max-md:inline">Purchasing</span>
+        </Link>
+        <Link
+          to="/app/reports"
+          className="flex items-center gap-1.5 rounded-md px-3 py-1.5 hover:bg-accent [&.active]:bg-accent [&.active]:font-medium max-md:flex-col max-md:gap-0.5 max-md:px-2 max-md:text-xs"
+        >
+          <BarChart3 className="size-4" />
+          <span className="max-md:inline">Reports</span>
         </Link>
       </nav>
-      <main className="flex-1 p-4">{children}</main>
+      <main className="flex-1 p-4 max-md:pb-20">{children}</main>
+      <CoachMarks />
     </div>
   )
 }

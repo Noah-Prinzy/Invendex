@@ -128,3 +128,38 @@ tenant-isolation regressions (existing access-guardrail tests ported).
 
 - Phase-level approvals from Noah per the workflow in Section 4.
 - Any further asset links from Noah beyond design_base.md.
+
+## 9. Phase 4 — UX consolidation spec (DECIDED direction: fewer pages, less chaos)
+
+Principle: one primary surface per job, everything else reachable in one action.
+
+### Page map (6 routes total, down from 10+ in the legacy app)
+1. `/welcome` — marketing landing (public)
+2. `/` — auth (login/signup/2FA/reset in ONE card with mode tabs)
+3. `/app` — Dashboard = command center: KPIs, low-stock list, AI "Jarvis" panel,
+   activity feed. Everything else is one click or one keystroke away.
+4. `/app/stock` — Products + inventory in ONE page: searchable table, inline
+   +/- adjust, barcode scan, low-stock filter, bulk import drawer.
+   (Absorbs legacy Products + Stocktakes + WMS bins as tabs inside one table view.)
+5. `/app/purchasing` — Suppliers + Purchase Orders in one page (list + detail
+   drawer, no separate supplier page).
+6. `/app/reports` — Reports + Settings merged: tabs for Reports / Finance /
+   Notifications / Organization / Security (account moves here from its own page).
+
+### Global UX rules
+- Command palette (Cmd/Ctrl+K) for every action: "new product", "adjust stock",
+  "ask Jarvis…", "go to reports" — one entry point kills navigation chaos.
+- Jarvis AI chat is a single docked panel (right side), available on every /app
+  page — one place to ask/act, not scattered widgets.
+- One toast system (sonner), one dialog system, one table component with built-in
+  search/filter/sort — no per-page custom layouts.
+- Header stays minimal: logo, warehouse selector, online/offline + queue badge,
+  notifications bell, theme, avatar menu (sign out, settings, account).
+- Mobile-first: nav collapses to bottom bar on <768px; tables become cards.
+- Empty states with one clear CTA each; skeletons while loading; offline banner
+  when queued.
+
+### Explicitly NOT building (legacy had these, v2 drops/merges them)
+- Separate Users page (→ Settings > Team tab), separate Warehouses page
+  (→ Settings > Warehouses tab), separate Account page (→ avatar menu),
+  separate tutorial overlay (→ 3-step inline coach marks on first run only).
